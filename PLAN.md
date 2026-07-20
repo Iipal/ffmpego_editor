@@ -24,12 +24,13 @@
 - [x] Configure the TanStack Query provider in a client-side layout wrapper (`app/providers.tsx`).
 - [x] Establish an RPC client instance using `hono/client` to connect to the `apps/api` workspace for end-to-end type safety (`lib/api-client.ts`).
 
-## Phase 4: UI System & Styling
-- [ ] Navigate to the root directory (or `apps/web` depending on standard monorepo tooling).
-- [ ] Execute the exact Shadcn initialization preset:
-      `bunx --bun shadcn@latest init --preset b5eaOLEjD --template next --monorepo --pointer`
-- [ ] Verify `components.json` is configured to route UI components to `packages/ui` (or local `components/ui` if restricted).
-- [ ] Install baseline required components: `bunx --bun shadcn@latest add button input card`.
+## Phase 4: UI System & Styling ✅
+- [x] Navigate to the root directory (or `apps/web` depending on standard monorepo tooling).
+- [x] Execute the exact Shadcn initialization preset:
+      `bunx --bun shadcn@latest init --preset b5eaOLEjD --template next --pointer`
+- [x] Verify `components.json` is configured to route UI components to local `components/ui` (following monorepo conventions).
+- [x] Install baseline required components: `bunx --bun shadcn@latest add button input card`
+- [x] Additional components installed for Phase 5: `progress`, `sonner`, `dialog`, `label`
 
 ## Phase 5: Feature Implementation
 - [ ] **TanStack Store**: Create a local store in `apps/web/store/` to hold UI state (e.g., active file selection, selected FFmpeg parameters).
