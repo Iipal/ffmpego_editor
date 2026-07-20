@@ -16,13 +16,13 @@
 - [x] Write the route logic to execute FFmpeg and save the output strictly to `~/ffmpego_edits/${filename}.${fileExt}`.
 - [x] Implement a lightweight SSE (Server-Sent Events) or polling endpoint to report FFmpeg processing progress back to the client.
 
-## Phase 3: Frontend Setup (Next.js)
-- [ ] Navigate to `apps/web`.
-- [ ] Initialize Next.js: `bunx create-next-app@latest . --typescript --tailwind --eslint --app --turbopack`.
-- [ ] Clear boilerplate from `app/page.tsx` and `app/globals.css`.
-- [ ] Install state and data fetching libraries: `bun add @tanstack/react-query @tanstack/react-store`.
-- [ ] Configure the TanStack Query provider in a client-side layout wrapper.
-- [ ] Establish an RPC client instance using `hono/client` to connect to the `apps/api` workspace for end-to-end type safety.
+## Phase 3: Frontend Setup (Next.js) ✅
+- [x] Navigate to `apps/web`.
+- [x] Initialize Next.js: `bunx create-next-app@latest . --typescript --tailwind --eslint --app --turbopack`.
+- [x] Clear boilerplate from `app/page.tsx` and `app/globals.css`.
+- [x] Install state and data fetching libraries: `bun add @tanstack/react-query @tanstack/react-store`.
+- [x] Configure the TanStack Query provider in a client-side layout wrapper (`app/providers.tsx`).
+- [x] Establish an RPC client instance using `hono/client` to connect to the `apps/api` workspace for end-to-end type safety (`lib/api-client.ts`).
 
 ## Phase 4: UI System & Styling
 - [ ] Navigate to the root directory (or `apps/web` depending on standard monorepo tooling).

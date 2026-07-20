@@ -20,7 +20,7 @@ app.get('/health', (c) => {
 // Mount routes
 app.route('/api', videoRoutes);
 
-const PORT = 3000;
+const PORT = 3100;
 
 serve({
   fetch: app.fetch,

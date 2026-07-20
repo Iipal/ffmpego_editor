@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 
 const app = new Hono();
 
+const PORT = 3100;
+
 const OUTPUT_DIR = path.join(os.homedir(), 'ffmpego_edits');
 
 // In-memory store for active processes (for SSE tracking)
@@ -23,6 +25,7 @@ app.get('/health', (c) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     ffmpegPath: '/usr/bin/ffmpeg',
+    port: PORT,
   });
 });
 
@@ -227,4 +230,5 @@ app.get('/api/files', async (c) => {
   }
 });
 
+export type AppType = typeof app;
 export default app;
