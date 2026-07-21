@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
-import { buildFFmpegArgs, OUTPUT_DIRECTORY } from "../utils/ffmpegBuilder";
+import { buildFFmpegArgs, OUTPUT_DIRECTORY } from "../utils/ffmpegBuilder.js";
 
 type JobStatus = "processing" | "completed" | "failed";
 
@@ -10,9 +10,10 @@ interface TranscodeSettings {
   sourceHeight: number;
   trimRange: [number, number];
   crop: { x: number; y: number; width: number; height: number };
-  exportFormat: "source" | "mp4" | "webm";
-  exportFps: "source" | number;
-  exportQuality?: "standard" | "lossless";
+  exportFormat: "mp4" | "webm" | "mov";
+  exportFps: number;
+  exportFilename: string;
+  exportQuality: number;
   exportSpeed: number;
   customFFmpegArgs: string;
 }
@@ -28,24 +29,37 @@ interface TranscodeJob {
 const app = new Hono();
 const jobs = new Map<string, TranscodeJob>();
 
-function outputFormat(filename: string, format: TranscodeSettings["exportFormat"]) {
-  if (format !== "source") return format;
-  const extension = path.extname(filename).slice(1).toLowerCase();
-  return extension === "webm" ? "webm" : "mp4";
-}
-
-function parseSettings(value: FormDataEntryValue | null): TranscodeSettings | null {
+function parseSettings(
+  value: FormDataEntryValue | null,
+): TranscodeSettings | null {
   if (typeof value !== "string") return null;
   try {
     const settings = JSON.parse(value) as TranscodeSettings;
+    console.log("Parsed settings:", settings);
+    console.log({
+      sourceWidth: !Number.isFinite(settings.sourceWidth),
+      sourceHeight: !Number.isFinite(settings.sourceHeight),
+      trimRangeInvalid:
+        !Array.isArray(settings.trimRange) || settings.trimRange.length !== 2,
+      cropInvalid: !settings.crop,
+      exportFpsInvalid: !Number.isFinite(settings.exportFps),
+      exportFilenameInvalid: !settings.exportFilename,
+      exportSpeedInvalid: !Number.isFinite(settings.exportSpeed),
+      exportQualityInvalid: !Number.isFinite(settings.exportQuality),
+    });
     if (
       !Number.isFinite(settings.sourceWidth) ||
       !Number.isFinite(settings.sourceHeight) ||
       !Array.isArray(settings.trimRange) ||
       settings.trimRange.length !== 2 ||
       !settings.crop ||
-      !Number.isFinite(settings.exportSpeed)
-    ) return null;
+      !Number.isFinite(settings.exportFps) ||
+      !settings.exportFilename ||
+      !Number.isFinite(settings.exportSpeed) ||
+      !Number.isFinite(settings.exportQuality)
+    ) {
+      return null;
+    }
     return settings;
   } catch {
     return null;
@@ -85,7 +99,10 @@ async function runTranscode(
 ) {
   job.status = "processing";
   job.progress = 0;
-  const process = Bun.spawn(["ffmpeg", ...args], { stdout: "ignore", stderr: "pipe" });
+  const process = Bun.spawn(["ffmpeg", ...args], {
+    stdout: "ignore",
+    stderr: "pipe",
+  });
   try {
     await Promise.all([
       process.exited,
@@ -100,7 +117,8 @@ async function runTranscode(
     }
   } catch (error) {
     job.status = "failed";
-    job.error = error instanceof Error ? error.message : "FFmpeg failed to start.";
+    job.error =
+      error instanceof Error ? error.message : "FFmpeg failed to start.";
   }
 }
 
@@ -108,26 +126,34 @@ app.post("/transcode", async (c) => {
   const form = await c.req.formData();
   const file = form.get("file");
   const settings = parseSettings(form.get("settings"));
+  console.log(file, settings, form);
+
   if (!(file instanceof File) || !settings) {
-    return c.json({ error: "A video file and valid export settings are required." }, 400);
+    return c.json(
+      { error: "A video file and valid export settings are required." },
+      400,
+    );
   }
 
-  const format = outputFormat(file.name, settings.exportFormat);
+  const format = settings.exportFormat;
   const jobId = crypto.randomUUID();
-  const temporaryPath = path.join(os.tmpdir(), `${jobId}-${path.basename(file.name)}`);
+  const temporaryPath = path.join(
+    os.tmpdir(),
+    `${jobId}-${path.basename(file.name)}`,
+  );
   await Bun.write(temporaryPath, file);
   await Bun.$`mkdir -p ${OUTPUT_DIRECTORY}`;
 
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
-    filename: file.name,
+    filename: settings.exportFilename.trim() || file.name,
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     trimRange: settings.trimRange,
     crop: settings.crop,
     format,
-    fps: settings.exportFps === "source" ? undefined : settings.exportFps,
-    quality: settings.exportQuality === "lossless" ? "lossless" : "standard",
+    fps: settings.exportFps,
+    crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
     customArgs: settings.customFFmpegArgs,
   });
   const originalOutputPath = originalArgs.at(-1)!;
@@ -143,13 +169,18 @@ app.post("/transcode", async (c) => {
   const runAll = async () => {
     job.status = "processing";
     job.progress = 0;
-    await runTranscode(job, originalArgs, temporaryPath, Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]));
+    await runTranscode(
+      job,
+      originalArgs,
+      temporaryPath,
+      Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]),
+    );
 
     if (settings.exportSpeed !== 1) {
       const suffix = `_${settings.exportSpeed.toFixed(1)}`;
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
-        filename: file.name,
+        filename: settings.exportFilename.trim() || file.name,
         sourceWidth: settings.sourceWidth,
         sourceHeight: settings.sourceHeight,
         trimRange: settings.trimRange,
@@ -157,13 +188,19 @@ app.post("/transcode", async (c) => {
         format,
         outputSuffix: suffix,
         speed: settings.exportSpeed,
-        fps: settings.exportFps === "source" ? undefined : settings.exportFps,
-        quality: settings.exportQuality === "lossless" ? "lossless" : "standard",
+        fps: settings.exportFps,
+        crf:
+          settings.exportFormat === "mov" ? undefined : settings.exportQuality,
         customArgs: settings.customFFmpegArgs,
       });
       alternateOutputPath = speedArgs.at(-1)!;
       job.alternateOutputPath = alternateOutputPath;
-      await runTranscode(job, speedArgs, temporaryPath, Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]));
+      await runTranscode(
+        job,
+        speedArgs,
+        temporaryPath,
+        Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]),
+      );
     }
   };
 

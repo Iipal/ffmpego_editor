@@ -15,6 +15,7 @@ type TranscodeRequest = Pick<
   | "customFFmpegArgs"
   | "exportFormat"
   | "exportFps"
+  | "exportFilename"
   | "exportQuality"
   | "exportSpeed"
   | "sourceHeight"
@@ -28,6 +29,7 @@ export function useTranscodeMutation() {
   return useMutation({
     mutationFn: async (request: TranscodeRequest) => {
       const form = new FormData();
+      console.log(request);
       form.append("file", request.file);
       form.append(
         "settings",
@@ -36,6 +38,7 @@ export function useTranscodeMutation() {
           customFFmpegArgs: request.customFFmpegArgs,
           exportFormat: request.exportFormat,
           exportFps: request.exportFps,
+          exportFilename: request.exportFilename,
           exportQuality: request.exportQuality,
           exportSpeed: request.exportSpeed,
           sourceHeight: request.sourceHeight,

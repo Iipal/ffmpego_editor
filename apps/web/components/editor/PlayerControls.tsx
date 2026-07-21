@@ -1,7 +1,15 @@
 "use client";
 
 import type { RefObject } from "react";
-import { Maximize, Pause, Play, Repeat, Volume2, VolumeX } from "lucide-react";
+import {
+  Maximize,
+  Pause,
+  Play,
+  Repeat,
+  SkipBack,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {
@@ -19,8 +27,15 @@ interface PlayerControlsProps {
 
 export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   const videoStore = useVideoStore();
-  const { currentTime, duration, isMuted, isPlaying, volume, isLoopEnabled } =
-    useVideoState();
+  const {
+    currentTime,
+    duration,
+    isMuted,
+    isPlaying,
+    volume,
+    isLoopEnabled,
+    trimRange,
+  } = useVideoState();
 
   const toggleLoop = () => {
     const next = !isLoopEnabled;
@@ -34,6 +49,13 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
       player.currentTime = nextTime;
     }
     videoStore.setState((previous) => ({ ...previous, currentTime: nextTime }));
+  };
+
+  const playFromTrimStart = async () => {
+    const player = playerRef.current;
+    if (!player) return;
+    player.currentTime = trimRange[0];
+    await player.play();
   };
 
   const togglePlayback = async () => {
@@ -75,6 +97,21 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
         aria-label="Seek video"
       />
       <div className="flex items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Play from trim start"
+                onClick={playFromTrimStart}
+              />
+            }
+          >
+            <SkipBack />
+          </TooltipTrigger>
+          <TooltipContent>Play from trim start</TooltipContent>
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -124,7 +161,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
         </Tooltip>
 
         <Slider
-          className="w-24"
+          className="max-w-18 w-full"
           value={[isMuted ? 0 : volume]}
           min={0}
           max={1}
@@ -134,9 +171,11 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
           }
           aria-label="Volume"
         />
+
         <output className="ml-auto text-xs tabular-nums">
           {formatTime(currentTime)} / {formatTime(duration)}
         </output>
+
         <Tooltip>
           <TooltipTrigger
             render={

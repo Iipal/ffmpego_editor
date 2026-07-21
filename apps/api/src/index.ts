@@ -1,27 +1,27 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import videoRoutes from "./routes/video";
-import metadataRoutes from "./routes/metadata";
+import videoRoutes from "./routes/video.js";
+import metadataRoutes from "./routes/metadata.js";
 
 const app = new Hono();
 app.use("/api/*", cors());
 
 // Health check
-app.get('/', (c) => {
-  return c.text('FFmpeg Editor API is running!');
+app.get("/", (c) => {
+  return c.text("FFmpeg Editor API is running!");
 });
 
-app.get('/health', (c) => {
+app.get("/health", (c) => {
   return c.json({
-    status: 'ok',
+    status: "ok",
     timestamp: new Date().toISOString(),
-    ffmpegPath: '/usr/bin/ffmpeg',
+    ffmpegPath: "/usr/bin/ffmpeg",
   });
 });
 
 // Mount routes
-app.route('/api', videoRoutes);
-app.route('/api', metadataRoutes);
+app.route("/api", videoRoutes);
+app.route("/api", metadataRoutes);
 
 const PORT = Number(Bun.env.PORT ?? 3100);
 

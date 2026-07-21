@@ -47,7 +47,11 @@ import {
   useExtendedVideoMetadataMutation,
   useVideoMetadataMutation,
 } from "@/hooks/useVideoMetadata";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import {
+  useVideoState,
+  useVideoStore,
+  type VideoState,
+} from "@/store/useVideoStore";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 
 export function SidebarToggle() {
@@ -86,14 +90,19 @@ export function Sidebar() {
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
   const transcodeMutation = useTranscodeMutation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const update = (value: object) =>
+  const update = (value: Partial<VideoState>) =>
     store.setState((previous) => ({ ...previous, ...value }));
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
   const filename = state.file?.name.replace(/\.[^.]+$/, "") ?? "Untitled video";
   const selectReplacementFile = (file: File | undefined) => {
-    if (!file || !["video/mp4", "video/webm"].includes(file.type)) return;
+    if (
+      !file ||
+      !["video/mp4", "video/webm", "video/quicktime"].includes(file.type)
+    )
+      return;
     const mediaUrl = URL.createObjectURL(file);
+    const defaultFilename = file.name.replace(/\.[^.]+$/, "");
     store.setState((previous) => {
       if (previous.mediaUrl) URL.revokeObjectURL(previous.mediaUrl);
       return {
@@ -107,7 +116,6 @@ export function Sidebar() {
         crop: { x: 0, y: 0, width: 100, height: 100 },
         aspectRatio: "custom",
         isCropMode: false,
-        exportQuality: "standard",
         isAutoZoomEnabled: false,
         canvasZoom: 1,
         canvasOffset: { x: 0, y: 0 },
@@ -120,6 +128,7 @@ export function Sidebar() {
         audioCodec: null,
         bitrateKbps: 0,
         ffprobeReport: null,
+        exportFilename: defaultFilename,
         transcodeStatus: "idle",
         transcodeProgress: 0,
         transcodeOutputPath: null,
@@ -153,6 +162,9 @@ export function Sidebar() {
   };
   const startExport = () => {
     if (!state.file) return;
+
+    console.log(state);
+
     toast.loading("Exporting video...", { id: "transcode" });
     transcodeMutation.mutate(
       {
@@ -161,6 +173,7 @@ export function Sidebar() {
         customFFmpegArgs: state.customFFmpegArgs,
         exportFormat: state.exportFormat,
         exportFps: state.exportFps,
+        exportFilename: state.exportFilename,
         exportQuality: state.exportQuality,
         exportSpeed: state.exportSpeed,
         sourceHeight: state.sourceHeight,
@@ -201,7 +214,7 @@ export function Sidebar() {
         ref={fileInputRef}
         className="sr-only"
         type="file"
-        accept="video/mp4,video/webm"
+        accept="video/mp4,video/webm,video/quicktime"
         onChange={(event) => selectReplacementFile(event.target.files?.[0])}
       />
 
@@ -350,9 +363,25 @@ export function Sidebar() {
                 }
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Canvas zoom</Label>
-              <div className="flex items-center gap-2">
+              <Slider
+                value={[state.canvasZoom * 100]}
+                min={50}
+                max={300}
+                step={1}
+                onValueChange={(value) =>
+                  update({
+                    canvasZoom: Array.isArray(value)
+                      ? Number(value[0] ?? 100) / 100
+                      : Number(value) / 100,
+                  })
+                }
+                aria-label="Canvas zoom"
+                disabled={state.isAutoZoomEnabled}
+              />
+
+              <div className="flex items-center w-full justify-between gap-2">
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -462,52 +491,61 @@ export function Sidebar() {
           <CollapsibleContent className="space-y-4 pt-4">
             <Label>Output format</Label>
             <Select
-              value={state.exportFormat ?? "source"}
+              value={state.exportFormat}
               onValueChange={(value) =>
                 value &&
-                update({
-                  exportFormat: value as typeof state.exportFormat,
-                  exportQuality:
-                    value === "webm" ? "standard" : state.exportQuality,
-                })
+                update({ exportFormat: value as typeof state.exportFormat })
               }
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="source">Same as source</SelectItem>
                 <SelectItem value="mp4">MP4</SelectItem>
                 <SelectItem value="webm">WebM</SelectItem>
+                <SelectItem value="mov">MOV</SelectItem>
               </SelectContent>
             </Select>
-            <Label>Quality</Label>
-            <Select
-              value={state.exportQuality ?? "lossless"}
-              onValueChange={(value) =>
-                value &&
-                update({ exportQuality: value as typeof state.exportQuality })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="standard">Standard</SelectItem>
-                <SelectItem
-                  value="lossless"
-                  disabled={state.exportFormat === "webm"}
-                >
-                  Lossless (MP4)
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="space-y-2 pt-2">
+              <Label>Filename</Label>
+              <Input
+                value={state.exportFilename}
+                onChange={(event) =>
+                  update({ exportFilename: event.target.value })
+                }
+                placeholder="output-file-name"
+              />
+            </div>
+            {state.exportFormat !== "mov" && (
+              <div className="flex flex-col space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Quality (CRF)</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {state.exportQuality}
+                  </span>
+                </div>
+                <Slider
+                  value={[state.exportQuality]}
+                  min={0}
+                  max={40}
+                  step={1}
+                  onValueChange={(value) =>
+                    update({
+                      exportQuality: Array.isArray(value)
+                        ? Number(value[0] ?? 23)
+                        : Number(value),
+                    })
+                  }
+                  aria-label="Export quality crf"
+                />
+              </div>
+            )}
             <Label>Framerate</Label>
             <Select
-              value={String(state.exportFps ?? "source")}
+              value={String(state.exportFps)}
               onValueChange={(value) =>
                 update({
-                  exportFps: value === "source" ? "source" : Number(value),
+                  exportFps: Number(value),
                 })
               }
             >
@@ -515,7 +553,6 @@ export function Sidebar() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="source">Same as source</SelectItem>
                 <SelectItem value="30">30 fps</SelectItem>
                 <SelectItem value="60">60 fps</SelectItem>
               </SelectContent>

@@ -6,6 +6,7 @@ import { PlayerControls } from "@/components/editor/PlayerControls";
 import { Timeline } from "@/components/editor/Timeline";
 import { CropOverlay } from "@/components/editor/CropOverlay";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { cn } from "@/lib/utils";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -26,7 +27,18 @@ export function VideoPlayer() {
     playbackSpeed,
     isLoopEnabled,
   } = useVideoState();
-  const cropCanvasPadding = 0.08;
+  const cropEdgeMargin = Math.min(
+    crop.x,
+    crop.y,
+    100 - crop.x - crop.width,
+    100 - crop.y - crop.height,
+  );
+  const cropCanvasPadding = isAutoZoomEnabled
+    ? Math.min(
+        0.16,
+        0.08 + Math.max(0, 0.08 - Math.min(cropEdgeMargin, 8) / 100),
+      )
+    : 0;
   const cropScale =
     (1 - cropCanvasPadding * 2) * (100 / Math.min(crop.width, crop.height));
   const cropOffsetX = 50 - (crop.x + crop.width / 2);
@@ -142,7 +154,10 @@ export function VideoPlayer() {
         <div ref={wrapperRef} className="relative aspect-video w-full">
           <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
             <div
-              className="relative origin-center transition-transform duration-300"
+              className={cn(
+                isAutoZoomEnabled ? "transition-transform duration-300" : "",
+                "relative origin-center",
+              )}
               style={{
                 ...canvasSize,
                 transform: canvasTransform,
@@ -191,18 +206,13 @@ export function VideoPlayer() {
                   }))
                 }
               />
-              {isCropMode && (
-                <CropOverlay
-                  isAutoZoomEnabled={isAutoZoomEnabled}
-                  onCanvasPanStart={startCanvasPan}
-                />
-              )}
+              {isCropMode && <CropOverlay onCanvasPanStart={startCanvasPan} />}
             </div>
           </div>
         </div>
         <PlayerControls playerRef={videoRef} wrapperRef={wrapperRef} />
       </Card>
-      <Timeline />
+      <Timeline playerRef={videoRef} />
     </div>
   );
 }

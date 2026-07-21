@@ -20,10 +20,14 @@ interface FFprobeReport {
 app.post("/metadata", async (c) => {
   const form = await c.req.formData();
   const file = form.get("file");
-  if (!(file instanceof File)) return c.json({ error: "Video file is required" }, 400);
+  if (!(file instanceof File))
+    return c.json({ error: "Video file is required" }, 400);
   const includeFrames = c.req.query("includeFrames") === "true";
   const includePackets = c.req.query("includePackets") === "true";
-  const temporaryPath = path.join(os.tmpdir(), `${crypto.randomUUID()}-${path.basename(file.name)}`);
+  const temporaryPath = path.join(
+    os.tmpdir(),
+    `${crypto.randomUUID()}-${path.basename(file.name)}`,
+  );
   await Bun.write(temporaryPath, file);
   const args = [
     "ffprobe",
@@ -46,13 +50,15 @@ app.post("/metadata", async (c) => {
   const exitCode = await process.exited;
   await Bun.$`rm -f ${temporaryPath}`;
   if (exitCode !== 0) return c.json({ error: "Unable to inspect video" }, 422);
-  const result = await new Response(process.stdout).json() as FFprobeReport;
+  const result = (await new Response(process.stdout).json()) as FFprobeReport;
   const format = result.format ?? {};
   const streams = result.streams ?? [];
   const video = streams.find((stream) => stream.codec_type === "video");
   const audio = streams.find((stream) => stream.codec_type === "audio");
   if (!video) return c.json({ error: "No video stream found" }, 422);
-  const [numerator, denominator] = String(video.r_frame_rate ?? "0/1").split("/").map(Number);
+  const [numerator, denominator] = String(video.r_frame_rate ?? "0/1")
+    .split("/")
+    .map(Number);
   return c.json({
     filename: path.basename(file.name),
     containerFormat: String(format.format_name ?? ""),

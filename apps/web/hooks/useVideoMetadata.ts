@@ -17,7 +17,13 @@ export function useVideoMetadataMutation() {
       const frameRate =
         Number.isFinite(metadata.frameRate) && metadata.frameRate > 0
           ? metadata.frameRate
-          : "source";
+          : 30;
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      const exportFormat =
+        extension === "mp4" || extension === "webm" || extension === "mov"
+          ? extension
+          : "mp4";
+
       videoStore.setState((previous) => {
         if (previous.file !== file) return previous;
         return {
@@ -26,13 +32,13 @@ export function useVideoMetadataMutation() {
           sourceWidth: metadata.width,
           sourceHeight: metadata.height,
           sourceAspectRatio: metadata.width / metadata.height,
-          sourceFrameRate: typeof frameRate === "number" ? frameRate : 0,
+          sourceFrameRate: frameRate,
           containerFormat: metadata.containerFormat,
           videoCodec: metadata.videoCodec,
           audioCodec: metadata.audioCodec ?? null,
           bitrateKbps: metadata.bitrateKbps,
           ffprobeReport: metadata.ffprobe,
-          exportFormat: "source",
+          exportFormat,
           exportFps: frameRate,
         };
       });

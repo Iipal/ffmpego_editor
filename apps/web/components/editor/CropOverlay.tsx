@@ -6,7 +6,6 @@ import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 type Handle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 interface CropOverlayProps {
-  isAutoZoomEnabled: boolean;
   onCanvasPanStart: (event: React.PointerEvent<HTMLDivElement>) => void;
 }
 
@@ -19,10 +18,18 @@ const ratioFor = (aspectRatio: "custom" | "1:1" | "16:9" | "21:9") =>
         ? 21 / 9
         : null;
 
-export function CropOverlay({
-  isAutoZoomEnabled,
-  onCanvasPanStart,
-}: CropOverlayProps) {
+const handlesArr: readonly Handle[] = [
+  "n",
+  "s",
+  "e",
+  "w",
+  "ne",
+  "nw",
+  "se",
+  "sw",
+] as const;
+
+export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const videoStore = useVideoStore();
   const { crop, aspectRatio, sourceAspectRatio } = useVideoState();
@@ -95,8 +102,7 @@ export function CropOverlay({
       ref={overlayRef}
       className="absolute inset-0 z-10 cursor-move touch-none"
       onPointerDown={(event) => {
-        if (isAutoZoomEnabled) startDrag(event, "move");
-        else onCanvasPanStart(event);
+        onCanvasPanStart(event);
       }}
     >
       <div
@@ -113,19 +119,17 @@ export function CropOverlay({
           startDrag(event, "move");
         }}
       >
-        {(["n", "s", "e", "w", "ne", "nw", "se", "sw"] as Handle[]).map(
-          (handle) => (
-            <div
-              key={handle}
-              aria-label={`Resize crop ${handle}`}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-                startDrag(event, handle);
-              }}
-              className={`absolute size-2 rounded-full border-2 border-background bg-primary ${handle.includes("n") ? "-top-1.5" : handle.includes("s") ? "-bottom-1.5" : "top-1/2 -translate-y-1/2"} ${handle.includes("w") ? "-left-1.5" : handle.includes("e") ? "-right-1.5" : "left-1/2 -translate-x-1/2"}`}
-            />
-          ),
-        )}
+        {handlesArr.map((handle) => (
+          <div
+            key={handle}
+            aria-label={`Resize crop ${handle}`}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              startDrag(event, handle);
+            }}
+            className={`absolute size-3.5 cursor-pointer rounded-full border-2 border-background bg-primary ${handle.includes("n") ? "-top-1.5" : handle.includes("s") ? "-bottom-1.5" : "top-1/2 -translate-y-1/2"} ${handle.includes("w") ? "-left-1.5" : handle.includes("e") ? "-right-1.5" : "left-1/2 -translate-x-1/2"}`}
+          />
+        ))}
       </div>
     </div>
   );

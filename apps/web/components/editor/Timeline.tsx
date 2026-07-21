@@ -4,8 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { formatTime } from "@/lib/format-time";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { ArrowLeft, ArrowRight, SkipBack, SkipForward } from "lucide-react";
+import type { RefObject } from "react";
 
-export function Timeline() {
+interface TimelineProps {
+  playerRef: RefObject<HTMLVideoElement | null>;
+}
+
+export function Timeline({ playerRef }: TimelineProps) {
   const videoStore = useVideoStore();
   const { currentTime, duration, trimRange } = useVideoState();
   const playheadPosition = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -29,6 +35,30 @@ export function Timeline() {
         Math.max(boundedCurrentTime, previous.trimRange[0]),
       ],
     }));
+  };
+
+  const setPlayerToStart = () => {
+    const player = playerRef.current;
+    if (!player) return;
+    const time = Math.max(trimRange[0], 0);
+    player.currentTime = time;
+    videoStore.setState((previous) =>
+      previous.currentTime === time
+        ? previous
+        : { ...previous, currentTime: time },
+    );
+  };
+
+  const setPlayerToEnd = () => {
+    const player = playerRef.current;
+    if (!player) return;
+    const time = Math.min(trimRange[1], duration);
+    player.currentTime = time;
+    videoStore.setState((previous) =>
+      previous.currentTime === time
+        ? previous
+        : { ...previous, currentTime: time },
+    );
   };
 
   return (
@@ -61,10 +91,20 @@ export function Timeline() {
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={setTrimStartToCurrent}>
+          <ArrowLeft className="mr-2 size-4" />
           Set Start to Current
         </Button>
         <Button variant="outline" size="sm" onClick={setTrimEndToCurrent}>
+          <ArrowRight className="mr-2 size-4" />
           Set End to Current
+        </Button>
+        <Button variant="outline" size="sm" onClick={setPlayerToStart}>
+          <SkipBack className="mr-2 size-4" />
+          Set Player to Start
+        </Button>
+        <Button variant="outline" size="sm" onClick={setPlayerToEnd}>
+          <SkipForward className="mr-2 size-4" />
+          Set Player to End
         </Button>
       </div>
     </section>

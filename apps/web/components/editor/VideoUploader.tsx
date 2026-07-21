@@ -9,7 +9,7 @@ import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { cn } from "@/lib/utils";
 import { useVideoStore } from "@/store/useVideoStore";
 
-const acceptedTypes = new Set(["video/mp4", "video/webm"]);
+const acceptedTypes = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 
 export function VideoUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -36,7 +36,7 @@ export function VideoUploader() {
           currentTime: 0,
           duration: 0,
           isPlaying: false,
-          exportQuality: "standard",
+          exportQuality: 23,
           playbackSpeed: 1,
           exportSpeed: 1,
           isAutoZoomEnabled: false,
@@ -86,7 +86,7 @@ export function VideoUploader() {
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept="video/mp4,video/webm"
+        accept="video/mp4,video/webm,video/quicktime"
         onChange={(event) => selectFile(event.target.files?.[0])}
       />
       <Button className="mt-5" onClick={() => inputRef.current?.click()}>

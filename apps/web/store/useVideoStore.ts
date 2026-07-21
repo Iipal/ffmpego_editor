@@ -23,9 +23,10 @@ export interface VideoState {
   isAutoZoomEnabled: boolean;
   canvasZoom: number;
   canvasOffset: { x: number; y: number };
-  exportFormat: "source" | "mp4" | "webm";
-  exportFps: "source" | number;
-  exportQuality: "standard" | "lossless";
+  exportFormat: "mp4" | "webm" | "mov";
+  exportFps: number;
+  exportFilename: string;
+  exportQuality: number;
   playbackSpeed: number;
   exportSpeed: number;
   isLoopEnabled: boolean;
@@ -61,9 +62,10 @@ const initialState: VideoState = {
   isAutoZoomEnabled: false,
   canvasZoom: 1,
   canvasOffset: { x: 0, y: 0 },
-  exportFormat: "source",
-  exportFps: "source",
-  exportQuality: "lossless",
+  exportFormat: "mp4",
+  exportFps: 30,
+  exportFilename: "",
+  exportQuality: 23,
   playbackSpeed: 1,
   exportSpeed: 1,
   isLoopEnabled: false,
