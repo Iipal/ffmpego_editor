@@ -2,7 +2,8 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { StoreProvider, useCreateFFmpegStore } from "@/store/ffmpeg-store";
+import { VideoStoreProvider, useCreateVideoStore } from "@/store/useVideoStore";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -17,11 +18,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }),
   );
 
-  const ffmpegStore = useCreateFFmpegStore();
+  const videoStore = useCreateVideoStore();
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider value={{ ffmpegStore }}>{children}</StoreProvider>
+      <TooltipProvider>
+        <VideoStoreProvider value={{ videoStore }}>
+          {children}
+        </VideoStoreProvider>
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

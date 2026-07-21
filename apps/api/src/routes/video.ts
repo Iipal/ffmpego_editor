@@ -1,234 +1,206 @@
-import { Hono } from 'hono';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
-import { randomUUID } from 'node:crypto';
+import os from "node:os";
+import path from "node:path";
+import { Hono } from "hono";
+import { buildFFmpegArgs, OUTPUT_DIRECTORY } from "../utils/ffmpegBuilder";
+
+type JobStatus = "processing" | "completed" | "failed";
+
+interface TranscodeSettings {
+  sourceWidth: number;
+  sourceHeight: number;
+  trimRange: [number, number];
+  crop: { x: number; y: number; width: number; height: number };
+  exportFormat: "source" | "mp4" | "webm";
+  exportFps: "source" | number;
+  exportQuality?: "standard" | "lossless";
+  exportSpeed: number;
+  customFFmpegArgs: string;
+}
+
+interface TranscodeJob {
+  status: JobStatus;
+  progress: number;
+  outputPath: string;
+  alternateOutputPath?: string;
+  error?: string;
+}
 
 const app = new Hono();
+const jobs = new Map<string, TranscodeJob>();
 
-const PORT = 3100;
+function outputFormat(filename: string, format: TranscodeSettings["exportFormat"]) {
+  if (format !== "source") return format;
+  const extension = path.extname(filename).slice(1).toLowerCase();
+  return extension === "webm" ? "webm" : "mp4";
+}
 
-const OUTPUT_DIR = path.join(os.homedir(), 'ffmpego_edits');
-
-// In-memory store for active processes (for SSE tracking)
-const activeProcesses = new Map<string, {
-  status: 'processing' | 'completed' | 'failed';
-  progress: number;
-  startTime: number;
-}>();
-
-/**
- * Health check endpoint
- */
-app.get('/health', (c) => {
-  return c.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    ffmpegPath: '/usr/bin/ffmpeg',
-    port: PORT,
-  });
-});
-
-/**
- * Create output directory if it doesn't exist
- */
-async function ensureOutputDir(): Promise<void> {
+function parseSettings(value: FormDataEntryValue | null): TranscodeSettings | null {
+  if (typeof value !== "string") return null;
   try {
-    await fs.access(OUTPUT_DIR);
+    const settings = JSON.parse(value) as TranscodeSettings;
+    if (
+      !Number.isFinite(settings.sourceWidth) ||
+      !Number.isFinite(settings.sourceHeight) ||
+      !Array.isArray(settings.trimRange) ||
+      settings.trimRange.length !== 2 ||
+      !settings.crop ||
+      !Number.isFinite(settings.exportSpeed)
+    ) return null;
+    return settings;
   } catch {
-    await fs.mkdir(OUTPUT_DIR, { recursive: true });
+    return null;
   }
 }
 
-/**
- * Process video file with FFmpeg
- * Supports: format conversion, quality adjustment, trimming
- */
-app.post('/api/process', async (c) => {
-  try {
-    // Parse request body
-    const body = await c.req.json();
-    const { 
-      inputPath, 
-      format = 'mp4', 
-      quality = 'medium',
-      startTime,
-      endTime,
-    } = body as {
-      inputPath: string;
-      format?: string;
-      quality?: string;
-      startTime?: number;
-      endTime?: number;
-    };
+function updateProgress(job: TranscodeJob, line: string, duration: number) {
+  const match = line.match(/^out_time_(?:us|ms)=(\d+)$/);
+  if (!match) return;
+  const processedSeconds = Number(match[1]) / 1_000_000;
+  job.progress = Math.min(99, Math.max(0, (processedSeconds / duration) * 100));
+}
 
-    if (!inputPath) {
-      return c.json({ error: 'inputPath is required' }, 400);
-    }
-
-    // Generate unique job ID for SSE tracking
-    const jobId = randomUUID();
-
-    // Setup progress tracking
-    activeProcesses.set(jobId, {
-      status: 'processing',
-      progress: 0,
-      startTime: Date.now(),
-    });
-
-    // Validate input file exists
-    try {
-      await fs.access(inputPath);
-    } catch {
-      return c.json({ error: 'Input file not found' }, 404);
-    }
-
-    // Ensure output directory exists
-    await ensureOutputDir();
-
-    // Generate output filename
-    const inputFileName = path.basename(inputPath);
-    const nameWithoutExt = inputFileName.replace(/\.[^/.]+$/, '');
-    const outputFilename = `${nameWithoutExt}_${jobId.slice(0, 8)}.${format}`;
-    const outputPath = path.join(OUTPUT_DIR, outputFilename);
-
-    // Build FFmpeg arguments based on parameters
-    const args: string[] = [];
-
-    // Quality presets
-    const qualityMap: Record<string, string[]> = {
-      high: ['-crf', '18', '-preset', 'slow'],
-      medium: ['-crf', '23', '-preset', 'medium'],
-      low: ['-crf', '28', '-preset', 'fast'],
-    };
-
-    if (qualityMap[quality]) {
-      args.push(...qualityMap[quality]);
-    }
-
-    // Trimming
-    if (startTime !== undefined) {
-      args.push('-ss', String(startTime));
-    }
-    if (endTime !== undefined && startTime !== undefined) {
-      const duration = endTime - startTime;
-      args.push('-t', String(duration));
-    }
-
-    // Output format
-    args.push('-c:v', 'libx264', '-c:a', 'aac', '-b:a', '192k');
-
-    // Start SSE connection for progress updates
-    const encoder = new TextEncoder();
-    let currentProgress = 0;
-
-    // Send headers for SSE
-    c.header('Content-Type', 'text/event-stream');
-    c.header('Cache-Control', 'no-cache');
-    c.header('Connection', 'keep-alive');
-
-    // Create response with streaming
-    const response = new Response(
-      new ReadableStream({
-        start(controller) {
-          // Periodically send progress updates
-          const interval = setInterval(() => {
-            const process = activeProcesses.get(jobId);
-            if (!process) {
-              clearInterval(interval);
-              controller.close();
-              return;
-            }
-
-            const event = `data: ${JSON.stringify({ type: 'progress', jobId, progress: process.progress })}\n\n`;
-            controller.enqueue(encoder.encode(event));
-
-            if (process.status !== 'processing') {
-              clearInterval(interval);
-              // Send final status
-              const finalEvent = `data: ${JSON.stringify({ 
-                type: 'complete', 
-                jobId,
-                success: process.status === 'completed',
-                outputPath: process.status === 'completed' ? outputPath : undefined,
-                error: process.status === 'failed' ? 'Processing failed' : undefined,
-              })}\n\n`;
-              controller.enqueue(encoder.encode(finalEvent));
-              controller.close();
-            }
-          }, 500);
-
-          // Cleanup on client disconnect
-          c.req.raw.signal.addEventListener('abort', () => {
-            clearInterval(interval);
-            controller.close();
-          });
-        },
-      }),
-    );
-
-    // Update progress in background while processing
-    const processInterval = setInterval(() => {
-      const process = activeProcesses.get(jobId);
-      if (process && process.status === 'processing') {
-        process.progress = Math.min(process.progress + Math.random() * 5, 99);
-      } else {
-        clearInterval(processInterval);
-      }
-    }, 1000);
-
-    // Return streaming response
-    return response;
-
-  } catch (error) {
-    console.error('[API] Error processing video:', error);
-    return c.json({ error: 'Internal server error' }, 500);
+async function readProgress(
+  stream: ReadableStream<Uint8Array>,
+  job: TranscodeJob,
+  duration: number,
+) {
+  const reader = stream.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    pending += decoder.decode(value, { stream: true });
+    const lines = pending.split(/\r?\n/);
+    pending = lines.pop() ?? "";
+    for (const line of lines) updateProgress(job, line, duration);
   }
+}
+
+async function runTranscode(
+  job: TranscodeJob,
+  args: string[],
+  temporaryPath: string,
+  duration: number,
+) {
+  job.status = "processing";
+  job.progress = 0;
+  const process = Bun.spawn(["ffmpeg", ...args], { stdout: "ignore", stderr: "pipe" });
+  try {
+    await Promise.all([
+      process.exited,
+      readProgress(process.stderr, job, duration),
+    ]);
+    if ((await process.exited) === 0) {
+      job.status = "completed";
+      job.progress = 100;
+    } else {
+      job.status = "failed";
+      job.error = "FFmpeg exited without completing the export.";
+    }
+  } catch (error) {
+    job.status = "failed";
+    job.error = error instanceof Error ? error.message : "FFmpeg failed to start.";
+  }
+}
+
+app.post("/transcode", async (c) => {
+  const form = await c.req.formData();
+  const file = form.get("file");
+  const settings = parseSettings(form.get("settings"));
+  if (!(file instanceof File) || !settings) {
+    return c.json({ error: "A video file and valid export settings are required." }, 400);
+  }
+
+  const format = outputFormat(file.name, settings.exportFormat);
+  const jobId = crypto.randomUUID();
+  const temporaryPath = path.join(os.tmpdir(), `${jobId}-${path.basename(file.name)}`);
+  await Bun.write(temporaryPath, file);
+  await Bun.$`mkdir -p ${OUTPUT_DIRECTORY}`;
+
+  const originalArgs = buildFFmpegArgs({
+    inputPath: temporaryPath,
+    filename: file.name,
+    sourceWidth: settings.sourceWidth,
+    sourceHeight: settings.sourceHeight,
+    trimRange: settings.trimRange,
+    crop: settings.crop,
+    format,
+    fps: settings.exportFps === "source" ? undefined : settings.exportFps,
+    quality: settings.exportQuality === "lossless" ? "lossless" : "standard",
+    customArgs: settings.customFFmpegArgs,
+  });
+  const originalOutputPath = originalArgs.at(-1)!;
+  let alternateOutputPath: string | undefined;
+
+  const job: TranscodeJob = {
+    status: "processing",
+    progress: 0,
+    outputPath: originalOutputPath,
+  };
+  jobs.set(jobId, job);
+
+  const runAll = async () => {
+    job.status = "processing";
+    job.progress = 0;
+    await runTranscode(job, originalArgs, temporaryPath, Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]));
+
+    if (settings.exportSpeed !== 1) {
+      const suffix = `_${settings.exportSpeed.toFixed(1)}`;
+      const speedArgs = buildFFmpegArgs({
+        inputPath: temporaryPath,
+        filename: file.name,
+        sourceWidth: settings.sourceWidth,
+        sourceHeight: settings.sourceHeight,
+        trimRange: settings.trimRange,
+        crop: settings.crop,
+        format,
+        outputSuffix: suffix,
+        speed: settings.exportSpeed,
+        fps: settings.exportFps === "source" ? undefined : settings.exportFps,
+        quality: settings.exportQuality === "lossless" ? "lossless" : "standard",
+        customArgs: settings.customFFmpegArgs,
+      });
+      alternateOutputPath = speedArgs.at(-1)!;
+      job.alternateOutputPath = alternateOutputPath;
+      await runTranscode(job, speedArgs, temporaryPath, Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]));
+    }
+  };
+
+  void runAll();
+
+  return c.json({ jobId, progressUrl: `/api/transcode/progress/${jobId}` });
 });
 
-/**
- * Get job status
- */
-app.get('/api/jobs/:jobId', (c) => {
-  const jobId = c.req.param('jobId');
-  const process = activeProcesses.get(jobId);
+app.get("/transcode/progress/:jobId", (c) => {
+  const job = jobs.get(c.req.param("jobId"));
+  if (!job) return c.json({ error: "Export job not found." }, 404);
 
-  if (!process) {
-    return c.json({ error: 'Job not found' }, 404);
-  }
-
-  return c.json({
-    jobId,
-    status: process.status,
-    progress: process.progress,
-    startTime: process.startTime,
+  const encoder = new TextEncoder();
+  let interval: ReturnType<typeof setInterval> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = () => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(job)}\n\n`));
+        if (job.status !== "processing") {
+          if (interval) clearInterval(interval);
+          controller.close();
+        }
+      };
+      send();
+      interval = setInterval(send, 200);
+    },
+    cancel() {
+      if (interval) clearInterval(interval);
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+    },
   });
 });
 
-/**
- * List output files
- */
-app.get('/api/files', async (c) => {
-  try {
-    const files = await fs.readdir(OUTPUT_DIR);
-    const fileDetails = await Promise.all(
-      files.map(async (file) => {
-        const stats = await fs.stat(path.join(OUTPUT_DIR, file));
-        return {
-          name: file,
-          size: stats.size,
-          createdAt: stats.birthtime.toISOString(),
-          modifiedAt: stats.mtime.toISOString(),
-        };
-      })
-    );
-
-    return c.json({ files: fileDetails });
-  } catch (error) {
-    console.error('[API] Error listing files:', error);
-    return c.json({ error: 'Failed to list files' }, 500);
-  }
-});
-
-export type AppType = typeof app;
 export default app;

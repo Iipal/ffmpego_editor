@@ -1,8 +1,10 @@
-import { serve } from '@hono/node-server';
-import { Hono } from 'hono';
-import videoRoutes from './routes/video';
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import videoRoutes from "./routes/video";
+import metadataRoutes from "./routes/metadata";
 
 const app = new Hono();
+app.use("/api/*", cors());
 
 // Health check
 app.get('/', (c) => {
@@ -19,12 +21,13 @@ app.get('/health', (c) => {
 
 // Mount routes
 app.route('/api', videoRoutes);
+app.route('/api', metadataRoutes);
 
-const PORT = 3100;
+const PORT = Number(Bun.env.PORT ?? 3100);
 
-serve({
+const server = Bun.serve({
   fetch: app.fetch,
   port: PORT,
 });
 
-console.log(`🚀 API Server running on http://localhost:${PORT}`);
+console.log(`API Server running on ${server.url}`);

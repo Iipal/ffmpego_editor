@@ -1,0 +1,208 @@
+"use client";
+
+import { useEffect, useRef } from "react";
+import { Card } from "@/components/ui/card";
+import { PlayerControls } from "@/components/editor/PlayerControls";
+import { Timeline } from "@/components/editor/Timeline";
+import { CropOverlay } from "@/components/editor/CropOverlay";
+import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+
+export function VideoPlayer() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const videoStore = useVideoStore();
+  const {
+    mediaUrl,
+    volume,
+    isMuted,
+    currentTime,
+    trimRange,
+    crop,
+    isCropMode,
+    isAutoZoomEnabled,
+    canvasZoom,
+    canvasOffset,
+    sourceAspectRatio,
+    playbackSpeed,
+    isLoopEnabled,
+  } = useVideoState();
+  const cropCanvasPadding = 0.08;
+  const cropScale =
+    (1 - cropCanvasPadding * 2) * (100 / Math.min(crop.width, crop.height));
+  const cropOffsetX = 50 - (crop.x + crop.width / 2);
+  const cropOffsetY = 50 - (crop.y + crop.height / 2);
+  const canvasTransform = isAutoZoomEnabled
+    ? `scale(${cropScale}) translate(${cropOffsetX}%, ${cropOffsetY}%)`
+    : `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
+  const playerAspectRatio = 16 / 9;
+  const canvasSize =
+    sourceAspectRatio >= playerAspectRatio
+      ? {
+          width: "100%",
+          height: `${(playerAspectRatio / sourceAspectRatio) * 100}%`,
+        }
+      : {
+          width: `${(sourceAspectRatio / playerAspectRatio) * 100}%`,
+          height: "100%",
+        };
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.volume = volume;
+    video.muted = isMuted;
+  }, [isMuted, volume]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    video.playbackRate = playbackSpeed;
+    video.loop = isLoopEnabled;
+  }, [playbackSpeed, isLoopEnabled]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const syncCurrentTime = () => {
+      videoStore.setState((previous) =>
+        previous.currentTime === video.currentTime
+          ? previous
+          : { ...previous, currentTime: video.currentTime },
+      );
+      animationFrame = requestAnimationFrame(syncCurrentTime);
+    };
+    const startSync = () => {
+      cancelAnimationFrame(animationFrame);
+      syncCurrentTime();
+    };
+    const stopSync = () => cancelAnimationFrame(animationFrame);
+
+    video.addEventListener("play", startSync);
+    video.addEventListener("pause", stopSync);
+    video.addEventListener("ended", stopSync);
+    if (!video.paused) startSync();
+
+    return () => {
+      stopSync();
+      video.removeEventListener("play", startSync);
+      video.removeEventListener("pause", stopSync);
+      video.removeEventListener("ended", stopSync);
+    };
+  }, [mediaUrl, videoStore]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video && currentTime > trimRange[1]) {
+      video.currentTime = trimRange[0];
+    }
+  }, [currentTime, trimRange]);
+
+  const startCanvasPan = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (isAutoZoomEnabled) return;
+    event.preventDefault();
+    const start = {
+      x: event.clientX,
+      y: event.clientY,
+      offset: canvasOffset,
+    };
+    const onMove = (moveEvent: PointerEvent) => {
+      videoStore.setState((previous) => ({
+        ...previous,
+        canvasOffset: {
+          x: start.offset.x + moveEvent.clientX - start.x,
+          y: start.offset.y + moveEvent.clientY - start.y,
+        },
+      }));
+    };
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+  };
+
+  if (!mediaUrl) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      <Card className="overflow-hidden bg-black p-0">
+        <div ref={wrapperRef} className="relative aspect-video w-full">
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+            <div
+              className="relative origin-center transition-transform duration-300"
+              style={{
+                ...canvasSize,
+                transform: canvasTransform,
+              }}
+            >
+              <video
+                ref={videoRef}
+                className="size-full object-fill"
+                src={mediaUrl}
+                onLoadedMetadata={(event) => {
+                  videoStore.setState((previous) => ({
+                    ...previous,
+                    duration:
+                      previous.duration > 0
+                        ? previous.duration
+                        : event.currentTarget.duration,
+                    trimRange: [0, event.currentTarget.duration],
+                    sourceAspectRatio:
+                      event.currentTarget.videoWidth /
+                      event.currentTarget.videoHeight,
+                    sourceWidth: event.currentTarget.videoWidth,
+                    sourceHeight: event.currentTarget.videoHeight,
+                  }));
+                }}
+                onTimeUpdate={(event) => {
+                  videoStore.setState((previous) => ({
+                    ...previous,
+                    currentTime: event.currentTarget.currentTime,
+                  }));
+                }}
+                onPlay={(event) => {
+                  if (
+                    event.currentTarget.currentTime < trimRange[0] ||
+                    event.currentTarget.currentTime > trimRange[1]
+                  )
+                    event.currentTarget.currentTime = trimRange[0];
+                  videoStore.setState((previous) => ({
+                    ...previous,
+                    isPlaying: true,
+                  }));
+                }}
+                onPause={() =>
+                  videoStore.setState((previous) => ({
+                    ...previous,
+                    isPlaying: false,
+                  }))
+                }
+              />
+              {isCropMode && (
+                <CropOverlay
+                  isAutoZoomEnabled={isAutoZoomEnabled}
+                  onCanvasPanStart={startCanvasPan}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+        <PlayerControls playerRef={videoRef} wrapperRef={wrapperRef} />
+      </Card>
+      <Timeline />
+    </div>
+  );
+}

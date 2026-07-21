@@ -1,12 +1,43 @@
-'use client';
+"use client";
 
-import { Toaster } from '@/components/ui/sonner';
-import { MainDashboard } from '@/components/dashboard/main-dashboard';
+import { Toaster } from "@/components/ui/sonner";
+import { VideoPlayer } from "@/components/editor/VideoPlayer";
+import { VideoUploader } from "@/components/editor/VideoUploader";
+import { Sidebar, SidebarToggle } from "@/components/editor/Sidebar";
+import { useVideoState } from "@/store/useVideoStore";
 
 export default function Home() {
+  const { file, isSidebarOpen } = useVideoState();
+
   return (
-    <main className="flex min-h-screen flex-col">
-      <MainDashboard />
+    <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold">FFmpeg Editor</h1>
+          <p className="text-sm text-muted-foreground">
+            Trim, crop, and export local video files.
+          </p>
+        </header>
+        {file ? (
+          <div
+            className={
+              isSidebarOpen
+                ? "grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]"
+                : "space-y-2"
+            }
+          >
+            {!isSidebarOpen && (
+              <div className="flex justify-end">
+                <SidebarToggle />
+              </div>
+            )}
+            <VideoPlayer />
+            {isSidebarOpen && <Sidebar />}
+          </div>
+        ) : (
+          <VideoUploader />
+        )}
+      </div>
       <Toaster />
     </main>
   );

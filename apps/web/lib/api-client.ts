@@ -1,10 +1,11 @@
 // API base URL - in production this would be an environment variable
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3100';
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100";
 
 export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
@@ -25,23 +26,60 @@ export async function apiGet<T>(endpoint: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export interface ProcessVideoRequest {
-  inputPath: string;
-  format?: string;
-  quality?: 'high' | 'medium' | 'low';
-  startTime?: number;
-  endTime?: number;
+export async function apiFormPost<T>(
+  endpoint: string,
+  body: FormData,
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: "POST",
+    body,
+  });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(payload?.error ?? `API error: ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
 }
 
-export interface VideoProcessResponse {
-  success: boolean;
-  outputPath?: string;
-  error?: string;
+export interface VideoMetadata {
+  filename: string;
+  containerFormat: string;
+  durationSeconds: number;
+  width: number;
+  height: number;
+  frameRate: number;
+  videoCodec: string;
+  audioCodec?: string;
+  bitrateKbps: number;
+  ffprobe: FFprobeReport;
 }
 
-export interface JobStatusResponse {
+export interface FFprobeReport {
+  format?: Record<string, unknown>;
+  streams?: Array<Record<string, unknown>>;
+  programs?: Array<Record<string, unknown>>;
+  chapters?: Array<Record<string, unknown>>;
+  frames?: Array<Record<string, unknown>>;
+  packets?: Array<Record<string, unknown>>;
+  packets_and_frames?: Array<Record<string, unknown>>;
+  program_version?: Record<string, unknown>;
+  library_versions?: Array<Record<string, unknown>>;
+  error?: Record<string, unknown>;
+}
+
+export interface TranscodeResponse {
   jobId: string;
-  status: string;
+  progressUrl: string;
+}
+
+export interface TranscodeProgress {
+  status: "processing" | "completed" | "failed";
   progress: number;
-  startTime: number;
+  outputPath: string;
+  alternateOutputPath?: string;
+  error?: string;
 }
