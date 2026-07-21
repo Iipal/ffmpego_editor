@@ -29,6 +29,12 @@ interface TranscodeJob {
 const app = new Hono();
 const jobs = new Map<string, TranscodeJob>();
 
+/**
+ * Parse and validate the JSON settings object from the form payload.
+ *
+ * This protects the exporter from malformed user input before building the
+ * FFmpeg command.
+ */
 function parseSettings(
   value: FormDataEntryValue | null,
 ): TranscodeSettings | null {
@@ -66,6 +72,14 @@ function parseSettings(
   }
 }
 
+/**
+ * Convert FFmpeg progress lines into a normalized job progress percentage.
+ *
+ * FFmpeg reports progress as out_time_us or out_time_ms. The code converts the
+ * reported position into seconds and compares it to the total trim duration.
+ * Progress is capped at 99% while the process is still running to avoid
+ * reporting premature completion.
+ */
 function updateProgress(job: TranscodeJob, line: string, duration: number) {
   const match = line.match(/^out_time_(?:us|ms)=(\d+)$/);
   if (!match) return;
@@ -73,6 +87,9 @@ function updateProgress(job: TranscodeJob, line: string, duration: number) {
   job.progress = Math.min(99, Math.max(0, (processedSeconds / duration) * 100));
 }
 
+/**
+ * Stream FFmpeg stderr output and update the job progress in real time.
+ */
 async function readProgress(
   stream: ReadableStream<Uint8Array>,
   job: TranscodeJob,
@@ -91,6 +108,12 @@ async function readProgress(
   }
 }
 
+/**
+ * Spawn the FFmpeg process and wait until the export completes.
+ *
+ * This function updates the job record as the exporter runs, and marks the
+ * status completed/failed at the end.
+ */
 async function runTranscode(
   job: TranscodeJob,
   args: string[],
@@ -122,6 +145,13 @@ async function runTranscode(
   }
 }
 
+/**
+ * POST /transcode
+ *
+ * Accepts a video file and export settings, writes the file to a temp path,
+ * and begins asynchronous export jobs for normal and optionally speed-adjusted
+ * versions.
+ */
 app.post("/transcode", async (c) => {
   const form = await c.req.formData();
   const file = form.get("file");
@@ -156,6 +186,8 @@ app.post("/transcode", async (c) => {
     crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
     customArgs: settings.customFFmpegArgs,
   });
+
+  // The output path is always the last arg from buildFFmpegArgs.
   const originalOutputPath = originalArgs.at(-1)!;
   let alternateOutputPath: string | undefined;
 
@@ -209,6 +241,12 @@ app.post("/transcode", async (c) => {
   return c.json({ jobId, progressUrl: `/api/transcode/progress/${jobId}` });
 });
 
+/**
+ * GET /transcode/progress/:jobId
+ *
+ * Returns an SSE stream of the current job record. The client will receive
+ * updates every 200ms until the job completes.
+ */
 app.get("/transcode/progress/:jobId", (c) => {
   const job = jobs.get(c.req.param("jobId"));
   if (!job) return c.json({ error: "Export job not found." }, 404);
