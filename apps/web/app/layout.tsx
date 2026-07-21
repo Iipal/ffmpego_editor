@@ -4,7 +4,7 @@ import { Providers } from "./providers";
 import "./globals.css";
 
 const inter = Inter({
-  variable: "--font-inter",
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
@@ -19,14 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
-        <Providers>
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

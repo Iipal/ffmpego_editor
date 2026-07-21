@@ -1,7 +1,6 @@
 {
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "base-rhea",
-  "description": "Monorepo UI components - stored in packages/ui for sharing across apps",
   "rsc": true,
   "tsx": true,
   "tailwind": {
@@ -21,6 +20,5 @@
     "hooks": "@/hooks"
   },
   "menuColor": "inverted-translucent",
-  "menuAccent": "subtle",
-  "registries": {}
+  "menuAccent": "subtle"
 }

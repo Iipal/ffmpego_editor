@@ -1,7 +1,8 @@
-'use client';
+"use client";
 
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
+import { StoreProvider, useCreateFFmpegStore } from "@/store/ffmpeg-store";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -13,12 +14,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: false,
           },
         },
-      })
+      }),
   );
+
+  const ffmpegStore = useCreateFFmpegStore();
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <StoreProvider value={{ ffmpegStore }}>{children}</StoreProvider>
     </QueryClientProvider>
   );
 }

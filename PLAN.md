@@ -1,48 +1,234 @@
-# Local Monorepo Execution Plan: FFmpeg Web-App
+Here is the structured, step-by-step implementation prompt plan for the AI agent. You can append this directly into `PLAN.md` or pass each phase sequentially to your AI coding agent.
 
-## Phase 1: Monorepo Foundation ✅
-- [x] Initialize an empty directory (you are currently in it `~/Code/ffmpeg_editor`) and run `bun init -y`.
-- [x] Configure `package.json` with Bun workspaces: `"workspaces": ["apps/*", "packages/*"]`.
-- [x] Install Turborepo locally: `bun add -d turbo`.
-- [x] Create `turbo.json` with pipeline definitions for `build`, `dev`, and `lint`.
-- [x] Create folder structure: `apps/web`, `apps/api`, `packages/ui`, `packages/config`.
+---
 
-## Phase 2: Backend Setup (Bun + Hono) ✅
-- [x] Navigate to `apps/api`.
-- [x] Initialize a Hono project targeting Bun: `bun create hono api`.
-- [x] Set up the core API route to accept local file paths or uploads.
-- [x] Implement the FFmpeg execution utility using native `Bun.spawn()` or `Bun.$` for maximum performance.
-- [x] Ensure the API automatically creates the directory `~/ffmpego_edits/` if it does not exist using Node's `fs` or Bun's `mkdir` API.
-- [x] Write the route logic to execute FFmpeg and save the output strictly to `~/ffmpego_edits/${filename}.${fileExt}`.
-- [x] Implement a lightweight SSE (Server-Sent Events) or polling endpoint to report FFmpeg processing progress back to the client.
+# Feature Implementation Plan: Local Video Editor
 
-## Phase 3: Frontend Setup (Next.js) ✅
-- [x] Navigate to `apps/web`.
-- [x] Initialize Next.js: `bunx create-next-app@latest . --typescript --tailwind --eslint --app --turbopack`.
-- [x] Clear boilerplate from `app/page.tsx` and `app/globals.css`.
-- [x] Install state and data fetching libraries: `bun add @tanstack/react-query @tanstack/react-store`.
-- [x] Configure the TanStack Query provider in a client-side layout wrapper (`app/providers.tsx`).
-- [x] Establish an RPC client instance using `hono/client` to connect to the `apps/api` workspace for end-to-end type safety (`lib/api-client.ts`).
+## Architectural Strategy & State Model
 
-## Phase 4: UI System & Styling ✅
-- [x] Navigate to the root directory (or `apps/web` depending on standard monorepo tooling).
-- [x] Execute the exact Shadcn initialization preset:
-      `bunx --bun shadcn@latest init --preset b5eaOLEjD --template next --pointer`
-- [x] Verify `components.json` is configured to route UI components to local `components/ui` (following monorepo conventions).
-- [x] Install baseline required components: `bunx --bun shadcn@latest add button input card`
-- [x] Additional components installed for Phase 5: `progress`, `sonner`, `dialog`, `label`
+To keep the UI responsive and perfectly in sync, all video state must live inside a single, unified store using **TanStack Store**.
 
-## Phase 5: Feature Implementation
-- [ ] **TanStack Store**: Create a local store in `apps/web/store/` to hold UI state (e.g., active file selection, selected FFmpeg parameters).
-- [ ] **TanStack Query**: Write mutations to send file data to the Hono API and queries to listen to the SSE progress endpoint.
-- [ ] **Interface**: Build the main dashboard using Shadcn components:
-      - A file dropzone/input area.
-      - Parameter selection toggles (format, quality, trim).
-      - A submit button mapped to the Hono API mutation.
-      - A progress bar (Shadcn `progress` component) linked to the SSE stream.
-      - A success notification indicating the file is available in `~/ffmpego_edits/`.
+```
++-----------------------------------------------------------------------------------+
+|                                 TanStack Store                                    |
+|  - videoFile / URL        - currentTime / duration       - isPlaying / isMuted       |
+|  - trimRange [start, end] - cropBounds {x, y, w, h}     - aspectRatio (1:1, 16:9)   |
+|  - exportFormat           - exportFps                    - customFFmpegArgs          |
++-----------------------------------------------------------------------------------+
+           |                                       |                               |
+           v                                       v                               v
++---------------------+                 +--------------------+            +------------------+
+|    Video Player     |                 |  Timeline Control  |            | Settings Sidebar |
+|  - Custom Controls  |                 |  - Interactive     |            |  - Aspect Ratio  |
+|  - Crop Overlay     |                 |    Range Handles   |            |  - Export Config |
+|  - Auto-Zoom View   |                 |  - Time Display    |            |  - Raw Arguments |
++---------------------+                 +--------------------+            +------------------+
 
-## Phase 6: Testing & Optimization
-- [ ] Run `bun run dev` from the root to start Next.js (Turbopack) and Hono simultaneously.
-- [ ] Test a sample video file through the entire pipeline.
-- [ ] Verify the output file exists in the exact `~/ffmpego_edits/` local path.
+```
+
+---
+
+## Task Execution Steps
+
+### Phase 1: Video Import & Base Player Engine
+
+- [ ] **Task 1.1: Shadcn Component Installation**
+  - Execute: `cd apps/web && bunx --bun shadcn@latest add card button input slider select label textarea tooltip`
+
+
+- [ ] **Task 1.2: Global Store Setup**
+ - Create `apps/web/store/useVideoStore.ts` using `@tanstack/react-store`.
+ - Define state properties:
+   - `file: File | null`
+   - `mediaUrl: string | null`
+   - `currentTime: number`
+   - `duration: number`
+   - `isPlaying: boolean`
+   - `isMuted: boolean`
+   - `volume: number` (0 to 1)
+
+
+
+
+- [ ] **Task 1.3: Drag-and-Drop Video Uploader**
+  - Create `apps/web/components/editor/VideoUploader.tsx`.
+  - Restrict accepted MIME types strictly to `video/mp4` and `video/webm`.
+  - On file selection, invoke `URL.createObjectURL(file)` and store both the raw `File` and the `mediaUrl` in `useVideoStore`.
+
+
+- [ ] **Task 1.4: Base Video Canvas Component**
+  - Create `apps/web/components/editor/VideoPlayer.tsx` using a native HTML `<video>` element wrapped in a relative container.
+  - Bind `ref` to the video element to handle programmatic `play()`, `pause()`, volume, and `currentTime` updates.
+  - Implement a `timeupdate` event listener on the video element to keep `useVideoStore.currentTime` synchronized.
+
+
+
+---
+
+### Phase 2: Custom Controls Overlay
+
+- [ ] **Task 2.1: Controls Bar Component**
+  - Create `apps/web/components/editor/PlayerControls.tsx` overlaid over the bottom of the video player.
+  - Use Lucide icons (`Play`, `Pause`, `Volume2`, `VolumeX`, `Maximize`).
+
+
+- [ ] **Task 2.2: Time Tracking & Seek Slider**
+  - Implement a Shadcn `Slider` for progress scrub mapping from `0` to `duration`.
+  - Create a helper utility `formatTime(seconds: number)` -> `MM:SS.ss`.
+  - Display the formatted time string: `${formatTime(currentTime)} / ${formatTime(duration)}`.
+
+
+- [ ] **Task 2.3: Volume & Mute Controls**
+  - Add a toggle button for mute/unmute.
+  - Add a collapsible or inline `Slider` (0 to 100) bound to `video.volume`.
+
+
+* [ ] **Task 2.4: Native Fullscreen Integration**
+* Implement a Fullscreen handler targeting the wrapper `div` of the Video Player using the standard HTML Fullscreen API (`requestFullscreen()`).
+
+
+
+---
+
+### Phase 3: Interactive Timeline & Trim Controller
+
+- [ ] **Task 3.1: Trim State Expansion**
+  - Update `useVideoStore.ts` with:
+  - `trimRange: [number, number]` (Default: `[0, duration]`).
+
+
+
+
+- [ ] **Task 3.2: Timeline Track Component**
+  - Create `apps/web/components/editor/Timeline.tsx` directly underneath the main Video Player.
+  - Render a dual-handle range slider (or custom drag handles) representing `trimStart` and `trimEnd`.
+  - Render a playhead bar showing `currentTime` relative to the track width.
+
+
+- [ ] **Task 3.3: Sync Video Playback with Trim Range**
+  -  Write an effect inside `VideoPlayer.tsx` listening to `currentTime`.
+  -  **Rule:** If `currentTime` exceeds `trimRange[1]`, reset `currentTime` to `trimRange[0]`.
+  -  **Rule:** If the user clicks play when `currentTime` is outside the `trimRange`, automatically seek to `trimRange[0]` before playing.
+
+
+
+---
+
+### Phase 4: Crop Engine & Visual Overlay
+
+- [ ] **Task 4.1: Crop State Expansion**
+  - Update `useVideoStore.ts` with:
+  - `crop: { x: number, y: number, width: number, height: number }` (percentages 0-100 relative to source resolution).
+  - `aspectRatio: 'custom' | '1:1' | '16:9' | '21:9'` (Default: `'custom'`).
+
+
+
+
+- [ ] **Task 4.2: Interactive Crop Box Component**
+  - Create `apps/web/components/editor/CropOverlay.tsx`.
+  - Overlay a resizable, draggable bounding box over the video element with 8 handle points (corners + sides).
+  - Enforce aspect ratio constraints on drag based on the selected `aspectRatio` state:
+  - `1:1` -> Enforce `width === height`
+  - `16:9` -> Enforce `width === height * (16 / 9)`
+  - `21:9` -> Enforce `width === height * (21 / 9)`
+  - `custom` -> Unconstrained dragging.
+
+
+
+
+- [ ] **Task 4.3: Auto-Zoom View Engine**
+  - Apply dynamic CSS transforms (`transform: scale(...) translate(...)`) to the container `<video>` element based on the current crop bounding box.
+  - When the user finishes cropping, smoothly transition the view so the selected crop area fills the active player view space.
+
+
+
+---
+
+### Phase 5: Editor Sidebar & Configuration Panels
+
+- [ ] **Task 5.1: Sidebar Layout**
+  - Create `apps/web/components/editor/Sidebar.tsx` on the right side of the main workspace using Shadcn `Card` and layout utilities.
+
+
+- [ ] **Task 5.2: Crop Settings Controls**
+  - Add a Shadcn `Select` component for aspect ratio choices (`Custom`, `1:1`, `16:9`, `21:9`).
+  - Add a toggle button to enable/disable crop mode on the video player canvas.
+
+
+- [ ] **Task 5.3: Export Configuration Controls**
+  - Add a Shadcn `Select` for Output Format:
+    - `Same as source` (Default)
+    - `mp4`
+    - `webm`
+  - Add a Shadcn `Select` / `Input` for Framerate:
+    - `Same as source` (Default)
+    - `30 fps`
+    - `60 fps`
+    - Custom numeric input.
+
+
+- [ ] **Task 5.4: FFmpeg Raw Arguments Input**
+  - Add a Shadcn `Textarea` for optional custom FFmpeg CLI flags (e.g., `-vf eq=contrast=1.2 -b:v 2M`).
+
+
+
+---
+
+### Phase 6: Hono API Integration & FFmpeg Execution
+
+- [ ] **Task 6.1: Command Builder Utility**
+  - Create `apps/api/src/utils/ffmpegBuilder.ts`.
+  - Function `buildFFmpegArgs(options)` must transform state into valid CLI arguments:
+  - Trim: `-ss <start>` and `-to <end>`
+  - Crop: `-vf crop=w:h:x:y` (convert percentage values to actual pixel bounds based on source resolution)
+  - FPS: `-r <fps>`
+  - Custom args: Append raw string values passed from the user textarea.
+  - Output path: Ensure output is sent strictly to `~/ffmpego_edits/${filename}.${fileExt}`.
+
+
+- [ ] **Task 6.2: Hono Transcode Endpoint**
+  - In `apps/api/src/index.ts`, expose a POST endpoint `/api/transcode`.
+  - Receive the file payload and execution settings.
+  - Use `Bun.spawn()` to invoke local `ffmpeg`.
+  - Stream progress output (parsed from FFmpeg stderr) back via SSE (`/api/transcode/progress`).
+
+
+- [ ] **Task 6.3: Client Mutation & Progress Bar**
+ - In `apps/web`, create a TanStack Query mutation to trigger processing.
+ - Display a Shadcn `Progress` bar and toaster notification (`Sonner`) when processing starts, finishes, or errors out.
+
+Here is the addition for your `PLAN.md`. This task introduces an inspection endpoint using `ffprobe` (which comes bundled alongside `ffmpeg`) to inspect the video right when the user selects or uploads it.
+
+### Phase 7: Video Metadata Inspection Endpoint (`ffprobe`)**
+- **Objective:** Read and return source video technical specifications (exact duration, dimensions, native framerate, bitrates, video/audio codecs) directly to the frontend state as soon as a video file is loaded.
+- **Backend Implementation (`apps/api/src/routes/metadata.ts`):**
+- Create a Hono POST endpoint `/api/metadata`.
+- Receive the temporary local file path or raw file buffer.
+- Spawn `ffprobe` via `Bun.spawn()` to extract JSON metadata without decoding the media:
+```bash
+ffprobe -v quiet -print_format json -show_format -show_streams <inputFile>
+
+```
+
+- Parse the `stdout` buffer and structure the JSON response:
+```ts
+interface VideoMetadata {
+  filename: string;
+  containerFormat: string; // e.g., "mov,mp4,m4a,3gp,3g2,mj2"
+  durationSeconds: number;
+  width: number;
+  height: number;
+  frameRate: number;       // calculated from r_frame_rate (e.g., "60/1" -> 60)
+  videoCodec: string;      // e.g., "h264", "vp9"
+  audioCodec?: string;     // e.g., "aac", "opus"
+  bitrateKbps: number;
+}
+
+```
+- **Frontend Integration (`apps/web`):**
+- Create a TanStack Query hook `useVideoMetadataMutation()` in `apps/web/hooks/useVideoMetadata.ts`.
+- Trigger this query automatically upon file selection in `VideoUploader.tsx`.
+- Hydrate the global TanStack Store with the extracted native specifications:
+- Set `duration` to the precise sub-second `ffprobe` duration rather than the native HTML5 player estimate.
+- Store source resolution (`width`, `height`) so the Crop Overlay accurately converts target percentage coordinates ($x, y, w, h$) into exact pixel bounds for the FFmpeg filter graph (`-vf crop=w:h:x:y`).
+- Pre-fill the Export Settings sidebar with default fallbacks matching the exact source framerate ($30, 60, \text{or custom}$) and file format extension.
