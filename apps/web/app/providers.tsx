@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { VideoStoreProvider, useCreateVideoStore } from "@/store/useVideoStore";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ThemeProvider } from "@/providers/ThemeProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -21,12 +22,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const videoStore = useCreateVideoStore();
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <VideoStoreProvider value={{ videoStore }}>
-          {children}
-        </VideoStoreProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <VideoStoreProvider value={{ videoStore }}>
+            {children}
+          </VideoStoreProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }

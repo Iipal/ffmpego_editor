@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { cn } from "@/lib/utils";
 import { useVideoStore } from "@/store/useVideoStore";
+import { useTheme } from "@/providers/ThemeProvider";
 
 const acceptedTypes = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 
 export function VideoUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const { theme } = useTheme();
   const videoStore = useVideoStore();
   const metadataMutation = useVideoMetadataMutation();
 
@@ -65,8 +67,9 @@ export function VideoUploader() {
   return (
     <Card
       className={cn(
-        "flex min-h-80 flex-col items-center justify-center border-2 border-dashed p-8",
-        isDragging && "border-primary bg-muted",
+        "glass-card glass-panel-hover flex min-h-80 flex-col items-center justify-center border-2 border-dashed p-8",
+        theme === "dark" && "glass-glow",
+        isDragging && "border-primary bg-muted/50",
       )}
       onDragOver={(event) => {
         event.preventDefault();

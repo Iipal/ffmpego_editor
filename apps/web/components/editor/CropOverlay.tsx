@@ -2,6 +2,8 @@
 
 import { useRef } from "react";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { cn } from "@/lib/utils";
+import { useTheme } from "@/providers/ThemeProvider";
 
 type Handle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
@@ -32,6 +34,7 @@ const handlesArr: readonly Handle[] = [
 export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const videoStore = useVideoStore();
+  const { theme } = useTheme();
   const { crop, aspectRatio, sourceAspectRatio } = useVideoState();
 
   const startDrag = (
@@ -106,13 +109,15 @@ export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
       }}
     >
       <div
-        className="absolute border border-primary"
+        className={cn("absolute border border-primary", theme === "light" && "border-white/30")}
         style={{
           left: `${crop.x}%`,
           top: `${crop.y}%`,
           width: `${crop.width}%`,
           height: `${crop.height}%`,
-          boxShadow: "0 0 0 9999px rgb(0 0 0 / 0.55)",
+          boxShadow: theme === "dark"
+            ? "0 0 0 9999px rgb(0 0 0 / 0.6)"
+            : "0 0 0 9999px rgb(255 255 255 / 0.15)",
         }}
         onPointerDown={(event) => {
           event.stopPropagation();

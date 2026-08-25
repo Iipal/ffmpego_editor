@@ -53,6 +53,8 @@ import {
   type VideoState,
 } from "@/store/useVideoStore";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
+import { cn } from "@/lib/utils";
+import { useTheme } from "@/providers/ThemeProvider";
 
 export function SidebarToggle() {
   const store = useVideoStore();
@@ -90,6 +92,7 @@ export function Sidebar() {
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
   const transcodeMutation = useTranscodeMutation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { theme } = useTheme();
   const update = (value: Partial<VideoState>) =>
     store.setState((previous) => ({ ...previous, ...value }));
   const extension =
@@ -209,7 +212,12 @@ export function Sidebar() {
     });
   };
   return (
-    <aside className="space-y-4">
+    <aside
+      className={cn(
+        "glass-card glass-panel-hover space-y-4 p-4",
+        theme === "dark" && "glass-glow",
+      )}
+    >
       <Input
         ref={fileInputRef}
         className="sr-only"
@@ -519,7 +527,12 @@ export function Sidebar() {
             {state.exportFormat !== "mov" && (
               <div className="flex flex-col space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Quality (CRF)</Label>
+                  <Label>
+                    Quality CRF{" "}
+                    <span className="text-[10px] -mx-1.5">
+                      (Lower is better)
+                    </span>
+                  </Label>
                   <span className="text-xs text-muted-foreground">
                     {state.exportQuality}
                   </span>

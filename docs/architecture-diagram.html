@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFmpeg Editor - Architecture & Workflow Diagram</title>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-purple: #8b5cf6;
+            --accent-orange: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-cyan: #06b6d4;
+            --accent-pink: #ec4899;
+            --border: #1e293b;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            margin-bottom: 48px;
+        }
+
+        .section {
+            margin-bottom: 64px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 24px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid var(--accent-blue);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 24px;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border-radius: 2px;
+        }
+
+        /* Architecture Grid */
+        .arch-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .arch-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .arch-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+        }
+
+        .arch-card.frontend::before { background: var(--accent-blue); }
+        .arch-card.backend::before { background: var(--accent-green); }
+        .arch-card.shared::before { background: var(--accent-purple); }
+        .arch-card.external::before { background: var(--accent-orange); }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .frontend .card-icon { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .backend .card-icon { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+        .shared .card-icon { background: rgba(139, 92, 246, 0.2); color: var(--accent-purple); }
+        .external .card-icon { background: rgba(245, 158, 11, 0.2); color: var(--accent-orange); }
+
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .component-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .component-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .component-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .badge-component { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+        .badge-hook { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+        .badge-store { background: rgba(236, 72, 153, 0.15); color: var(--accent-pink); }
+        .badge-route { background: rgba(245, 158, 11, 0.15); color: var(--accent-orange); }
+        .badge-util { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); }
+
+        /* Connection Arrows */
+        .connections {
+            margin-top: 24px;
+            padding: 16px;
+            background: rgba(59, 130, 246, 0.05);
+            border-radius: 8px;
+            border: 1px dashed var(--card-border);
+        }
+
+        .connection-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .connection-arrow {
+            color: var(--accent-blue);
+            font-weight: bold;
+        }
+
+        /* Workflow Diagram */
+        .workflow-container {
+            position: relative;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 24px;
+            margin-bottom: 32px;
+            padding-left: 40px;
+            position: relative;
+        }
+
+        .workflow-step::before {
+            content: '';
+            position: absolute;
+            left: 16px;
+            top: 0;
+            bottom: -32px;
+            width: 2px;
+            background: linear-gradient(180deg, var(--accent-blue), var(--accent-purple));
+        }
+
+        .workflow-step:last-child::before {
+            display: none;
+        }
+
+        .step-number {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+            position: absolute;
+            left: 0;
+        }
+
+        .step-content {
+            flex: 1;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .step-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .step-description {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+
+        .step-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+        }
+
+        .detail-block {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+
+        .detail-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 0.9rem;
+            font-family: 'SF Mono', Monaco, monospace;
+        }
+
+        /* SVG Flow Diagram */
+        .flow-diagram {
+            width: 100%;
+            overflow-x: auto;
+            padding: 20px 0;
+        }
+
+        .flow-svg {
+            min-width: 1000px;
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-top: 32px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .arch-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>FFmpeg Editor</h1>
+        <p class="subtitle">Local Video Editing Application — Architecture & Workflow Diagram</p>
+
+        <!-- ARCHITECTURE OVERVIEW -->
+        <section class="section">
+            <h2 class="section-title">System Architecture</h2>
+            
+            <div class="arch-grid">
+                <!-- Frontend (Next.js) -->
+                <div class="arch-card frontend">
+                    <div class="card-header">
+                        <div class="card-icon">🎨</div>
+                        <div>
+                            <div class="card-title">Frontend (apps/web)</div>
+                            <div class="card-subtitle">Next.js 15 + Turbopack</div>
+                        </div>
+                    </div>
+                    <ul class="component-list">
+                        <li class="component-item">
+                            <span class="component-badge badge-component">Component</span>
+                            VideoPlayer — Main video preview & playback
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-component">Component</span>
+                            VideoUploader — File drag & drop upload
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-component">Component</span>
+                            Sidebar — Export settings & controls
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-component">Component</span>
+                            Timeline — Trim range visualization
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-component">Component</span>
+                            CropOverlay — Visual crop selection
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-hook">Hook</span>
+                            useVideoMetadataMutation — Fetch video info via ffprobe
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-hook">Hook</span>
+                            useTranscodeMutation — Submit export job (SSE)
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-store">Store</span>
+                            useVideoStore — TanStack Store (client state)
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Backend (Hono API) -->
+                <div class="arch-card backend">
+                    <div class="card-header">
+                        <div class="card-icon">⚡</div>
+                        <div>
+                            <div class="card-title">Backend (apps/api)</div>
+                            <div class="card-subtitle">Hono + Bun Runtime</div>
+                        </div>
+                    </div>
+                    <ul class="component-list">
+                        <li class="component-item">
+                            <span class="component-badge badge-route">Route</span>
+                            GET /health — Server health check
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-route">Route</span>
+                            POST /api/metadata — ffprobe video analysis
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-route">Route</span>
+                            POST /api/transcode — Start export job
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-route">Route</span>
+                            GET /api/transcode/progress/:id — SSE progress stream
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-util">Util</span>
+                            ffmpegBuilder.ts — Build FFmpeg CLI arguments
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Shared Packages -->
+                <div class="arch-card shared">
+                    <div class="card-header">
+                        <div class="card-icon">📦</div>
+                        <div>
+                            <div class="card-title">Shared Packages (packages/)</div>
+                            <div class="card-subtitle">Monorepo Workspace</div>
+                        </div>
+                    </div>
+                    <ul class="component-list">
+                        <li class="component-item">
+                            <span class="component-badge badge-util">Config</span>
+                            @repo/config — TypeScript configuration
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-util">Config</span>
+                            @repo/ui — Shadcn UI components (12+ components)
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-util">Config</span>
+                            Turborepo — Task orchestration & caching
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- External Dependencies -->
+                <div class="arch-card external">
+                    <div class="card-header">
+                        <div class="card-icon">🔧</div>
+                        <div>
+                            <div class="card-title">External Tools & Libraries</div>
+                            <div class="card-subtitle">Runtime Dependencies</div>
+                        </div>
+                    </div>
+                    <ul class="component-list">
+                        <li class="component-item">
+                            <span class="component-badge badge-util">CLI Tool</span>
+                            ffmpeg — Video transcoding engine
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-util">CLI Tool</span>
+                            ffprobe — Video metadata extraction
+                        </li>
+                        <li class="component-item">
+                            <span class="component-badge badge-util">Runtime</span>
+                            Bun v1.3.14 — JavaScript runtime & package manager
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Connections -->
+            <div class="connections">
+                <strong style="margin-bottom: 8px; display: block;">Data Flow Connections:</strong>
+                <div class="connection-item">
+                    <span class="connection-arrow">→</span> Browser → POST /api/metadata (FormData) → ffprobe analysis
+                </div>
+                <div class="connection-item">
+                    <span class="connection-arrow">→</span> Browser → POST /api/transcode (FormData) → FFmpeg export job
+                </div>
+                <div class="connection-item">
+                    <span class="connection-arrow">→</span> Browser ← GET /api/transcode/progress/:id (SSE) ← FFmpeg progress pipe
+                </div>
+                <div class="connection-item">
+                    <span class="connection-arrow">→</span> FFmpeg → ~/ffmpego_edits/ or /mnt/d/ffmpego_edits/ (output directory)
+                </div>
+            </div>
+        </section>
+
+        <!-- WORKFLOW DIAGRAM -->
+        <section class="section">
+            <h2 class="section-title">User Workflow</h2>
+            
+            <div class="workflow-container">
+                <!-- Step 1: Upload -->
+                <div class="workflow-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <div class="step-title">Upload Video File</div>
+                        <div class="step-description">User drags and drops or selects a video file to upload.</div>
+                        <div class="step-details">
+                            <div class="detail-block">
+                                <div class="detail-label">Client Action</div>
+                                <div class="detail-value">VideoUploader.tsx receives File object</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">State Update</div>
+                                <div class="detail-value">useVideoStore.file = File, mediaUrl = URL.createObjectURL()</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Metadata -->
+                <div class="workflow-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <div class="step-title">Fetch Video Metadata (ffprobe)</div>
+                        <div class="step-description">Client sends video file to backend for analysis via ffprobe.</div>
+                        <div class="step-details">
+                            <div class="detail-block">
+                                <div class="detail-label">API Call</div>
+                                <div class="detail-value">POST /api/metadata (FormData)</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Backend Process</div>
+                                <div class="detail-value">Bun.spawn(['ffprobe', ...args]) → JSON parse</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Data Extracted</div>
+                                <div class="detail-value">Duration, Resolution, Codec, FPS, Bitrate</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Client State</div>
+                                <div class="detail-value">sourceWidth, sourceHeight, duration, videoCodec, etc.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Edit -->
+                <div class="workflow-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <div class="step-title">Video Editing & Configuration</div>
+                        <div class="step-description">User configures trim range, crop area, and export settings via the UI.</div>
+                        <div class="step-details">
+                            <div class="detail-block">
+                                <div class="detail-label">Timeline Component</div>
+                                <div class="detail-value">Set trimRange: [start, end]</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">CropOverlay Component</div>
+                                <div class="detail-value">Set crop: {x, y, width, height} in percentages</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Sidebar Settings</div>
+                                <div class="detail-value">Format (mp4/webm/mov), Quality, FPS, Speed</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Export -->
+                <div class="workflow-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <div class="step-title">Submit Export Job</div>
+                        <div class="step-description">Client sends video file + export settings to backend for processing.</div>
+                        <div class="step-details">
+                            <div class="detail-block">
+                                <div class="detail-label">API Call</div>
+                                <div class="detail-value">POST /api/transcode (FormData)</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Backend Process</div>
+                                <div class="detail-value">Write file to os.tmpdir(), build FFmpeg args via ffmpegBuilder.ts</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">FFmpeg Command Built</div>
+                                <div class="detail-value">-ss -to -i -c:v -vf crop,setpts ... -progress pipe:2</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 5: Progress -->
+                <div class="workflow-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <div class="step-title">Stream Export Progress (SSE)</div>
+                        <div class="step-description">Backend streams real-time progress updates to the client via Server-Sent Events.</div>
+                        <div class="step-details">
+                            <div class="detail-block">
+                                <div class="detail-label">Client Connection</div>
+                                <div class="detail-value">new EventSource(progressUrl) — listens for events</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">FFmpeg Progress Parsing</div>
+                                <div class="detail-value">Read stderr: out_time_ms=XXXXX → calculate % of duration</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">SSE Stream</div>
+                                <div class="detail-value">data: {"status":"processing","progress":45} (every 200ms)</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 6: Output -->
+                <div class="workflow-step">
+                    <div class="step-number">6</div>
+                    <div class="step-content">
+                        <div class="step-title">Export Complete → File Saved</div>
+                        <div class="step-description">FFmpeg finishes encoding. Files are written to the output directory.</div>
+                        <div class="step-details">
+                            <div class="detail-block">
+                                <div class="detail-label">Output Path</div>
+                                <div class="detail-value">/mnt/d/ffmpego_edits/{filename}.{format}</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Alternative Output (speed-adjusted)</div>
+                                <div class="detail-value">{filename}_{speed}.{format} (if speed ≠ 1)</div>
+                            </div>
+                            <div class="detail-block">
+                                <div class="detail-label">Client State Update</div>
+                                <div class="detail-value">transcodeStatus: "completed", transcodeProgress: 100</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-blue);"></div>
+                    Frontend (Next.js)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-green);"></div>
+                    Backend (Hono/Bun)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-purple);"></div>
+                    Shared/Config
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-orange);"></div>
+                    External Tools (ffmpeg)
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: var(--accent-cyan);"></div>
+                    Data Flow / API Calls
+                </div>
+            </div>
+        </section>
+
+        <!-- SVG ARCHITECTURE FLOW DIAGRAM -->
+        <section class="section">
+            <h2 class="section-title">High-Level Data Flow</h2>
+            
+            <div class="flow-diagram">
+                <svg class="flow-svg" viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Background -->
+                    <rect width="1200" height="600" fill="#0f172a"/>
+                    
+                    <!-- Grid pattern -->
+                    <defs>
+                        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+                        </pattern>
+                    </defs>
+                    <rect width="1200" height="600" fill="url(#grid)"/>
+
+                    <!-- Browser Box -->
+                    <rect x="40" y="80" width="280" height="440" rx="12" fill="#1e293b" stroke="#3b82f6" stroke-width="2"/>
+                    <text x="180" y="115" text-anchor="middle" fill="#3b82f6" font-size="18" font-weight="bold">🎨 Browser (Next.js)</text>
+                    
+                    <!-- Browser Components -->
+                    <rect x="60" y="140" width="240" height="35" rx="6" fill="#3b82f6" opacity="0.15"/>
+                    <text x="180" y="163" text-anchor="middle" fill="#e2e8f0" font-size="12">VideoUploader</text>
+                    
+                    <rect x="60" y="190" width="240" height="35" rx="6" fill="#3b82f6" opacity="0.15"/>
+                    <text x="180" y="213" text-anchor="middle" fill="#e2e8f0" font-size="12">VideoPlayer + CropOverlay</text>
+                    
+                    <rect x="60" y="240" width="240" height="35" rx="6" fill="#3b82f6" opacity="0.15"/>
+                    <text x="180" y="263" text-anchor="middle" fill="#e2e8f0" font-size="12">Timeline + PlayerControls</text>
+                    
+                    <rect x="60" y="290" width="240" height="35" rx="6" fill="#3b82f6" opacity="0.15"/>
+                    <text x="180" y="313" text-anchor="middle" fill="#e2e8f0" font-size="12">Sidebar (Export Settings)</text>
+                    
+                    <rect x="60" y="340" width="240" height="35" rx="6" fill="#8b5cf6" opacity="0.15"/>
+                    <text x="180" y="363" text-anchor="middle" fill="#e2e8f0" font-size="12">useVideoStore (TanStack)</text>
+                    
+                    <rect x="60" y="390" width="240" height="35" rx="6" fill="#06b6d4" opacity="0.15"/>
+                    <text x="180" y="413" text-anchor="middle" fill="#e2e8f0" font-size="12">useTranscodeMutation (React Query)</text>
+
+                    <!-- API Server Box -->
+                    <rect x="460" y="80" width="280" height="440" rx="12" fill="#1e293b" stroke="#10b981" stroke-width="2"/>
+                    <text x="600" y="115" text-anchor="middle" fill="#10b981" font-size="18" font-weight="bold">⚡ API Server (Hono/Bun)</text>
+                    
+                    <!-- API Routes -->
+                    <rect x="480" y="140" width="240" height="35" rx="6" fill="#10b981" opacity="0.15"/>
+                    <text x="600" y="163" text-anchor="middle" fill="#e2e8f0" font-size="12">POST /api/metadata</text>
+                    
+                    <rect x="480" y="190" width="240" height="35" rx="6" fill="#10b981" opacity="0.15"/>
+                    <text x="600" y="213" text-anchor="middle" fill="#e2e8f0" font-size="12">POST /api/transcode</text>
+                    
+                    <rect x="480" y="240" width="240" height="35" rx="6" fill="#10b981" opacity="0.15"/>
+                    <text x="600" y="263" text-anchor="middle" fill="#e2e8f0" font-size="12">GET /api/transcode/progress/:id</text>
+                    
+                    <!-- Internal Tools -->
+                    <rect x="480" y="300" width="240" height="35" rx="6" fill="#f59e0b" opacity="0.15"/>
+                    <text x="600" y="323" text-anchor="middle" fill="#e2e8f0" font-size="12">ffmpegBuilder.ts</text>
+                    
+                    <rect x="480" y="350" width="240" height="35" rx="6" fill="#ec4899" opacity="0.15"/>
+                    <text x="600" y="373" text-anchor="middle" fill="#e2e8f0" font-size="12">Job Manager (Map&lt;jobId, Job&gt;)</text>
+
+                    <!-- External Tools Box -->
+                    <rect x="880" y="80" width="280" height="440" rx="12" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+                    <text x="1020" y="115" text-anchor="middle" fill="#f59e0b" font-size="18" font-weight="bold">🔧 External Tools</text>
+                    
+                    <!-- ffprobe -->
+                    <rect x="900" y="140" width="240" height="35" rx="6" fill="#f59e0b" opacity="0.15"/>
+                    <text x="1020" y="163" text-anchor="middle" fill="#e2e8f0" font-size="12">ffprobe</text>
+                    
+                    <!-- FFmpeg -->
+                    <rect x="900" y="190" width="240" height="35" rx="6" fill="#f59e0b" opacity="0.15"/>
+                    <text x="1020" y="213" text-anchor="middle" fill="#e2e8f0" font-size="12">ffmpeg</text>
+                    
+                    <!-- Output Directory -->
+                    <rect x="900" y="260" width="240" height="60" rx="6" fill="#ec4899" opacity="0.15"/>
+                    <text x="1020" y="285" text-anchor="middle" fill="#e2e8f0" font-size="13">📁 Output Directory</text>
+                    <text x="1020" y="305" text-anchor="middle" fill="#94a3b8" font-size="11">/mnt/d/ffmpego_edits/</text>
+                    
+                    <!-- Temp Files -->
+                    <rect x="900" y="340" width="240" height="60" rx="6" fill="#ec4899" opacity="0.15"/>
+                    <text x="1020" y="365" text-anchor="middle" fill="#e2e8f0" font-size="13">📄 Temp Files</text>
+                    <text x="1020" y="385" text-anchor="middle" fill="#94a3b8" font-size="11">os.tmpdir()/</text>
+
+                    <!-- Arrows -->
+                    <!-- Arrow 1: Browser → API (Metadata) -->
+                    <path d="M 320 160 Q 390 160 460 160" fill="none" stroke="#06b6d4" stroke-width="2" marker-end="url(#arrowCyan)"/>
+                    <text x="390" y="150" text-anchor="middle" fill="#06b6d4" font-size="10">POST /api/metadata</text>
+                    
+                    <!-- Arrow 2: API → ffprobe -->
+                    <path d="M 740 160 Q 810 160 900 160" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <text x="820" y="150" text-anchor="middle" fill="#f59e0b" font-size="10">Bun.spawn(ffprobe)</text>
+                    
+                    <!-- Arrow 3: Browser → API (Transcode) -->
+                    <path d="M 320 210 Q 390 210 460 210" fill="none" stroke="#06b6d4" stroke-width="2" marker-end="url(#arrowCyan)"/>
+                    <text x="390" y="200" text-anchor="middle" fill="#06b6d4" font-size="10">POST /api/transcode</text>
+                    
+                    <!-- Arrow 4: API → ffmpeg -->
+                    <path d="M 740 210 Q 810 210 900 210" fill="none" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowOrange)"/>
+                    <text x="820" y="200" text-anchor="middle" fill="#f59e0b" font-size="10">Bun.spawn(ffmpeg)</text>
+                    
+                    <!-- Arrow 5: ffmpeg → Output -->
+                    <path d="M 1140 230 Q 1140 260 1140 280" fill="none" stroke="#ec4899" stroke-width="2" marker-end="url(#arrowPink)"/>
+                    
+                    <!-- Arrow 6: API → Browser (SSE Progress) -->
+                    <path d="M 460 260 Q 390 260 320 260" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowPurple)" stroke-dasharray="5,5"/>
+                    <text x="390" y="250" text-anchor="middle" fill="#8b5cf6" font-size="10">SSE Progress Stream</text>
+
+                    <!-- Arrow markers -->
+                    <defs>
+                        <marker id="arrowCyan" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#06b6d4"/>
+                        </marker>
+                        <marker id="arrowOrange" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#f59e0b"/>
+                        </marker>
+                        <marker id="arrowPink" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#ec4899"/>
+                        </marker>
+                        <marker id="arrowPurple" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#8b5cf6"/>
+                        </marker>
+                    </defs>
+
+                    <!-- Title -->
+                    <text x="600" y="560" text-anchor="middle" fill="#94a3b8" font-size="14">FFmpeg Editor — High-Level Data Flow Architecture</text>
+                </svg>
+            </div>
+        </section>
+
+        <!-- KEY ARCHITECTURE DECISIONS -->
+        <section class="section">
+            <h2 class="section-title">Key Architecture Decisions</h2>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+                <div style="padding: 16px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--accent-blue);">
+                    <strong>Monorepo Architecture</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Turborepo manages apps/web, apps/api, and packages/* with shared build cache.</span>
+                </div>
+                <div style="padding: 16px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--accent-green);">
+                    <strong>Bun Runtime</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Both frontend (Turbopack) and backend (Hono) run on Bun for performance.</span>
+                </div>
+                <div style="padding: 16px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--accent-purple);">
+                    <strong>TanStack Store</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Client-side UI state managed via TanStack Store (not Redux/Zustand).</span>
+                </div>
+                <div style="padding: 16px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--accent-orange);">
+                    <strong>SSE for Progress</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">Server-Sent Events stream FFmpeg progress without polling.</span>
+                </div>
+                <div style="padding: 16px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--accent-cyan);">
+                    <strong>Local-Only Deployment</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">No auth, CORS, or rate limiting — optimized for local developer experience.</span>
+                </div>
+                <div style="padding: 16px; background: var(--card-bg); border-radius: 8px; border-left: 3px solid var(--accent-pink);">
+                    <strong>Shadcn UI Components</strong><br>
+                    <span style="color: var(--text-secondary); font-size: 0.9rem;">12+ pre-built components (Rhea style, Teal theme, Inter font).</span>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
