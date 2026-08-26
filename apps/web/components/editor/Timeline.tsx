@@ -94,6 +94,7 @@ export function Timeline({ playerRef }: TimelineProps) {
       </div>
       <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
         <span>{formatTime(trimRange[0])}</span>
+        <span>{formatTime(trimRange[1] - trimRange[0])}</span>
         <span>{formatTime(trimRange[1])}</span>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">

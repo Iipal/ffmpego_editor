@@ -84,7 +84,7 @@ function buildFormatArgs(
         "-preset",
         "fast",
         "-pix_fmt",
-        "yuv444p",
+        "yuv420p",
         "-c:a",
         "aac",
       ].flat();
