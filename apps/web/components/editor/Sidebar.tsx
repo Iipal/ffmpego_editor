@@ -588,12 +588,12 @@ export function Sidebar() {
                 <Slider
                   value={[state.exportQuality]}
                   min={0}
-                  max={40}
+                  max={60}
                   step={1}
                   onValueChange={(value) =>
                     update({
                       exportQuality: Array.isArray(value)
-                        ? Number(value[0] ?? 23)
+                        ? Number(value[0] ?? 5)
                         : Number(value),
                     })
                   }
@@ -603,44 +603,44 @@ export function Sidebar() {
             )}
             {state.exportFormat !== "webm" && (
               <>
-            <Label>Framerate</Label>
-            <Select
-              value={String(state.exportFps)}
-              onValueChange={(value) =>
-                update({
-                  exportFps: Number(value),
-                })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30">30 fps</SelectItem>
-                <SelectItem value="60">60 fps</SelectItem>
-              </SelectContent>
-            </Select>
+                <Label>Framerate</Label>
+                <Select
+                  value={String(state.exportFps)}
+                  onValueChange={(value) =>
+                    update({
+                      exportFps: Number(value),
+                    })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 fps</SelectItem>
+                    <SelectItem value="60">60 fps</SelectItem>
+                  </SelectContent>
+                </Select>
               </>
             )}
             {state.exportFormat !== "webm" && (
               <>
-            <Input
-              type="number"
-              min="1"
-              placeholder="Custom fps"
-              onChange={(event) =>
-                event.target.value &&
-                update({ exportFps: Number(event.target.value) })
-              }
-            />
-            <Label>FFmpeg arguments</Label>
-            <Textarea
-              value={state.customFFmpegArgs}
-              placeholder="-vf eq=contrast=1.2 -b:v 2M"
-              onChange={(event) =>
-                update({ customFFmpegArgs: event.target.value })
-              }
-            />
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="Custom fps"
+                  onChange={(event) =>
+                    event.target.value &&
+                    update({ exportFps: Number(event.target.value) })
+                  }
+                />
+                <Label>FFmpeg arguments</Label>
+                <Textarea
+                  value={state.customFFmpegArgs}
+                  placeholder="-vf eq=contrast=1.2 -b:v 2M"
+                  onChange={(event) =>
+                    update({ customFFmpegArgs: event.target.value })
+                  }
+                />
               </>
             )}
             {state.transcodeStatus === "processing" && (

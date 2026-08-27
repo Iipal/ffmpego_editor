@@ -65,7 +65,7 @@ const initialState: VideoState = {
   exportFormat: "mp4",
   exportFps: 30,
   exportFilename: "",
-  exportQuality: 23,
+  exportQuality: 5,
   playbackSpeed: 1,
   exportSpeed: 1,
   isLoopEnabled: false,
