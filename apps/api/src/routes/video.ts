@@ -187,6 +187,8 @@ app.post("/transcode", async (c) => {
     customArgs: settings.customFFmpegArgs,
   });
 
+  console.log("ARGS", originalArgs);
+
   // The output path is always the last arg from buildFFmpegArgs.
   const originalOutputPath = originalArgs.at(-1)!;
   let alternateOutputPath: string | undefined;
