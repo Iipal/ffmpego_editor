@@ -354,6 +354,47 @@ export function Sidebar() {
                 <SelectItem value="21:9">21:9</SelectItem>
               </SelectContent>
             </Select>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+              <div>
+                <dt className="text-muted-foreground">Start X</dt>
+                <dd>
+                  {Math.round((state.crop.x / 100) * state.sourceWidth)} px
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Start Y</dt>
+                <dd>
+                  {Math.round((state.crop.y / 100) * state.sourceHeight)} px
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">End X</dt>
+                <dd>
+                  {Math.round(
+                    ((state.crop.x + state.crop.width) / 100) *
+                      state.sourceWidth,
+                  )}{" "}
+                  px
+                </dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">End Y</dt>
+                <dd>
+                  {Math.round(
+                    ((state.crop.y + state.crop.height) / 100) *
+                      state.sourceHeight,
+                  )}{" "}
+                  px
+                </dd>
+              </div>
+              <div className="col-span-2">
+                <dt className="text-muted-foreground">Width × Height</dt>
+                <dd className="font-medium">
+                  {Math.round((state.crop.width / 100) * state.sourceWidth)} ×{" "}
+                  {Math.round((state.crop.height / 100) * state.sourceHeight)}
+                </dd>
+              </div>
+            </dl>
             <Button
               className="w-full"
               variant={state.isCropMode ? "default" : "outline"}
