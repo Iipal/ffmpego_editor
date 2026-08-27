@@ -7,7 +7,7 @@ import {
   type TranscodeProgress,
   type TranscodeResponse,
 } from "@/lib/api-client";
-import { useVideoStore, type VideoState } from "@/store/useVideoStore";
+import { useVideoStore, useVideoState, type VideoState } from "@/store/useVideoStore";
 
 type TranscodeRequest = Pick<
   VideoState,
@@ -23,8 +23,66 @@ type TranscodeRequest = Pick<
   | "trimRange"
 > & { file: File };
 
+/**
+ * Download the transcode output file and prompt the user to save it using
+ * the File System Access API (showSaveFilePicker).
+ */
+async function downloadAndSaveFile(jobId: string, filename: string) {
+  const downloadUrl = `${API_BASE_URL}/api/transcode/download/${jobId}`;
+  const response = await fetch(downloadUrl);
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => null);
+    throw new Error(
+      errorPayload?.error ?? `Download failed: ${response.status}`,
+    );
+  }
+
+  const blob = await response.blob();
+
+  // Determine the MIME type from the file extension.
+  const ext = filename.split(".").pop()?.toLowerCase() || "mp4";
+  let mimeType = "application/octet-stream";
+  if (ext === "mp4") mimeType = "video/mp4";
+  else if (ext === "webm") mimeType = "video/webm";
+  else if (ext === "mov") mimeType = "video/quicktime";
+
+  // Attempt to use the File System Access API for a native save dialog.
+  if ("showSaveFilePicker" in window) {
+    const handle = await (
+      window as unknown as {
+        showSaveFilePicker: (options: { suggestedName?: string; types?: Array<{ description?: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle>;
+      }
+    ).showSaveFilePicker({
+      suggestedName: filename,
+      types: [
+        {
+          description: `Video file (.${ext})`,
+          accept: { [mimeType]: [`.${ext}`] },
+        },
+      ],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    return handle.name;
+  }
+
+  // Fallback: trigger a browser download.
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  return filename;
+}
+
 export function useTranscodeMutation() {
   const videoStore = useVideoStore();
+  const { exportFilename, exportFormat } = useVideoState();
 
   return useMutation({
     mutationFn: async (request: TranscodeRequest) => {
@@ -87,12 +145,27 @@ export function useTranscodeMutation() {
         transcodeError: null,
       }));
     },
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
+      const filename = `${exportFilename}.${exportFormat}`;
+      let savedName: string | undefined;
+
+      try {
+        savedName = await downloadAndSaveFile(result.jobId, filename);
+      } catch (error) {
+        videoStore.setState((previous) => ({
+          ...previous,
+          transcodeStatus: "failed",
+          transcodeError:
+            error instanceof Error ? error.message : "Download failed.",
+        }));
+        return;
+      }
+
       videoStore.setState((previous) => ({
         ...previous,
         transcodeStatus: "completed",
         transcodeProgress: 100,
-        transcodeOutputPath: result.outputPath,
+        transcodeOutputPath: savedName ?? filename,
       }));
     },
     onError: (error) => {

@@ -82,4 +82,5 @@ export interface TranscodeProgress {
   outputPath: string;
   alternateOutputPath?: string;
   error?: string;
+  jobId: string;
 }

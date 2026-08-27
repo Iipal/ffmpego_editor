@@ -19,11 +19,13 @@ interface TranscodeSettings {
 }
 
 interface TranscodeJob {
+  jobId: string;
   status: JobStatus;
   progress: number;
   outputPath: string;
   alternateOutputPath?: string;
   error?: string;
+  temporaryInputPath: string;
 }
 
 const app = new Hono();
@@ -172,7 +174,10 @@ app.post("/transcode", async (c) => {
     `${jobId}-${path.basename(file.name)}`,
   );
   await Bun.write(temporaryPath, file);
-  await Bun.$`mkdir -p ${OUTPUT_DIRECTORY}`;
+
+  // Generate temp output paths: ./temp_${jobId}.${format}
+  const originalOutputPath = `./temp_${jobId}.${format}`;
+  let alternateOutputPath: string | undefined;
 
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
@@ -185,18 +190,18 @@ app.post("/transcode", async (c) => {
     fps: settings.exportFps,
     crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
     customArgs: settings.customFFmpegArgs,
+    outputPath: originalOutputPath,
   });
 
   console.log("ARGS", originalArgs);
 
-  // The output path is always the last arg from buildFFmpegArgs.
-  const originalOutputPath = originalArgs.at(-1)!;
-  let alternateOutputPath: string | undefined;
-
   const job: TranscodeJob = {
+    jobId,
     status: "processing",
     progress: 0,
     outputPath: originalOutputPath,
+    alternateOutputPath: undefined,
+    temporaryInputPath: temporaryPath,
   };
   jobs.set(jobId, job);
 
@@ -212,6 +217,7 @@ app.post("/transcode", async (c) => {
 
     if (settings.exportSpeed !== 1) {
       const suffix = `_${settings.exportSpeed.toFixed(1)}`;
+      alternateOutputPath = `./temp_${jobId}${suffix}.${format}`;
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
         filename: settings.exportFilename.trim() || file.name,
@@ -226,8 +232,8 @@ app.post("/transcode", async (c) => {
         crf:
           settings.exportFormat === "mov" ? undefined : settings.exportQuality,
         customArgs: settings.customFFmpegArgs,
+        outputPath: alternateOutputPath,
       });
-      alternateOutputPath = speedArgs.at(-1)!;
       job.alternateOutputPath = alternateOutputPath;
       await runTranscode(
         job,
@@ -241,6 +247,58 @@ app.post("/transcode", async (c) => {
   void runAll();
 
   return c.json({ jobId, progressUrl: `/api/transcode/progress/${jobId}` });
+});
+
+/**
+ * GET /transcode/download/:jobId
+ *
+ * Returns the rendered video file as a binary response so the frontend can
+ * present a save dialog to the user. The file is deleted after it is served.
+ */
+app.get("/transcode/download/:jobId", async (c) => {
+  const job = jobs.get(c.req.param("jobId"));
+  if (!job || job.status !== "completed") {
+    return c.json({ error: "Job not found or not completed." }, 404);
+  }
+
+  // Return the primary output file.
+  let filePath = job.outputPath;
+  try {
+    const file = Bun.file(filePath);
+    if (!(await file.exists())) {
+      return c.json({ error: "Output file not found." }, 404);
+    }
+    return new Response(file.stream(), {
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${job.outputPath.split("/").pop()}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } finally {
+    // Delete the output file after serving so the user must re-download if needed.
+    try {
+      Bun.file(filePath).delete();
+    } catch {
+      // Ignore cleanup errors.
+    }
+    // Also clean up alternate output and temporary input.
+    if (job.alternateOutputPath) {
+      try {
+        Bun.file(job.alternateOutputPath).delete();
+      } catch {
+        // Ignore.
+      }
+    }
+    if (job.temporaryInputPath) {
+      try {
+        Bun.file(job.temporaryInputPath).delete();
+      } catch {
+        // Ignore.
+      }
+    }
+    jobs.delete(c.req.param("jobId"));
+  }
 });
 
 /**
