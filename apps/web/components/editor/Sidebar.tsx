@@ -142,12 +142,19 @@ export function Sidebar() {
     extendedMetadataMutation.reset();
   };
   const setAspectRatio = (value: typeof state.aspectRatio) => {
-    if (value !== "1:1") {
+    const ratioMap: Record<string, number> = {
+      "1:1": 1,
+      "16:9": 16 / 9,
+      "21:9": 21 / 9,
+    };
+    const targetRatio = ratioMap[value];
+
+    if (targetRatio === undefined) {
       update({ aspectRatio: value });
       return;
     }
 
-    const widthPerHeight = 1 / state.sourceAspectRatio;
+    const widthPerHeight = targetRatio / state.sourceAspectRatio;
     const height = Math.min(
       state.crop.height,
       100 - state.crop.y,
