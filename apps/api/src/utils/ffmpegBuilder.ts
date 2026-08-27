@@ -31,6 +31,9 @@ export const OUTPUT_DIRECTORY = path.join("/mnt/d/", "ffmpego_edits");
 /**
  * Build encoder-specific FFmpeg args for the selected format.
  *
+ * For webm, a fixed command is used: fps=30, scale=512:-1, VP9 code. The CRF value can be overridden from the frontend.
+ * Audio is disabled (-an) and no custom args are accepted for this format.
+ *
  * The returned args are inserted after the input arguments and before any
  * filter or output path arguments.
  */
@@ -40,7 +43,7 @@ function buildFormatArgs(
 ) {
   const normalizedCrf =
     typeof crf === "number" && Number.isFinite(crf)
-      ? Math.max(0, Math.min(40, crf))
+      ? Math.max(0, Math.min(60, crf))
       : 23;
 
   switch (format) {
@@ -48,12 +51,11 @@ function buildFormatArgs(
       return [
         "-c:v",
         "libvpx-vp9",
-        "-b:v",
-        "0",
         "-crf",
         String(normalizedCrf),
-        "-c:a",
-        "libopus",
+        "-b:v",
+        "0",
+        "-an",
       ].flat();
     case "mov":
       return [
@@ -154,6 +156,11 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     cropHeight !== options.sourceHeight
   ) {
     videoFilters.push(`crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`);
+  }
+
+  if (options.format === "webm") {
+    videoFilters.push("fps=30");
+    videoFilters.push("scale=512:-1");
   }
 
   // Speed adjustment is handled with video and audio filters.

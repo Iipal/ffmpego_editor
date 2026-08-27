@@ -594,6 +594,8 @@ export function Sidebar() {
                 />
               </div>
             )}
+            {state.exportFormat !== "webm" && (
+              <>
             <Label>Framerate</Label>
             <Select
               value={String(state.exportFps)}
@@ -611,6 +613,10 @@ export function Sidebar() {
                 <SelectItem value="60">60 fps</SelectItem>
               </SelectContent>
             </Select>
+              </>
+            )}
+            {state.exportFormat !== "webm" && (
+              <>
             <Input
               type="number"
               min="1"
@@ -628,6 +634,8 @@ export function Sidebar() {
                 update({ customFFmpegArgs: event.target.value })
               }
             />
+              </>
+            )}
             {state.transcodeStatus === "processing" && (
               <Progress
                 value={state.transcodeProgress}
