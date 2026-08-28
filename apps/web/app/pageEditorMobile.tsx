@@ -517,7 +517,7 @@ function PortraitPreview({
   const video = videoRef.current;
   if (!video || !video.src)
     return (
-      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-[8px] border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-xl border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">
         No preview
       </div>
     );
@@ -527,7 +527,7 @@ function PortraitPreview({
       <div className="flex flex-col items-center gap-2">
         <div
           ref={wrapRef}
-          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-[8px] bg-black shadow-sm border border-border flex items-center justify-center"
+          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-border flex items-center justify-center"
         >
           <canvas ref={canvasFullRef} className="block max-w-full h-auto" />
           {safe && (
@@ -549,7 +549,7 @@ function PortraitPreview({
     <div className="flex flex-col items-center gap-2">
       <div
         ref={wrapRef}
-        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-[8px] bg-black shadow-sm border border-border flex flex-col"
+        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-border flex flex-col"
       >
         <div
           className="relative overflow-hidden flex items-center justify-center"
@@ -637,7 +637,11 @@ function UploadOtherButton() {
         className="hidden"
         onChange={(e) => onPick(e.target.files?.[0])}
       />
-      <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => inputRef.current?.click()}
+      >
         Upload other video
       </Button>
     </>
@@ -1175,6 +1179,23 @@ export default function MobileEditorPage() {
               <Button
                 size="icon-sm"
                 variant="outline"
+                onClick={() => {
+                  const v = videoRef.current;
+                  if (!v || !duration) return;
+                  v.currentTime = trimStart;
+                  ed.setCurrentTime(trimStart);
+                  if (!isPlayingLocal) setIsPlayingLocal(true);
+                  else v.play().catch(() => {});
+                }}
+                aria-label="Play from trim start"
+                title={`Seek to trim start ${formatTime(trimStart)}`}
+                disabled={!duration}
+              >
+                ⏮
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="outline"
                 onClick={() => setIsPlayingLocal(!isPlayingLocal)}
                 aria-label={isPlayingLocal ? "Pause" : "Play"}
               >
@@ -1239,21 +1260,40 @@ export default function MobileEditorPage() {
                   {formatTime(trimmedDuration)}
                 </span>
               </div>
-              <div className="relative">
-                <Slider
-                  value={[trimStart, trimEnd]}
-                  min={0}
-                  max={duration || 30}
-                  step={0.05}
-                  onValueChange={(v) => {
-                    const vals = Array.isArray(v)
-                      ? (v as number[])
-                      : [v as number, duration];
-                    const [ns, ne] = vals as [number, number];
-                    if (ne - ns >= 0.2) setTrimRange([ns, ne]);
-                  }}
-                />
-                <div className="mt-1 flex justify-between text-[10px] text-muted-foreground tabular-nums">
+              <div className="space-y-1">
+                <div className="relative py-2">
+                  <Slider
+                    value={[trimStart, trimEnd]}
+                    min={0}
+                    max={duration || 30}
+                    step={0.05}
+                    onValueChange={(v) => {
+                      const vals = Array.isArray(v)
+                        ? (v as number[])
+                        : [v as number, duration];
+                      const [ns, ne] = vals as [number, number];
+                      if (ne - ns >= 0.2) setTrimRange([ns, ne]);
+                    }}
+                  />
+                  {duration > 0 && (
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 flex flex-col items-center",
+                        (ed.currentTime < trimStart - 0.02 ||
+                          ed.currentTime > trimEnd + 0.02) &&
+                          "opacity-40",
+                      )}
+                      style={{
+                        left: `${clamp((ed.currentTime / duration) * 100, 0, 100)}%`,
+                      }}
+                      aria-hidden
+                    >
+                      <div className="size-2 rounded-full bg-primary border border-white shadow -mb-0.5" />
+                      <div className="w-0.5 h-4 bg-primary rounded-full shadow" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
                   <span>Start {formatTime(trimStart)}</span>
                   <span>Duration {formatTime(trimmedDuration)}</span>
                   <span>End {formatTime(trimEnd)}</span>
