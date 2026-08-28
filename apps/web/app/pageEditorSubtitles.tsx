@@ -30,7 +30,6 @@ import type {
 } from "@/lib/subtitles/subtitleTypes";
 import {
   DEFAULT_SUBTITLE_STYLE,
-  FONT_FAMILY_OPTIONS,
   MIN_SUBTITLE_DURATION,
 } from "@/lib/subtitles/subtitleDefaults";
 import {
@@ -38,6 +37,8 @@ import {
   loadSubtitleTemplates,
   saveSubtitleTemplates,
 } from "@/lib/subtitles/subtitleStorage";
+import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
+import { GoogleFontPicker } from "@/components/editor/GoogleFontPicker";
 
 // helpers
 function timeToPercent(time: number, start: number, end: number): number {
@@ -190,6 +191,17 @@ export default function PageEditorSubtitles() {
       });
     }
   }, [videoStore]);
+
+  // Dynamically load Google Fonts for current subtitles (live preview)
+  useEffect(() => {
+    if (subtitles.length === 0) return;
+    const uniq = Array.from(
+      new Set(subtitles.map((s) => s.style.fontFamily).filter(Boolean)),
+    );
+    uniq.forEach((f) => {
+      ensureGoogleFontLoaded(f).catch(() => {});
+    });
+  }, [subtitles]);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1432,26 +1444,22 @@ export default function PageEditorSubtitles() {
                   </div>
                 </div>
 
-                {/* Font Family */}
+                {/* Font Family - Google Fonts dynamic search */}
                 <div className="space-y-2">
                   <Label htmlFor="font-family">Font Family</Label>
-                  <Select
+                  <GoogleFontPicker
                     value={selectedSubtitle.style.fontFamily}
                     onValueChange={(v) => {
-                      if (v) updateSelectedStyle({ fontFamily: v as string });
+                      ensureGoogleFontLoaded(v).catch(() => {});
+                      updateSelectedStyle({ fontFamily: v });
                     }}
-                  >
-                    <SelectTrigger id="font-family" aria-label="Font Family">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {FONT_FAMILY_OPTIONS.map((f) => (
-                        <SelectItem key={f} value={f}>
-                          {f.split(",")[0]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    id="font-family"
+                    placeholder="Search Google Fonts…"
+                    previewText={selectedSubtitle.text}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Dynamic Google Fonts search — fonts are loaded on demand via Google Fonts CDN.
+                  </p>
                 </div>
 
                 {/* Font Size */}

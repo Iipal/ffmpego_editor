@@ -1,5 +1,6 @@
 "use client";
 import type { Subtitle } from "./subtitleTypes";
+import { ensureGoogleFontLoaded } from "./googleFonts";
 
 export interface RenderedSubtitlePng {
   blob: Blob;
@@ -56,8 +57,11 @@ export async function renderSubtitlePng(subtitle: Subtitle): Promise<RenderedSub
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas not supported");
 
-  // Use first font family token for canvas, fallback to sans-serif
+  // Use font family (may be Google Font) — dynamically import via Google Fonts CDN
   const fontFamily = style.fontFamily || "Inter, sans-serif";
+  try {
+    await ensureGoogleFontLoaded(fontFamily);
+  } catch {}
   // Ensure fonts are loaded if possible (best effort)
   try {
     // @ts-ignore
