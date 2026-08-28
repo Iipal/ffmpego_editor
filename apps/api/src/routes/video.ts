@@ -16,6 +16,18 @@ interface TranscodeSettings {
   exportQuality: number;
   exportSpeed: number;
   customFFmpegArgs: string;
+  mobileLayout?: {
+    mode: "full" | "stacked";
+    splitRatio: number;
+    zones: Array<{
+      id: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      zoom: number;
+    }>;
+  } | null;
 }
 
 interface TranscodeJob {
@@ -55,12 +67,14 @@ function parseSettings(
       exportSpeedInvalid: !Number.isFinite(settings.exportSpeed),
       exportQualityInvalid: !Number.isFinite(settings.exportQuality),
     });
+    const hasCrop = !!settings.crop;
+    const hasMobile = !!settings.mobileLayout;
     if (
       !Number.isFinite(settings.sourceWidth) ||
       !Number.isFinite(settings.sourceHeight) ||
       !Array.isArray(settings.trimRange) ||
       settings.trimRange.length !== 2 ||
-      !settings.crop ||
+      (!hasCrop && !hasMobile) ||
       !Number.isFinite(settings.exportFps) ||
       !settings.exportFilename ||
       !Number.isFinite(settings.exportSpeed) ||
@@ -147,6 +161,134 @@ async function runTranscode(
   }
 }
 
+function parseMobileSettings(value: FormDataEntryValue | null):
+  | (TranscodeSettings & {
+      mobileLayout: NonNullable<TranscodeSettings["mobileLayout"]>;
+    })
+  | null {
+  if (typeof value !== "string") return null;
+  try {
+    const s = JSON.parse(value) as TranscodeSettings;
+    if (
+      !Number.isFinite(s.sourceWidth) ||
+      !Number.isFinite(s.sourceHeight) ||
+      !Array.isArray(s.trimRange) ||
+      s.trimRange.length !== 2 ||
+      !s.mobileLayout ||
+      !["full", "stacked"].includes(s.mobileLayout.mode) ||
+      typeof s.mobileLayout.splitRatio !== "number" ||
+      s.mobileLayout.splitRatio < 0.2 ||
+      s.mobileLayout.splitRatio > 0.8 ||
+      !Array.isArray(s.mobileLayout.zones)
+    )
+      return null;
+    const expected = s.mobileLayout.mode === "full" ? 1 : 2;
+    if (s.mobileLayout.zones.length !== expected) return null;
+    for (const z of s.mobileLayout.zones) {
+      if (
+        typeof z.x !== "number" ||
+        typeof z.y !== "number" ||
+        typeof z.width !== "number" ||
+        typeof z.height !== "number" ||
+        z.x < 0 ||
+        z.y < 0 ||
+        z.x + z.width > 1.001 ||
+        z.y + z.height > 1.001 ||
+        z.width < 0.02 ||
+        z.height < 0.02
+      )
+        return null;
+    }
+    if (
+      !Number.isFinite(s.exportFps) ||
+      !s.exportFilename ||
+      !Number.isFinite(s.exportSpeed) ||
+      !Number.isFinite(s.exportQuality)
+    )
+      return null;
+    return s as unknown as TranscodeSettings & {
+      mobileLayout: NonNullable<TranscodeSettings["mobileLayout"]>;
+    };
+  } catch {
+    return null;
+  }
+}
+
+app.post("/transcode/mobile", async (c) => {
+  const form = await c.req.formData();
+  const file = form.get("file");
+  const settings = parseMobileSettings(form.get("settings"));
+  if (!(file instanceof File) || !settings) {
+    return c.json(
+      {
+        error:
+          "A video file and valid mobileLayout export settings are required. Requires 16:9 source to 9:16 stacked/full with 1 or 2 zones.",
+      },
+      400,
+    );
+  }
+  const format = "mp4" as const;
+  const jobId = crypto.randomUUID();
+  const temporaryPath = path.join(
+    os.tmpdir(),
+    `${jobId}-${path.basename(file.name)}`,
+  );
+  await Bun.write(temporaryPath, file);
+  const originalOutputPath = `./temp_${jobId}_mobile.${format}`;
+  const mobileLayout = {
+    mode: settings.mobileLayout.mode,
+    splitRatio: settings.mobileLayout.splitRatio,
+    zones: settings.mobileLayout.zones.map((z) => ({
+      ...z,
+      x: z.x * 100,
+      y: z.y * 100,
+      width: z.width * 100,
+      height: z.height * 100,
+    })),
+  };
+  const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
+    .replace(/(^|\s)-an(\s|$)/g, " ")
+    .trim();
+  const originalArgs = buildFFmpegArgs({
+    inputPath: temporaryPath,
+    filename: settings.exportFilename.trim() || file.name,
+    sourceWidth: settings.sourceWidth,
+    sourceHeight: settings.sourceHeight,
+    trimRange: settings.trimRange,
+    crop: { x: 0, y: 0, width: 100, height: 100 },
+    format,
+    fps: settings.exportFps,
+    crf: 10,
+    customArgs: sanitizedCustomArgs,
+    outputPath: originalOutputPath,
+    mobileLayout: mobileLayout as never,
+    speed: settings.exportSpeed,
+  });
+  console.log("MOBILE ARGS", originalArgs);
+  const job: TranscodeJob = {
+    jobId,
+    status: "processing",
+    progress: 0,
+    outputPath: originalOutputPath,
+    alternateOutputPath: undefined,
+    temporaryInputPath: temporaryPath,
+  };
+  jobs.set(jobId, job);
+  void (async () => {
+    await runTranscode(
+      job,
+      originalArgs,
+      temporaryPath,
+      Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]),
+    );
+  })();
+  return c.json({
+    jobId,
+    progressUrl: `/api/transcode/progress/${jobId}`,
+    output: { width: 1080, height: 1920 },
+  });
+});
+
 /**
  * POST /transcode
  *
@@ -179,18 +321,32 @@ app.post("/transcode", async (c) => {
   const originalOutputPath = `./temp_${jobId}.${format}`;
   let alternateOutputPath: string | undefined;
 
+  const mobileLayout = settings.mobileLayout
+    ? {
+        mode: settings.mobileLayout.mode,
+        splitRatio: settings.mobileLayout.splitRatio,
+        zones: settings.mobileLayout.zones.map((z) => ({
+          ...z,
+          x: z.x * 100,
+          y: z.y * 100,
+          width: z.width * 100,
+          height: z.height * 100,
+        })),
+      }
+    : null;
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
     filename: settings.exportFilename.trim() || file.name,
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     trimRange: settings.trimRange,
-    crop: settings.crop,
+    crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
     format,
     fps: settings.exportFps,
     crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
     customArgs: settings.customFFmpegArgs,
     outputPath: originalOutputPath,
+    mobileLayout: mobileLayout as never,
   });
 
   console.log("ARGS", originalArgs);
@@ -224,7 +380,7 @@ app.post("/transcode", async (c) => {
         sourceWidth: settings.sourceWidth,
         sourceHeight: settings.sourceHeight,
         trimRange: settings.trimRange,
-        crop: settings.crop,
+        crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
         format,
         outputSuffix: suffix,
         speed: settings.exportSpeed,
@@ -233,6 +389,7 @@ app.post("/transcode", async (c) => {
           settings.exportFormat === "mov" ? undefined : settings.exportQuality,
         customArgs: settings.customFFmpegArgs,
         outputPath: alternateOutputPath,
+        mobileLayout: mobileLayout as never,
       });
       job.alternateOutputPath = alternateOutputPath;
       await runTranscode(
@@ -268,9 +425,10 @@ app.get("/transcode/download/:jobId", async (c) => {
     if (!(await file.exists())) {
       return c.json({ error: "Output file not found." }, 404);
     }
+    const isMobile = filePath.includes("_mobile.");
     return new Response(file.stream(), {
       headers: {
-        "Content-Type": "application/octet-stream",
+        "Content-Type": isMobile ? "video/mp4" : "application/octet-stream",
         "Content-Disposition": `attachment; filename="${job.outputPath.split("/").pop()}"`,
         "Cache-Control": "no-store",
       },

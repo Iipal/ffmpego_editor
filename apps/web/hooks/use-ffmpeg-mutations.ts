@@ -48,27 +48,35 @@ async function downloadAndSaveFile(jobId: string, filename: string) {
   else if (ext === "mov") mimeType = "video/quicktime";
 
   // Attempt to use the File System Access API for a native save dialog.
+  // Must be called within user activation – after async SSE it will throw NotAllowedError, so fall back to anchor.
   if ("showSaveFilePicker" in window) {
-    const handle = await (
-      window as unknown as {
-        showSaveFilePicker: (options: { suggestedName?: string; types?: Array<{ description?: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle>;
-      }
-    ).showSaveFilePicker({
-      suggestedName: filename,
-      types: [
-        {
-          description: `Video file (.${ext})`,
-          accept: { [mimeType]: [`.${ext}`] },
-        },
-      ],
-    });
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    return handle.name;
+    try {
+      const handle = await (
+        window as unknown as {
+          showSaveFilePicker: (options: { suggestedName?: string; types?: Array<{ description?: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle>;
+        }
+      ).showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: `Video file (.${ext})`,
+            accept: { [mimeType]: [`.${ext}`] },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return handle.name;
+    } catch (e) {
+      // User cancelled – bubble as AbortError so caller can ignore
+      if ((e as DOMException)?.name === "AbortError") throw e;
+      // NotAllowedError (no transient activation) or other – fall through to anchor fallback
+      console.warn("showSaveFilePicker failed, falling back to download:", e);
+    }
   }
 
-  // Fallback: trigger a browser download.
+  // Fallback: trigger a browser download. This works without transient activation.
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -76,7 +84,8 @@ async function downloadAndSaveFile(jobId: string, filename: string) {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  // Delay revocation to allow browser to start download
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
   return filename;
 }
 
@@ -146,12 +155,26 @@ export function useTranscodeMutation() {
       }));
     },
     onSuccess: async (result) => {
-      const filename = `${exportFilename}.${exportFormat}`;
+      // Use fresh store state to avoid stale closure on exportFilename/format
+      const fresh = (videoStore as unknown as { state: VideoState }).state;
+      const freshName = fresh?.exportFilename;
+      const freshFormat = fresh?.exportFormat;
+      const filename = `${freshName || exportFilename}.${freshFormat || exportFormat}`;
       let savedName: string | undefined;
 
       try {
         savedName = await downloadAndSaveFile(result.jobId, filename);
       } catch (error) {
+        if ((error as DOMException)?.name === "AbortError") {
+          // User cancelled picker – treat as success, keep file available via download endpoint
+          videoStore.setState((previous) => ({
+            ...previous,
+            transcodeStatus: "completed",
+            transcodeProgress: 100,
+            transcodeOutputPath: filename,
+          }));
+          return;
+        }
         videoStore.setState((previous) => ({
           ...previous,
           transcodeStatus: "failed",
@@ -169,6 +192,14 @@ export function useTranscodeMutation() {
       }));
     },
     onError: (error) => {
+      if ((error as DOMException)?.name === "AbortError") {
+        videoStore.setState((previous) => ({
+          ...previous,
+          transcodeStatus: "idle",
+          transcodeProgress: 0,
+        }));
+        return;
+      }
       videoStore.setState((previous) => ({
         ...previous,
         transcodeStatus: "failed",

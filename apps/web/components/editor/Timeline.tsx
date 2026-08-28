@@ -7,7 +7,6 @@ import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { ArrowLeft, ArrowRight, SkipBack, SkipForward } from "lucide-react";
 import type { RefObject } from "react";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/providers/ThemeProvider";
 
 interface TimelineProps {
   playerRef: RefObject<HTMLVideoElement | null>;
@@ -15,7 +14,6 @@ interface TimelineProps {
 
 export function Timeline({ playerRef }: TimelineProps) {
   const videoStore = useVideoStore();
-  const { theme } = useTheme();
   const { currentTime, duration, trimRange } = useVideoState();
   const playheadPosition = duration > 0 ? (currentTime / duration) * 100 : 0;
   const boundedCurrentTime = Math.min(Math.max(currentTime, 0), duration);
@@ -65,12 +63,7 @@ export function Timeline({ playerRef }: TimelineProps) {
   };
 
   return (
-    <section
-      className={cn(
-        "glass-card glass-panel-hover rounded-lg p-4",
-        theme === "dark" && "glass-glow",
-      )}
-    >
+    <section className="enterprise-card rounded-[8px] p-4">
       <div className="relative py-4">
         <div
           className="absolute top-0 z-10 h-full w-0.5 bg-primary"

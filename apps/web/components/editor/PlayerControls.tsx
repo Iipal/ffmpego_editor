@@ -20,7 +20,6 @@ import {
 import { formatTime } from "@/lib/format-time";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/providers/ThemeProvider";
 
 interface PlayerControlsProps {
   playerRef: RefObject<HTMLVideoElement | null>;
@@ -29,7 +28,6 @@ interface PlayerControlsProps {
 
 export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   const videoStore = useVideoStore();
-  const { theme } = useTheme();
   const {
     currentTime,
     duration,
@@ -87,13 +85,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   };
 
   return (
-    <div
-      className={cn(
-        "glass-panel glass-panel-hover px-4 py-3",
-        theme === "dark" && "glass-glow",
-        "text-white",
-      )}
-    >
+    <div className="border-t border-border bg-card px-4 py-3">
       <Slider
         className="mb-3"
         value={[currentTime]}
@@ -113,7 +105,6 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant="ghost"
                 aria-label="Play from trim start"
-                className="glass-button text-gray-600! hover:text-black! dark:text-white/60! dark:hover:text-white!"
                 onClick={playFromTrimStart}
               />
             }
@@ -129,7 +120,6 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant="ghost"
                 aria-label={isPlaying ? "Pause" : "Play"}
-                className="glass-button text-gray-600! hover:text-black! dark:text-white/60! dark:hover:text-white!"
                 onClick={togglePlayback}
               />
             }
@@ -145,10 +135,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant={isLoopEnabled ? "secondary" : "ghost"}
                 aria-label={isLoopEnabled ? "Disable loop" : "Enable loop"}
-                className={cn(
-                  "text-gray-600! hover:text-black! dark:text-white/60! dark:hover:text-white!",
-                  isLoopEnabled && "bg-primary/20 border-primary/30",
-                )}
+                className={cn(isLoopEnabled && "bg-primary text-primary-foreground border-primary")}
                 onClick={toggleLoop}
               />
             }
@@ -166,7 +153,6 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant="ghost"
                 aria-label={isMuted ? "Unmute" : "Mute"}
-                className="glass-button text-gray-600! hover:text-black! dark:text-white/60! dark:hover:text-white!"
                 onClick={toggleMute}
               />
             }
@@ -188,12 +174,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
           aria-label="Volume"
         />
 
-        <output
-          className={cn(
-            "ml-auto text-xs tabular-nums",
-            theme === "dark" ? "text-white/80" : "text-black/70",
-          )}
-        >
+        <output className="ml-auto text-xs tabular-nums text-muted-foreground">
           {formatTime(currentTime)} / {formatTime(duration)}
         </output>
 
@@ -204,7 +185,6 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant="ghost"
                 aria-label="Fullscreen"
-                className="glass-button text-gray-600! hover:text-black! dark:text-white/60! dark:hover:text-white!"
                 onClick={() => wrapperRef.current?.requestFullscreen()}
               />
             }

@@ -3,7 +3,6 @@
 import { useRef } from "react";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/providers/ThemeProvider";
 
 type Handle = "move" | "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
@@ -34,7 +33,6 @@ const handlesArr: readonly Handle[] = [
 export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const videoStore = useVideoStore();
-  const { theme } = useTheme();
   const { crop, aspectRatio, sourceAspectRatio } = useVideoState();
 
   const startDrag = (
@@ -109,15 +107,13 @@ export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
       }}
     >
       <div
-        className={cn("absolute border border-primary", theme === "light" && "border-white/30")}
+        className="absolute border-2 border-primary"
         style={{
           left: `${crop.x}%`,
           top: `${crop.y}%`,
           width: `${crop.width}%`,
           height: `${crop.height}%`,
-          boxShadow: theme === "dark"
-            ? "0 0 0 9999px rgb(0 0 0 / 0.6)"
-            : "0 0 0 9999px rgb(255 255 255 / 0.15)",
+          boxShadow: "0 0 0 9999px rgba(17, 24, 39, 0.45)",
         }}
         onPointerDown={(event) => {
           event.stopPropagation();
@@ -132,7 +128,11 @@ export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
               event.stopPropagation();
               startDrag(event, handle);
             }}
-            className={`absolute size-3.5 cursor-pointer rounded-full border-2 border-background bg-primary ${handle.includes("n") ? "-top-1.5" : handle.includes("s") ? "-bottom-1.5" : "top-1/2 -translate-y-1/2"} ${handle.includes("w") ? "-left-1.5" : handle.includes("e") ? "-right-1.5" : "left-1/2 -translate-x-1/2"}`}
+            className={cn(
+              "absolute size-2 cursor-pointer rounded-full border-2 border-white bg-primary shadow-sm",
+              handle.includes("n") ? "-top-1" : handle.includes("s") ? "-bottom-1" : "top-1/2 -translate-y-1/2",
+              handle.includes("w") ? "-left-1" : handle.includes("e") ? "-right-1" : "left-1/2 -translate-x-1/2"
+            )}
           />
         ))}
       </div>

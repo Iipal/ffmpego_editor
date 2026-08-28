@@ -7,13 +7,11 @@ import { Timeline } from "@/components/editor/Timeline";
 import { CropOverlay } from "@/components/editor/CropOverlay";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/providers/ThemeProvider";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const videoStore = useVideoStore();
-  const { theme } = useTheme();
   const {
     mediaUrl,
     volume,
@@ -173,7 +171,7 @@ export function VideoPlayer() {
 
   return (
     <div className="space-y-3">
-      <Card className={cn("glass-card glass-panel-hover overflow-hidden p-0", theme === "dark" && "glass-glow")}>
+      <Card className="overflow-hidden p-0 border border-border bg-card shadow-sm rounded-[var(--radius)]">
         <div ref={wrapperRef} className="relative aspect-video w-full">
           <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
             <div

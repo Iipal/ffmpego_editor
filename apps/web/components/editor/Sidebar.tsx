@@ -54,7 +54,6 @@ import {
 } from "@/store/useVideoStore";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/providers/ThemeProvider";
 
 export function SidebarToggle() {
   const store = useVideoStore();
@@ -92,7 +91,6 @@ export function Sidebar() {
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
   const transcodeMutation = useTranscodeMutation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { theme } = useTheme();
   const update = (value: Partial<VideoState>) =>
     store.setState((previous) => ({ ...previous, ...value }));
   const extension =
@@ -219,12 +217,7 @@ export function Sidebar() {
     });
   };
   return (
-    <aside
-      className={cn(
-        "glass-card glass-panel-hover space-y-4 p-4",
-        theme === "dark" && "glass-glow",
-      )}
-    >
+    <aside className="enterprise-card rounded-[8px] space-y-4 p-4">
       <Input
         ref={fileInputRef}
         className="sr-only"
@@ -244,12 +237,12 @@ export function Sidebar() {
       >
         Choose other video
       </Button>
-      <Card className="p-4">
+      <Card className="p-4 rounded-[8px]">
         <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold">
-            Info <ChevronDown className="size-4" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
+            Info <ChevronDown className="size-4 text-muted-foreground" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-3 pt-4">
+          <CollapsibleContent className="space-y-3 pt-3">
             <div>
               <h2
                 className="truncate text-sm font-medium"
@@ -338,12 +331,12 @@ export function Sidebar() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-      <Card className="p-4">
+      <Card className="p-4 rounded-[8px]">
         <Collapsible defaultOpen>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold">
-            Crop <ChevronDown className="size-4" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
+            Crop <ChevronDown className="size-4 text-muted-foreground" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 pt-4">
+          <CollapsibleContent className="space-y-4 pt-3">
             <Label>Aspect ratio</Label>
             <Select
               value={state.aspectRatio ?? "custom"}
@@ -482,12 +475,12 @@ export function Sidebar() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-      <Card className="p-4">
+      <Card className="p-4 rounded-[8px]">
         <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold">
-            Video Speed <ChevronDown className="size-4" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
+            Video Speed <ChevronDown className="size-4 text-muted-foreground" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 pt-4">
+          <CollapsibleContent className="space-y-4 pt-3">
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -539,12 +532,12 @@ export function Sidebar() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-      <Card className="p-4">
+      <Card className="p-4 rounded-[8px]">
         <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold">
-            Export <ChevronDown className="size-4" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
+            Export <ChevronDown className="size-4 text-muted-foreground" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 pt-4">
+          <CollapsibleContent className="space-y-4 pt-3">
             <Label>Output format</Label>
             <Select
               value={state.exportFormat}

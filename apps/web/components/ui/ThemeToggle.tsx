@@ -9,11 +9,11 @@ export function ThemeToggle() {
 
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       size="icon"
       onClick={toggleTheme}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      className="glass-button rounded-full"
+      className="rounded-full border-border bg-card shadow-sm"
     >
       {theme === "dark" ? (
         <Sun className="size-5" />
