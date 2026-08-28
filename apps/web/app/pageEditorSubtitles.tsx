@@ -64,6 +64,43 @@ function normalizeHex(v: string): string {
   if (/^#[0-9A-Fa-f]{6}$/.test(t)) return t.toUpperCase();
   return t;
 }
+function getSubtitleTrack(s: Subtitle): number {
+  return typeof (s as unknown as { track?: number }).track === "number"
+    ? (s as unknown as { track: number }).track
+    : 0;
+}
+function intervalsOverlap(
+  aStart: number,
+  aEnd: number,
+  bStart: number,
+  bEnd: number,
+): boolean {
+  return aStart < bEnd && bStart < aEnd;
+}
+function findFirstFreeTrack(
+  subtitles: Subtitle[],
+  start: number,
+  end: number,
+  excludeId?: string,
+): number {
+  const existingTracks = new Set<number>();
+  subtitles.forEach((s) => {
+    if (excludeId && s.id === excludeId) return;
+    existingTracks.add(getSubtitleTrack(s));
+  });
+  const sorted = Array.from(existingTracks).sort((a, b) => a - b);
+  const maxTrack = sorted.length ? Math.max(...sorted) : -1;
+  // check 0..maxTrack inclusive (fills gaps), then maxTrack+1
+  for (let t = 0; t <= maxTrack; t++) {
+    const overlaps = subtitles.some((s) => {
+      if (excludeId && s.id === excludeId) return false;
+      if (getSubtitleTrack(s) !== t) return false;
+      return intervalsOverlap(s.startTime, s.endTime, start, end);
+    });
+    if (!overlaps) return t;
+  }
+  return maxTrack + 1;
+}
 
 function renderSubtitleStyle(style: SubtitleStyle): React.CSSProperties {
   const hasOutline = style.outlineEnabled && style.outlineThickness > 0;
@@ -115,6 +152,7 @@ export default function PageEditorSubtitles() {
 
   const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [trackCountExplicit, setTrackCountExplicit] = useState(1);
   const [templates, setTemplates] = useState<SubtitleTemplate[]>(() => {
     try {
       return loadSubtitleTemplates();
@@ -126,6 +164,21 @@ export default function PageEditorSubtitles() {
 
   const hasVideo = !!mediaUrl && !!file;
   const effectiveDuration = duration || srcDuration || 0;
+
+  const maxTrackFromSubtitles = useMemo(() => {
+    if (subtitles.length === 0) return -1;
+    return Math.max(...subtitles.map((s) => getSubtitleTrack(s)));
+  }, [subtitles]);
+  const trackCount = useMemo(() => {
+    return Math.max(trackCountExplicit, maxTrackFromSubtitles + 1, 1);
+  }, [trackCountExplicit, maxTrackFromSubtitles]);
+
+  // keep explicit count in sync if subtitles need more tracks
+  useEffect(() => {
+    if (maxTrackFromSubtitles + 1 > trackCountExplicit) {
+      setTrackCountExplicit(maxTrackFromSubtitles + 1);
+    }
+  }, [maxTrackFromSubtitles, trackCountExplicit]);
 
   // init trim when duration available
   useEffect(() => {
@@ -297,17 +350,26 @@ export default function PageEditorSubtitles() {
     const start = clamp(t, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
     const end = clamp(start + 1, start + MIN_SUBTITLE_DURATION, trimEnd);
     const id = generateId();
-    const newSub: Subtitle = {
-      id,
-      text: "New subtitle",
-      startTime: start,
-      endTime: end,
-      position: { x: 50, y: 80 },
-      style: { ...DEFAULT_SUBTITLE_STYLE },
-    };
-    setSubtitles((prev) => [...prev, newSub]);
+    setSubtitles((prev) => {
+      const track = findFirstFreeTrack(prev, start, end);
+      const newSub: Subtitle = {
+        id,
+        text: "New subtitle",
+        startTime: start,
+        endTime: end,
+        track,
+        position: { x: 50, y: 80 },
+        style: { ...DEFAULT_SUBTITLE_STYLE },
+      };
+      // ensure trackCountExplicit will grow via effect, but also bump now if needed
+      if (track + 1 > trackCountExplicit) {
+        // defer but sync quickly
+        setTrackCountExplicit(track + 1);
+      }
+      return [...prev, newSub];
+    });
     setSelectedId(id);
-  }, [hasVideo, effectiveDuration, currentTime, trimStart, trimEnd]);
+  }, [hasVideo, effectiveDuration, currentTime, trimStart, trimEnd, trackCountExplicit]);
 
   const handleDeleteSubtitle = useCallback(() => {
     if (!selectedId) return;
@@ -323,6 +385,23 @@ export default function PageEditorSubtitles() {
       return next;
     });
   }, [selectedId]);
+
+  const handleMoveSubtitleToTrack = useCallback(
+    (id: string, newTrack: number) => {
+      const t = clamp(Math.round(newTrack), 0, 99);
+      if (t >= trackCount) {
+        setTrackCountExplicit(t + 1);
+      }
+      setSubtitles((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, track: t } : s)),
+      );
+    },
+    [trackCount],
+  );
+
+  const handleAddTrack = useCallback(() => {
+    setTrackCountExplicit((c) => c + 1);
+  }, []);
 
   // Player controls
   const playFromTrimStart = useCallback(async () => {
@@ -745,6 +824,7 @@ export default function PageEditorSubtitles() {
                 currentTime={currentTime}
                 subtitles={subtitles}
                 selectedId={selectedId}
+                trackCount={trackCount}
                 onSeek={handleTimelineSeek}
                 onSelect={setSelectedId}
                 onUpdateSubtitle={(id, ns, ne) => {
@@ -763,6 +843,8 @@ export default function PageEditorSubtitles() {
                     ),
                   );
                 }}
+                onUpdateTrack={handleMoveSubtitleToTrack}
+                onAddTrack={handleAddTrack}
               />
               <div className="text-[11px] text-muted-foreground flex justify-between tabular-nums">
                 <span>0:00</span>
@@ -828,11 +910,16 @@ export default function PageEditorSubtitles() {
                           <span className="text-xs font-medium line-clamp-2 flex-1">
                             {sub.text || "(empty)"}
                           </span>
-                          {isVisible && (
-                            <span className="text-[10px] bg-primary text-primary-foreground px-1 rounded">
-                              ON
+                          <span className="flex items-center gap-1 shrink-0">
+                            <span className="text-[10px] bg-muted border px-1 rounded">
+                              T{getSubtitleTrack(sub) + 1}
                             </span>
-                          )}
+                            {isVisible && (
+                              <span className="text-[10px] bg-primary text-primary-foreground px-1 rounded">
+                                ON
+                              </span>
+                            )}
+                          </span>
                         </div>
                         <div className="text-[11px] tabular-nums text-muted-foreground flex gap-2">
                           <span>{formatTime(sub.startTime)}</span>
@@ -843,7 +930,7 @@ export default function PageEditorSubtitles() {
                           </span>
                         </div>
                         <div className="text-[10px] text-muted-foreground">
-                          Pos {sub.position.x.toFixed(0)},{" "}
+                          Track {getSubtitleTrack(sub) + 1} · Pos {sub.position.x.toFixed(0)},{" "}
                           {sub.position.y.toFixed(0)} ·{" "}
                           {sub.style.fontFamily.split(",")[0]}
                         </div>
@@ -1014,6 +1101,48 @@ export default function PageEditorSubtitles() {
                 >
                   Delete Subtitle
                 </Button>
+
+                {/* Track */}
+                <div className="space-y-2">
+                  <Label htmlFor="sub-track">Track</Label>
+                  <div className="flex gap-2">
+                    <Select
+                      value={String(getSubtitleTrack(selectedSubtitle))}
+                      onValueChange={(v) => {
+                        if (v === null) return;
+                        handleMoveSubtitleToTrack(
+                          selectedSubtitle.id,
+                          parseInt(v as string, 10),
+                        );
+                      }}
+                    >
+                      <SelectTrigger id="sub-track" aria-label="Track" className="flex-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: trackCount }).map((_, i) => (
+                          <SelectItem key={i} value={String(i)}>
+                            Track {i + 1}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value={String(trackCount)}>
+                          + New Track {trackCount + 1}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleAddTrack}
+                      aria-label="Add Track"
+                    >
+                      + Track
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Move between tracks to avoid overlap. New subtitles at overlapping time auto-create a new track.
+                  </p>
+                </div>
 
                 <div className="h-px bg-border" />
 
@@ -1493,9 +1622,12 @@ function TimelineVisual({
   currentTime,
   subtitles,
   selectedId,
+  trackCount,
   onSeek,
   onSelect,
   onUpdateSubtitle,
+  onUpdateTrack,
+  onAddTrack,
 }: {
   duration: number;
   trimStart: number;
@@ -1503,17 +1635,24 @@ function TimelineVisual({
   currentTime: number;
   subtitles: Subtitle[];
   selectedId: string | null;
+  trackCount: number;
   onSeek: (t: number) => void;
   onSelect: (id: string) => void;
   onUpdateSubtitle: (id: string, start: number, end: number) => void;
+  onUpdateTrack: (id: string, newTrack: number) => void;
+  onAddTrack: () => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const ROW_H = 32;
+  const HEADER_H = 22;
   const [drag, setDrag] = useState<null | {
     id: string;
     mode: "move" | "left" | "right";
     startX: number;
+    startY: number;
     origStart: number;
     origEnd: number;
+    origTrack: number;
   }>(null);
 
   const toTime = useCallback(
@@ -1528,8 +1667,12 @@ function TimelineVisual({
   );
 
   const onPointerDownTrack = (e: React.PointerEvent) => {
-    // only if clicking empty area
-    if ((e.target as HTMLElement).dataset.role === "track") {
+    const target = e.target as HTMLElement;
+    if (
+      target.dataset.role === "track" ||
+      target.dataset.role === "track-bg" ||
+      target.dataset.role === "track-row"
+    ) {
       const t = toTime(e.clientX);
       onSeek(t);
     }
@@ -1543,7 +1686,6 @@ function TimelineVisual({
         const dur = drag.origEnd - drag.origStart;
         let ns = drag.origStart + deltaTime;
         let ne = drag.origEnd + deltaTime;
-        // clamp inside trim
         if (ns < trimStart) {
           ns = trimStart;
           ne = ns + dur;
@@ -1555,6 +1697,19 @@ function TimelineVisual({
         ns = clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
         ne = clamp(ne, ns + MIN_SUBTITLE_DURATION, trimEnd);
         onUpdateSubtitle(drag.id, ns, ne);
+        // vertical track move
+        const deltaY = e.clientY - drag.startY;
+        const trackDelta = Math.round(deltaY / ROW_H);
+        let newTrack = clamp(drag.origTrack + trackDelta, 0, 99);
+        // allow creating one new track beyond current count if dragged below last lane
+        // cap to trackCount (creates new) if beyond
+        if (newTrack > trackCount) newTrack = trackCount;
+        if (newTrack !== drag.origTrack) {
+          // we update track directly; parent will expand trackCount via onUpdateTrack
+          onUpdateTrack(drag.id, newTrack);
+          // update drag origTrack to newTrack to avoid repeated jumps? keep origTrack stable and rely on delta, so not updating drag state.
+          // To avoid jitter, we could keep origTrack fixed and compute from delta; that's already stable.
+        }
       } else if (drag.mode === "left") {
         let ns = clamp(
           drag.origStart + deltaTime,
@@ -1578,31 +1733,54 @@ function TimelineVisual({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [drag, toTime, trimStart, trimEnd, onUpdateSubtitle]);
+  }, [drag, toTime, trimStart, trimEnd, onUpdateSubtitle, onUpdateTrack, trackCount]);
 
   const playheadPct =
     duration > 0 ? clamp((currentTime / duration) * 100, 0, 100) : 0;
   const trimLeftPct = duration > 0 ? (trimStart / duration) * 100 : 0;
   const trimWidthPct =
     duration > 0 ? ((trimEnd - trimStart) / duration) * 100 : 100;
+  const totalHeight = HEADER_H + trackCount * ROW_H;
 
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">
+          Tracks · {trackCount} {trackCount === 1 ? "lane" : "lanes"}
+        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-muted-foreground hidden sm:inline">
+            Drag vertically to move between tracks
+          </span>
+          <Button size="sm" variant="outline" onClick={onAddTrack} aria-label="Add Track">
+            + Add Track
+          </Button>
+        </div>
+      </div>
       <div
         ref={trackRef}
         data-role="track"
         onPointerDown={onPointerDownTrack}
-        className="relative h-20 rounded-lg border bg-muted/30 overflow-hidden select-none"
-        aria-label="Subtitle timeline"
+        className="relative rounded-lg border bg-muted/30 overflow-hidden select-none"
+        style={{ height: totalHeight }}
+        aria-label="Subtitle timeline with tracks"
       >
-        {/* trim background */}
+        {/* trim background spans all tracks */}
         <div
-          className="absolute top-0 bottom-0 bg-primary/10 border-x border-primary/20"
-          style={{ left: `${trimLeftPct}%`, width: `${trimWidthPct}%` }}
-          data-role="track"
+          className="absolute bg-primary/10 border-x border-primary/20"
+          style={{
+            left: `${trimLeftPct}%`,
+            width: `${trimWidthPct}%`,
+            top: HEADER_H,
+            bottom: 0,
+          }}
+          data-role="track-bg"
         />
-        {/* ticks */}
-        <div className="absolute inset-0 flex justify-between px-2 pt-1 pointer-events-none">
+        {/* header ticks */}
+        <div
+          className="absolute left-0 right-0 flex justify-between px-2 pt-1 pointer-events-none border-b border-border/40 bg-muted/20"
+          style={{ height: HEADER_H, top: 0 }}
+        >
           <span className="text-[9px] text-muted-foreground tabular-nums">
             {formatTime(trimStart)}
           </span>
@@ -1610,93 +1788,124 @@ function TimelineVisual({
             {formatTime(trimEnd)}
           </span>
         </div>
-        {/* subtitle blocks */}
-        <div className="absolute left-0 right-0 top-6 bottom-2 px-1">
-          {subtitles.map((sub) => {
-            const left = duration > 0 ? (sub.startTime / duration) * 100 : 0;
-            const width =
-              duration > 0
-                ? ((sub.endTime - sub.startTime) / duration) * 100
-                : 0;
-            const isSelected = sub.id === selectedId;
-            const isActive =
-              currentTime >= sub.startTime && currentTime < sub.endTime;
-            return (
+        {/* track rows background + labels */}
+        {Array.from({ length: trackCount }).map((_, ti) => (
+          <div
+            key={ti}
+            data-role="track-row"
+            data-track={ti}
+            className={cn(
+              "absolute left-0 right-0 border-b border-border/30 flex items-center",
+              ti % 2 === 0 ? "bg-card/40" : "bg-muted/10",
+            )}
+            style={{ top: HEADER_H + ti * ROW_H, height: ROW_H }}
+          >
+            <span className="absolute left-1.5 text-[9px] font-medium text-muted-foreground tabular-nums w-10 select-none">
+              Track {ti + 1}
+            </span>
+            <div className="absolute left-12 right-1 top-0 bottom-0 border-l border-dashed border-border/20" />
+          </div>
+        ))}
+        {/* subtitle blocks per track */}
+        {subtitles.map((sub) => {
+          const left = duration > 0 ? (sub.startTime / duration) * 100 : 0;
+          const width =
+            duration > 0
+              ? ((sub.endTime - sub.startTime) / duration) * 100
+              : 0;
+          const isSelected = sub.id === selectedId;
+          const isActive =
+            currentTime >= sub.startTime && currentTime < sub.endTime;
+          const trackIdx = getSubtitleTrack(sub);
+          const clampedTrack = clamp(trackIdx, 0, Math.max(trackCount - 1, 0));
+          const top = HEADER_H + clampedTrack * ROW_H + 3;
+          return (
+            <div
+              key={sub.id}
+              className={cn(
+                "absolute rounded border flex items-center overflow-hidden group",
+                isSelected
+                  ? "bg-primary text-primary-foreground border-primary z-10 shadow"
+                  : "bg-card border-border hover:border-primary/40",
+                isActive && !isSelected && "ring-1 ring-primary/30",
+              )}
+              style={{
+                left: `${left}%`,
+                width: `${Math.max(width, 0.8)}%`,
+                top,
+                height: ROW_H - 6,
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onSelect(sub.id);
+              }}
+              onClick={() => onSelect(sub.id)}
+              role="button"
+              aria-label={`Subtitle ${sub.text} track ${clampedTrack + 1} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
+              aria-selected={isSelected}
+              title={`Track ${clampedTrack + 1} · drag vertically to move`}
+            >
               <div
-                key={sub.id}
-                className={cn(
-                  "absolute top-1 bottom-1 rounded border flex items-center overflow-hidden group",
-                  isSelected
-                    ? "bg-primary text-primary-foreground border-primary z-10 shadow"
-                    : "bg-card border-border hover:border-primary/40",
-                  isActive && !isSelected && "ring-1 ring-primary/30",
-                )}
-                style={{ left: `${left}%`, width: `${Math.max(width, 0.8)}%` }}
+                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-primary/30 flex items-center justify-center"
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   onSelect(sub.id);
+                  setDrag({
+                    id: sub.id,
+                    mode: "left",
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origStart: sub.startTime,
+                    origEnd: sub.endTime,
+                    origTrack: clampedTrack,
+                  });
                 }}
-                onClick={() => onSelect(sub.id)}
-                role="button"
-                aria-label={`Subtitle ${sub.text} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
-                aria-selected={isSelected}
+                aria-label="Drag to change start time"
               >
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-primary/30 flex items-center justify-center"
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    onSelect(sub.id);
-                    setDrag({
-                      id: sub.id,
-                      mode: "left",
-                      startX: e.clientX,
-                      origStart: sub.startTime,
-                      origEnd: sub.endTime,
-                    });
-                  }}
-                  aria-label="Drag to change start time"
-                >
-                  <span className="w-0.5 h-4 bg-white/60 rounded" />
-                </div>
-                <div
-                  className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none"
-                  onPointerDown={(e) => {
-                    // body move
-                    e.stopPropagation();
-                    onSelect(sub.id);
-                    setDrag({
-                      id: sub.id,
-                      mode: "move",
-                      startX: e.clientX,
-                      origStart: sub.startTime,
-                      origEnd: sub.endTime,
-                    });
-                  }}
-                >
-                  {sub.text || "…"}
-                </div>
-                <div
-                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-primary/30 flex items-center justify-center"
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    onSelect(sub.id);
-                    setDrag({
-                      id: sub.id,
-                      mode: "right",
-                      startX: e.clientX,
-                      origStart: sub.startTime,
-                      origEnd: sub.endTime,
-                    });
-                  }}
-                  aria-label="Drag to change end time"
-                >
-                  <span className="w-0.5 h-4 bg-white/60 rounded" />
-                </div>
+                <span className="w-0.5 h-4 bg-white/60 rounded" />
               </div>
-            );
-          })}
-        </div>
-        {/* playhead */}
+              <div
+                className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onSelect(sub.id);
+                  setDrag({
+                    id: sub.id,
+                    mode: "move",
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origStart: sub.startTime,
+                    origEnd: sub.endTime,
+                    origTrack: clampedTrack,
+                  });
+                }}
+              >
+                <span className="text-[8px] opacity-70">↕</span>
+                <span className="truncate">{sub.text || "…"}</span>
+              </div>
+              <div
+                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-primary/30 flex items-center justify-center"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onSelect(sub.id);
+                  setDrag({
+                    id: sub.id,
+                    mode: "right",
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origStart: sub.startTime,
+                    origEnd: sub.endTime,
+                    origTrack: clampedTrack,
+                  });
+                }}
+                aria-label="Drag to change end time"
+              >
+                <span className="w-0.5 h-4 bg-white/60 rounded" />
+              </div>
+            </div>
+          );
+        })}
+        {/* playhead spans full height */}
         <div
           className="absolute top-0 bottom-0 w-0.5 bg-primary z-20 pointer-events-none"
           style={{ left: `${playheadPct}%` }}

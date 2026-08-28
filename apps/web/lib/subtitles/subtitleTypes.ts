@@ -21,6 +21,7 @@ export interface Subtitle {
   text: string;
   startTime: number;
   endTime: number;
+  track: number;
   position: {
     x: number;
     y: number;
