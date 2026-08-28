@@ -1,0 +1,298 @@
+"use client";
+import { useCallback, useEffect, useRef } from "react";
+import type { MobileLayout, CropZone } from "@/lib/mobile-layout";
+import { OUTPUT_W, OUTPUT_H } from "@/lib/mobile-layout";
+
+interface MobilePreviewSharedProps {
+  layout: MobileLayout;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  onSplit?: (v: number) => void;
+  safe?: boolean;
+  showBg?: boolean;
+  // overlay children rendered inside 9:16 container (e.g. subtitles)
+  overlay?: React.ReactNode;
+  interactiveSplit?: boolean;
+}
+
+function drawZone(
+  canvas: HTMLCanvasElement | null,
+  zone: CropZone,
+  video: HTMLVideoElement,
+  showBg: boolean,
+) {
+  if (!canvas || !video || video.readyState < 2 || video.videoWidth === 0)
+    return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  const sx = Math.max(0, Math.round(zone.x * vw));
+  const sy = Math.max(0, Math.round(zone.y * vh));
+  const sw = Math.max(1, Math.round(zone.width * vw));
+  const sh = Math.max(1, Math.round(zone.height * vh));
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = canvas.width / dpr;
+  const h = canvas.height / dpr;
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  if (showBg) {
+    ctx.filter = "blur(18px)";
+    ctx.drawImage(video, 0, 0, vw, vh, -10, -10, w + 20, h + 20);
+    ctx.filter = "none";
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(0, 0, w, h);
+  } else {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, w, h);
+  }
+  const z = zone.zoom ?? 1;
+  const zsw = sw / z;
+  const zsh = sh / z;
+  const zsx = sx + (sw - zsw) / 2;
+  const zsy = sy + (sh - zsh) / 2;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(video, zsx, zsy, zsw, zsh, 0, 0, w, h);
+  ctx.restore();
+}
+
+export function MobilePreviewShared({
+  layout,
+  videoRef,
+  onSplit,
+  safe = true,
+  showBg = true,
+  overlay,
+  interactiveSplit = false,
+}: MobilePreviewSharedProps) {
+  const canvasFullRef = useRef<HTMLCanvasElement>(null);
+  const canvasTopRef = useRef<HTMLCanvasElement>(null);
+  const canvasBottomRef = useRef<HTMLCanvasElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const resizeCanvases = useCallback(() => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const baseW = 270;
+    if (layout.mode === "full") {
+      const c = canvasFullRef.current;
+      if (c) {
+        c.width = Math.round(baseW * dpr);
+        c.height = Math.round(baseW * (OUTPUT_H / OUTPUT_W) * dpr);
+        c.style.width = `${baseW}px`;
+        c.style.height = `${baseW * (OUTPUT_H / OUTPUT_W)}px`;
+      }
+    } else {
+      const top = canvasTopRef.current;
+      const bottom = canvasBottomRef.current;
+      const split = layout.splitRatio;
+      const totalH = baseW * (OUTPUT_H / OUTPUT_W);
+      if (top) {
+        const h = totalH * split;
+        top.width = Math.round(baseW * dpr);
+        top.height = Math.round(h * dpr);
+        top.style.width = `${baseW}px`;
+        top.style.height = `${h}px`;
+      }
+      if (bottom) {
+        const h = totalH * (1 - split);
+        bottom.width = Math.round(baseW * dpr);
+        bottom.height = Math.round(h * dpr);
+        bottom.style.width = `${baseW}px`;
+        bottom.style.height = `${h}px`;
+      }
+    }
+  }, [layout.mode, layout.splitRatio]);
+
+  const drawAll = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (layout.mode === "full") {
+      drawZone(canvasFullRef.current, layout.zones[0], video, showBg);
+    } else {
+      drawZone(canvasTopRef.current, layout.zones[0], video, showBg);
+      drawZone(canvasBottomRef.current, layout.zones[1], video, showBg);
+    }
+  }, [layout, videoRef, showBg]);
+
+  useEffect(() => {
+    resizeCanvases();
+    const video = videoRef.current;
+    if (!video) return;
+    let raf = 0;
+    let rvfcId = 0 as unknown as number;
+    const hasRvfc =
+      typeof (
+        video as unknown as {
+          requestVideoFrameCallback?: (cb: () => void) => number;
+        }
+      ).requestVideoFrameCallback === "function";
+    let running = true;
+    const loop = () => {
+      if (!running) return;
+      drawAll();
+      if (!video.paused && !video.ended) raf = requestAnimationFrame(loop);
+      else raf = 0;
+    };
+    const onRvfc = () => {
+      if (!running) return;
+      drawAll();
+      rvfcId = (
+        video as unknown as {
+          requestVideoFrameCallback: (cb: () => void) => number;
+        }
+      ).requestVideoFrameCallback(onRvfc);
+    };
+    const onPlay = () => {
+      if (!hasRvfc && raf === 0) raf = requestAnimationFrame(loop);
+    };
+    const onPause = () => drawAll();
+    const onSeeked = () => drawAll();
+    const onLoadedData = () => {
+      resizeCanvases();
+      drawAll();
+    };
+    drawAll();
+    video.addEventListener("seeked", onSeeked);
+    video.addEventListener("loadeddata", onLoadedData);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("timeupdate", onSeeked);
+    if (hasRvfc) {
+      rvfcId = (
+        video as unknown as {
+          requestVideoFrameCallback: (cb: () => void) => number;
+        }
+      ).requestVideoFrameCallback(onRvfc);
+    } else if (!video.paused) {
+      raf = requestAnimationFrame(loop);
+    }
+    return () => {
+      running = false;
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("loadeddata", onLoadedData);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("timeupdate", onSeeked);
+      cancelAnimationFrame(raf);
+      if (hasRvfc && rvfcId) {
+        try {
+          (
+            video as unknown as {
+              cancelVideoFrameCallback: (id: number) => void;
+            }
+          ).cancelVideoFrameCallback(rvfcId);
+        } catch {}
+      }
+    };
+  }, [layout, drawAll, resizeCanvases, videoRef, showBg]);
+
+  const startDrag = (e: React.PointerEvent) => {
+    if (!interactiveSplit || layout.mode === "full" || !onSplit) return;
+    e.preventDefault();
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    let dragging = true;
+    const move = (ev: PointerEvent) => {
+      if (!dragging || !rect) return;
+      const y = (ev.clientY - rect.top) / rect.height;
+      const clamped = Math.max(0.2, Math.min(0.8, y));
+      onSplit(clamped);
+    };
+    const up = () => {
+      dragging = false;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  const video = videoRef.current;
+  if (!video || !video.src)
+    return (
+      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-[8px] border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+        No preview
+      </div>
+    );
+
+  if (layout.mode === "full") {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <div
+          ref={wrapRef}
+          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-[8px] bg-black shadow-sm border border-border flex items-center justify-center"
+        >
+          <canvas ref={canvasFullRef} className="block max-w-full h-auto" />
+          {safe && (
+            <div className="absolute inset-3 rounded-[6px] border border-white/20 pointer-events-none" />
+          )}
+          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
+            FULL
+          </span>
+          {overlay && (
+            <div className="absolute inset-0 pointer-events-none flex flex-col">
+              {overlay}
+            </div>
+          )}
+        </div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">
+          {OUTPUT_W} × {OUTPUT_H} · FULL 9:16
+        </div>
+      </div>
+    );
+  }
+
+  const splitPx = layout.splitRatio;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <div
+        ref={wrapRef}
+        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-[8px] bg-black shadow-sm border border-border flex flex-col"
+      >
+        <div
+          className="relative overflow-hidden flex items-center justify-center"
+          style={{ height: `${splitPx * 100}%` }}
+        >
+          <canvas ref={canvasTopRef} className="block" />
+          {safe && (
+            <div className="absolute inset-2 rounded-[6px] border border-white/20 pointer-events-none" />
+          )}
+          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
+            ZONE 1
+          </span>
+        </div>
+        <div
+          onPointerDown={startDrag}
+          className={
+            interactiveSplit
+              ? "h-2 bg-muted hover:bg-primary/10 border-y border-border cursor-row-resize flex items-center justify-center shrink-0 z-10"
+              : "h-2 bg-muted border-y border-border flex items-center justify-center shrink-0"
+          }
+        >
+          <div className="h-0.5 w-8 bg-black/30 rounded" />
+        </div>
+        <div
+          className="relative overflow-hidden flex items-center justify-center"
+          style={{ height: `${(1 - splitPx) * 100}%` }}
+        >
+          <canvas ref={canvasBottomRef} className="block" />
+          {safe && (
+            <div className="absolute inset-2 rounded-[6px] border border-white/20 pointer-events-none" />
+          )}
+          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
+            ZONE 2
+          </span>
+        </div>
+        {overlay && (
+          <div className="absolute inset-0 pointer-events-none flex flex-col">
+            {overlay}
+          </div>
+        )}
+      </div>
+      <div className="text-[10px] text-muted-foreground tabular-nums">
+        {OUTPUT_W} × {OUTPUT_H} · {(splitPx * 100).toFixed(0)}% /{" "}
+        {((1 - splitPx) * 100).toFixed(0)}%
+      </div>
+    </div>
+  );
+}

@@ -8,6 +8,7 @@ import { useVideoState } from "@/store/useVideoStore";
 import { useState } from "react";
 import PageEditorCrop from "./pageEditorCrop";
 import PageEditorMobile from "./pageEditorMobile";
+import PageEditorSubtitles from "./pageEditorSubtitles";
 
 const TABS = [
   {
@@ -42,11 +43,29 @@ const TABS = [
       </svg>
     ),
   },
+  {
+    id: "subtitles" as const,
+    label: "Subtitles",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <line x1="6" y1="10" x2="18" y2="10" />
+        <line x1="8" y1="14" x2="16" y2="14" />
+      </svg>
+    ),
+  },
 ] as const;
 
+type EditorTab = (typeof TABS)[number]["id"];
 export default function Home() {
   const { file } = useVideoState();
-  const [tab, setTab] = useState<"crop" | "mobile">("crop");
+  const [tab, setTab] = useState<EditorTab>("crop");
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
@@ -64,7 +83,7 @@ export default function Home() {
           <TabSwitcher
             tabs={TABS}
             activeTab={tab}
-            onTabChange={(t) => setTab(t as "crop" | "mobile")}
+            onTabChange={(t) => setTab(t as EditorTab)}
           />
         </div>
 
@@ -74,8 +93,10 @@ export default function Home() {
           ) : (
             <VideoUploader />
           )
-        ) : (
+        ) : tab === "mobile" ? (
           <PageEditorMobile />
+        ) : (
+          <PageEditorSubtitles />
         )}
       </div>
       <Toaster />
