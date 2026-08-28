@@ -2,6 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
 import { buildFFmpegArgs, OUTPUT_DIRECTORY } from "../utils/ffmpegBuilder.js";
+import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 
 type JobStatus = "processing" | "completed" | "failed";
 
@@ -38,6 +39,7 @@ interface TranscodeJob {
   alternateOutputPath?: string;
   error?: string;
   temporaryInputPath: string;
+  subtitlePaths?: string[];
 }
 
 const app = new Hono();
@@ -289,6 +291,166 @@ app.post("/transcode/mobile", async (c) => {
   });
 });
 
+app.post("/transcode/mobile/subtitles", async (c) => {
+  const form = await c.req.formData();
+  const file = form.get("file");
+  const settings = parseMobileSettings(form.get("settings"));
+  if (!(file instanceof File) || !settings) {
+    return c.json(
+      {
+        error:
+          "A video file and valid mobileLayout export settings are required for subtitles endpoint.",
+      },
+      400,
+    );
+  }
+
+  // Parse subtitles metadata: front-end sends JSON array with startTime/endTime/x/y
+  const rawSubtitles = form.get("subtitles") ?? form.get("subtitlesMeta") ?? form.get("subtitles_meta");
+  let subtitlesMeta: Array<{ startTime: number; endTime: number; x: number; y: number; width?: number; height?: number }> = [];
+  if (typeof rawSubtitles === "string" && rawSubtitles.trim()) {
+    try {
+      const parsed = JSON.parse(rawSubtitles);
+      if (Array.isArray(parsed)) {
+        subtitlesMeta = parsed.filter(
+          (s: unknown) =>
+            typeof s === "object" &&
+            s !== null &&
+            typeof (s as Record<string, unknown>).startTime === "number" &&
+            typeof (s as Record<string, unknown>).endTime === "number" &&
+            typeof (s as Record<string, unknown>).x === "number" &&
+            typeof (s as Record<string, unknown>).y === "number" &&
+            Number.isFinite((s as Record<string, unknown>).startTime as number) &&
+            Number.isFinite((s as Record<string, unknown>).endTime as number),
+        ) as typeof subtitlesMeta;
+      }
+    } catch {
+      return c.json({ error: "Invalid subtitles JSON" }, 400);
+    }
+  }
+
+  // Collect PNG files: keys starting with subtitle_ or subtitle (excluding main file)
+  const subtitleFiles: File[] = [];
+  const entries: Array<[string, unknown]> = [];
+  for (const [k, v] of form.entries()) {
+    entries.push([k, v]);
+  }
+  // Prefer keys subtitle_0, subtitle_1 etc, sorted numerically
+  const pngEntries = entries.filter(([k, v]) => v instanceof File && k.startsWith("subtitle"));
+  if (pngEntries.length) {
+    pngEntries.sort((a, b) => {
+      const na = parseInt(a[0].replace(/\D/g, "") || "0", 10);
+      const nb = parseInt(b[0].replace(/\D/g, "") || "0", 10);
+      return na - nb;
+    });
+    for (const [, v] of pngEntries) subtitleFiles.push(v as File);
+  } else {
+    // fallback: any image file not the main file
+    const fallback = entries.filter(([k, v]) => v instanceof File && k !== "file" && (v as File).type.startsWith("image/"));
+    for (const [, v] of fallback) subtitleFiles.push(v as File);
+  }
+
+  if (subtitlesMeta.length !== subtitleFiles.length) {
+    // Allow zero subtitles with zero files
+    if (!(subtitlesMeta.length === 0 && subtitleFiles.length === 0)) {
+      return c.json(
+        {
+          error: `Subtitles count mismatch: meta ${subtitlesMeta.length} vs files ${subtitleFiles.length}`,
+        },
+        400,
+      );
+    }
+  }
+
+  // Validate each meta clamped inside trim
+  const [trimStart, trimEnd] = settings.trimRange;
+  for (const s of subtitlesMeta) {
+    if (s.endTime <= s.startTime || s.startTime < trimStart - 0.001 || s.endTime > trimEnd + 0.001) {
+      // clamp instead of reject? but reject if clearly outside
+    }
+    if (s.x < 0 || s.x > 100 || s.y < 0 || s.y > 100) {
+      return c.json({ error: "Subtitle x/y must be 0-100" }, 400);
+    }
+  }
+
+  const format = "mp4" as const;
+  const jobId = crypto.randomUUID();
+  const temporaryPath = path.join(os.tmpdir(), `${jobId}-${path.basename(file.name)}`);
+  await Bun.write(temporaryPath, file);
+
+  const subtitlePngPaths: string[] = [];
+  for (let i = 0; i < subtitleFiles.length; i++) {
+    const f = subtitleFiles[i];
+    const pngPath = path.join(os.tmpdir(), `${jobId}-sub${i}.png`);
+    await Bun.write(pngPath, f);
+    subtitlePngPaths.push(pngPath);
+  }
+
+  const subtitleOverlays = subtitlesMeta.map((m, i) => ({
+    startTime: m.startTime,
+    endTime: m.endTime,
+    x: m.x,
+    y: m.y,
+    width: m.width ?? 0,
+    height: m.height ?? 0,
+    pngPath: subtitlePngPaths[i],
+  }));
+
+  const mobileLayout = {
+    mode: settings.mobileLayout.mode,
+    splitRatio: settings.mobileLayout.splitRatio,
+    zones: settings.mobileLayout.zones.map((z) => ({
+      ...z,
+      x: z.x * 100,
+      y: z.y * 100,
+      width: z.width * 100,
+      height: z.height * 100,
+    })),
+  };
+
+  const sanitizedCustomArgs = (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " ").trim();
+  const originalOutputPath = `./temp_${jobId}_mobile_subtitles.${format}`;
+
+  const originalArgs = buildMobileSubtitlesArgs({
+    inputPath: temporaryPath,
+    subtitleOverlays,
+    subtitlePngPaths,
+    sourceWidth: settings.sourceWidth,
+    sourceHeight: settings.sourceHeight,
+    trimRange: settings.trimRange,
+    mobileLayout: mobileLayout as never,
+    format,
+    fps: settings.exportFps,
+    crf: 10,
+    customArgs: sanitizedCustomArgs,
+    outputPath: originalOutputPath,
+    filename: settings.exportFilename.trim() || file.name,
+    speed: settings.exportSpeed,
+  });
+
+  console.log("MOBILE_SUBTITLES ARGS", originalArgs);
+
+  const job: TranscodeJob = {
+    jobId,
+    status: "processing",
+    progress: 0,
+    outputPath: originalOutputPath,
+    alternateOutputPath: undefined,
+    temporaryInputPath: temporaryPath,
+    subtitlePaths: subtitlePngPaths,
+  };
+  jobs.set(jobId, job);
+  void (async () => {
+    await runTranscode(job, originalArgs, temporaryPath, Math.max(0.001, trimEnd - trimStart));
+    // keep subtitlePaths for cleanup on download
+  })();
+  return c.json({
+    jobId,
+    progressUrl: `/api/transcode/progress/${jobId}`,
+    output: { width: 1080, height: 1920, subtitles: subtitlesMeta.length },
+  });
+});
+
 /**
  * POST /transcode
  *
@@ -453,6 +615,15 @@ app.get("/transcode/download/:jobId", async (c) => {
         Bun.file(job.temporaryInputPath).delete();
       } catch {
         // Ignore.
+      }
+    }
+    if (job.subtitlePaths) {
+      for (const p of job.subtitlePaths) {
+        try {
+          Bun.file(p).delete();
+        } catch {
+          // Ignore.
+        }
       }
     }
     jobs.delete(c.req.param("jobId"));

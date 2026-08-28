@@ -21,6 +21,8 @@ import { clamp } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
 import { MobilePreviewShared } from "@/components/editor/MobilePreviewShared";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { renderAllSubtitlesToPngs } from "@/lib/subtitles/renderSubtitlePng";
 import type {
   Subtitle,
   SubtitleStyle,
@@ -139,7 +141,7 @@ function renderSubtitleStyle(style: SubtitleStyle): React.CSSProperties {
 }
 
 export default function PageEditorSubtitles() {
-  const { mediaUrl, duration: srcDuration, file } = useVideoState();
+  const { mediaUrl, duration: srcDuration, file, sourceWidth, sourceHeight } = useVideoState();
   const { layout } = useSharedMobileLayout();
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -161,6 +163,7 @@ export default function PageEditorSubtitles() {
     }
   });
   const [newTemplateName, setNewTemplateName] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   const hasVideo = !!mediaUrl && !!file;
   const effectiveDuration = duration || srcDuration || 0;
@@ -531,6 +534,142 @@ export default function PageEditorSubtitles() {
     [effectiveDuration],
   );
 
+  const handleExport = useCallback(async () => {
+    if (!file) {
+      toast.error("No video loaded");
+      return;
+    }
+    if (trimEnd <= trimStart + 0.05) {
+      toast.error("Invalid trim range");
+      return;
+    }
+    const sw = sourceWidth || 1920;
+    const sh = sourceHeight || 1080;
+    const baseName = (file.name.replace(/\.[^.]+$/, "") || "video") + "_mobile_subtitles_1080x1920";
+    const outName = baseName + ".mp4";
+    setIsExporting(true);
+    toast.loading(subtitles.length ? `Rendering ${subtitles.length} subtitle PNGs…` : "Exporting mobile mp4 (CRF 10)…", { id: "subtitles-export" });
+    try {
+      const { API_BASE_URL } = await import("@/lib/api-client");
+      // Render PNGs: front-end bakes text style into fitted images
+      const rendered = subtitles.length ? await renderAllSubtitlesToPngs(subtitles) : [];
+      toast.loading(`Exporting ${rendered.length} subtitles + 9:16…`, { id: "subtitles-export" });
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append(
+        "settings",
+        JSON.stringify({
+          mobileLayout: layout,
+          sourceWidth: sw,
+          sourceHeight: sh,
+          trimRange: [trimStart, trimEnd],
+          exportFormat: "mp4",
+          exportFps: 30,
+          exportFilename: baseName,
+          exportQuality: 10,
+          exportSpeed: 1,
+          customFFmpegArgs: "",
+        }),
+      );
+      // subtitles meta aligned with PNG order
+      const subtitlesMeta = rendered.map((r) => ({
+        startTime: r.meta.startTime,
+        endTime: r.meta.endTime,
+        x: r.meta.x,
+        y: r.meta.y,
+        width: r.meta.width,
+        height: r.meta.height,
+      }));
+      fd.append("subtitles", JSON.stringify(subtitlesMeta));
+      rendered.forEach((r, i) => {
+        const f = new File([r.blob], `subtitle_${i}.png`, { type: "image/png" });
+        fd.append(`subtitle_${i}`, f);
+      });
+      const res = await fetch(`${API_BASE_URL}/api/transcode/mobile/subtitles`, {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? `Export failed: ${res.status}`);
+      }
+      const j = (await res.json()) as { jobId: string; progressUrl: string };
+      const progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
+      await new Promise<void>((resolve, reject) => {
+        const source = new EventSource(progressUrl);
+        source.onmessage = (event) => {
+          try {
+            const progress = JSON.parse(event.data) as { status: string; progress: number; error?: string };
+            if (progress.status === "processing") {
+              toast.loading(`Exporting… ${Math.round(progress.progress)}%`, { id: "subtitles-export" });
+            }
+            if (progress.status === "completed") {
+              source.close();
+              resolve();
+            }
+            if (progress.status === "failed") {
+              source.close();
+              reject(new Error(progress.error ?? "Export failed"));
+            }
+          } catch {}
+        };
+        source.onerror = () => {
+          source.close();
+          reject(new Error("Lost connection to export progress"));
+        };
+      });
+      toast.loading("Downloading file…", { id: "subtitles-export" });
+      const downloadUrl = `${API_BASE_URL}/api/transcode/download/${j.jobId}`;
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? `Download failed: ${response.status}`);
+      }
+      const blob = await response.blob();
+      const mimeType = "video/mp4";
+      if ("showSaveFilePicker" in window) {
+        try {
+          const handle = await (
+            window as unknown as {
+              showSaveFilePicker: (o: {
+                suggestedName?: string;
+                types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+              }) => Promise<FileSystemFileHandle>;
+            }
+          ).showSaveFilePicker({
+            suggestedName: outName,
+            types: [{ description: "MP4 video", accept: { [mimeType]: [".mp4"] } }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+          toast.success("Video saved", { id: "subtitles-export", description: handle.name });
+          return;
+        } catch (e) {
+          if ((e as DOMException)?.name === "AbortError") {
+            toast.dismiss("subtitles-export");
+            return;
+          }
+        }
+      }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = outName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Video saved", { id: "subtitles-export", description: outName });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Export failed";
+      if ((e as DOMException)?.name === "AbortError") toast.dismiss("subtitles-export");
+      else toast.error(msg, { id: "subtitles-export" });
+    } finally {
+      setIsExporting(false);
+    }
+  }, [file, trimStart, trimEnd, sourceWidth, sourceHeight, layout, subtitles]);
+
   if (!hasVideo) {
     return (
       <div className="space-y-4">
@@ -585,11 +724,13 @@ export default function PageEditorSubtitles() {
             size="sm"
             variant="outline"
             onClick={() => {
-              // refresh layout from localStorage (in case mobile tab changed)
               window.dispatchEvent(new Event("focus"));
             }}
           >
             Refresh layout
+          </Button>
+          <Button size="sm" onClick={handleExport} disabled={isExporting}>
+            {isExporting ? "Exporting…" : `Export 9:16 + ${subtitles.length} subtitles`}
           </Button>
         </div>
       </div>
