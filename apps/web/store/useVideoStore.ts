@@ -7,6 +7,7 @@ import {
   useSelector,
 } from "@tanstack/react-store";
 import type { FFprobeReport } from "@/lib/api-client";
+import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
 
 export interface VideoState {
   file: File | null;
@@ -45,6 +46,9 @@ export interface VideoState {
   transcodeProgress: number;
   transcodeOutputPath: string | null;
   transcodeError: string | null;
+  subtitles: Subtitle[];
+  selectedSubtitleId: string | null;
+  subtitleTrackCountExplicit: number;
 }
 
 const initialState: VideoState = {
@@ -84,6 +88,9 @@ const initialState: VideoState = {
   transcodeProgress: 0,
   transcodeOutputPath: null,
   transcodeError: null,
+  subtitles: [],
+  selectedSubtitleId: null,
+  subtitleTrackCountExplicit: 1,
 };
 
 const { StoreProvider, useStoreContext } = createStoreContext<{

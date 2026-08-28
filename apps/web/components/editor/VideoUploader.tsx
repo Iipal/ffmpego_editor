@@ -55,6 +55,9 @@ export function VideoUploader() {
           transcodeProgress: 0,
           transcodeOutputPath: null,
           transcodeError: null,
+          subtitles: [],
+          selectedSubtitleId: null,
+          subtitleTrackCountExplicit: 1,
         };
       });
       metadataMutation.mutate(file);
@@ -65,7 +68,7 @@ export function VideoUploader() {
   return (
     <Card
       className={cn(
-        "flex min-h-80 flex-col items-center justify-center border-2 border-dashed bg-card p-8 shadow-sm rounded-[8px]",
+        "flex min-h-80 flex-col items-center justify-center border-2 border-dashed bg-card p-8 shadow-sm rounded-xl",
         isDragging ? "border-primary bg-primary/5" : "border-border",
       )}
       onDragOver={(event) => {

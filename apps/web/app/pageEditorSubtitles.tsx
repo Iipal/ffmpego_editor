@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { VideoUploader } from "@/components/editor/VideoUploader";
-import { useVideoState } from "@/store/useVideoStore";
+import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { formatTime } from "@/lib/format-time";
 import { clamp } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
@@ -141,9 +141,55 @@ function renderSubtitleStyle(style: SubtitleStyle): React.CSSProperties {
 }
 
 export default function PageEditorSubtitles() {
-  const { mediaUrl, duration: srcDuration, file, sourceWidth, sourceHeight } = useVideoState();
+  const videoStore = useVideoStore();
+  const videoState = useVideoState();
+  const {
+    mediaUrl,
+    duration: srcDuration,
+    file,
+    sourceWidth,
+    sourceHeight,
+    subtitles: rawSubtitles,
+    selectedSubtitleId: rawSelectedId,
+    subtitleTrackCountExplicit: rawTrackCount,
+  } = videoState as typeof videoState & {
+    subtitles?: Subtitle[];
+    selectedSubtitleId?: string | null;
+    subtitleTrackCountExplicit?: number;
+  };
+  const subtitles = rawSubtitles ?? [];
+  const selectedId = rawSelectedId ?? null;
+  const trackCountExplicit = rawTrackCount ?? 1;
   const { layout } = useSharedMobileLayout();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Migrate old store instances (HMR) that were created before subtitles fields existed
+  useEffect(() => {
+    const s = (videoStore.state ?? (videoStore as unknown as { get: () => unknown }).get?.()) as unknown as {
+      subtitles?: Subtitle[];
+      selectedSubtitleId?: string | null;
+      subtitleTrackCountExplicit?: number;
+    };
+    if (
+      s.subtitles === undefined ||
+      s.selectedSubtitleId === undefined ||
+      s.subtitleTrackCountExplicit === undefined
+    ) {
+      videoStore.setState((prev) => {
+        const p = prev as unknown as {
+          subtitles?: Subtitle[];
+          selectedSubtitleId?: string | null;
+          subtitleTrackCountExplicit?: number;
+        };
+        return {
+          ...prev,
+          subtitles: p.subtitles ?? [],
+          selectedSubtitleId: p.selectedSubtitleId ?? null,
+          subtitleTrackCountExplicit: p.subtitleTrackCountExplicit ?? 1,
+        };
+      });
+    }
+  }, [videoStore]);
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -152,9 +198,59 @@ export default function PageEditorSubtitles() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
 
-  const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [trackCountExplicit, setTrackCountExplicit] = useState(1);
+  const setSubtitles = useCallback(
+    (
+      updater:
+        | Subtitle[]
+        | ((prev: Subtitle[]) => Subtitle[]),
+    ) => {
+      videoStore.setState((prev) => {
+        const p = prev as unknown as { subtitles?: Subtitle[] };
+        const cur = p.subtitles ?? [];
+        return {
+          ...prev,
+          subtitles:
+            typeof updater === "function"
+              ? (updater as (x: Subtitle[]) => Subtitle[])(cur)
+              : updater,
+        };
+      });
+    },
+    [videoStore],
+  );
+  const setSelectedId = useCallback(
+    (id: string | null | ((prev: string | null) => string | null)) => {
+      videoStore.setState((prev) => {
+        const p = prev as unknown as { selectedSubtitleId?: string | null };
+        const cur = p.selectedSubtitleId ?? null;
+        return {
+          ...prev,
+          selectedSubtitleId:
+            typeof id === "function"
+              ? (id as (x: string | null) => string | null)(cur)
+              : id,
+        };
+      });
+    },
+    [videoStore],
+  );
+  const setTrackCountExplicit = useCallback(
+    (value: number | ((prev: number) => number)) => {
+      videoStore.setState((prev) => {
+        const p = prev as unknown as { subtitleTrackCountExplicit?: number };
+        const cur = p.subtitleTrackCountExplicit ?? 1;
+        return {
+          ...prev,
+          subtitleTrackCountExplicit:
+            typeof value === "function"
+              ? (value as (x: number) => number)(cur)
+              : value,
+        };
+      });
+    },
+    [videoStore],
+  );
+
   const [templates, setTemplates] = useState<SubtitleTemplate[]>(() => {
     try {
       return loadSubtitleTemplates();
@@ -181,7 +277,7 @@ export default function PageEditorSubtitles() {
     if (maxTrackFromSubtitles + 1 > trackCountExplicit) {
       setTrackCountExplicit(maxTrackFromSubtitles + 1);
     }
-  }, [maxTrackFromSubtitles, trackCountExplicit]);
+  }, [maxTrackFromSubtitles, trackCountExplicit, setTrackCountExplicit]);
 
   // init trim when duration available
   useEffect(() => {
