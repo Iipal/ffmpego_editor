@@ -68,8 +68,8 @@ export function VideoUploader() {
   return (
     <Card
       className={cn(
-        "flex min-h-80 flex-col items-center justify-center border-2 border-dashed bg-card p-8 shadow-sm rounded-xl",
-        isDragging ? "border-primary bg-primary/5" : "border-border",
+        "flex min-h-80 flex-col items-center justify-center border border-dashed bg-kumo-base p-8 shadow-sm rounded-lg",
+        isDragging ? "border-kumo-brand bg-kumo-brand/5" : "border-kumo-line",
       )}
       onDragOver={(event) => {
         event.preventDefault();
@@ -82,9 +82,9 @@ export function VideoUploader() {
         selectFile(event.dataTransfer.files[0]);
       }}
     >
-      <Upload className="mb-4 size-10 text-muted-foreground" />
-      <p className="text-base font-medium">Drop an MP4 or WebM video here</p>
-      <p className="mt-1 text-sm text-muted-foreground">or choose a file</p>
+      <Upload className="mb-4 size-10 text-kumo-subtle" />
+      <p className="text-base font-medium text-kumo-strong">Drop an MP4 or WebM video here</p>
+      <p className="mt-1 text-sm text-kumo-subtle">or choose a file</p>
       <Input
         ref={inputRef}
         className="sr-only"

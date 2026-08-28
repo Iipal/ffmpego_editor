@@ -209,6 +209,37 @@ export default function PageEditorSubtitles() {
   const [trimEnd, setTrimEnd] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [previewHeight, setPreviewHeight] = useState(560);
+  const previewWrapRef = useRef<HTMLDivElement>(null);
+
+  // Sync native textarea-like resize (CSS resize: vertical) back to React state so canvas re-renders at new resolution
+  useEffect(() => {
+    const el = previewWrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let raf = 0;
+    const obs = new ResizeObserver((entries) => {
+      const entry = entries[0] as unknown as {
+        contentRect: DOMRectReadOnly;
+        borderBoxSize?: Array<{ blockSize: number; inlineSize: number }>;
+      };
+      // contentRect is content-box (style.height - padding - border) → causes snap-back. Use borderBox height.
+      const raw =
+        entry.borderBoxSize?.[0]?.blockSize ??
+        el.getBoundingClientRect().height;
+      const h = Math.round(raw);
+      if (!h || !Number.isFinite(h)) return;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const clamped = Math.max(320, Math.min(900, h));
+        setPreviewHeight((prev) => (Math.abs(prev - clamped) > 2 ? clamped : prev));
+      });
+    });
+    obs.observe(el);
+    return () => {
+      cancelAnimationFrame(raf);
+      obs.disconnect();
+    };
+  }, []);
 
   const setSubtitles = useCallback(
     (
@@ -783,7 +814,7 @@ export default function PageEditorSubtitles() {
       <div className="space-y-4">
         <Card className="p-6">
           <h2 className="text-base font-semibold">Subtitles Editor</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-kumo-subtle mt-1">
             Create, edit and style subtitles over your 9:16 mobile preview. Uses
             the same crop layout as Mobile editor.
           </p>
@@ -793,10 +824,10 @@ export default function PageEditorSubtitles() {
         </Card>
         <Card className="p-4 opacity-60">
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="aspect-video rounded-lg bg-muted flex items-center justify-center text-xs">
+            <div className="aspect-video rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
               Video preview
             </div>
-            <div className="aspect-9/16 w-40 mx-auto rounded-lg bg-muted flex items-center justify-center text-xs">
+            <div className="aspect-9/16 w-40 mx-auto rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
               9:16 Preview
             </div>
           </div>
@@ -820,7 +851,7 @@ export default function PageEditorSubtitles() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">Subtitles · Mobile 9:16</h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-kumo-subtle">
             {effectiveDuration
               ? `${formatTime(effectiveDuration)} · ${subtitles.length} subtitles`
               : "Loading…"}{" "}
@@ -854,59 +885,109 @@ export default function PageEditorSubtitles() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <MobilePreviewShared
-                layout={layout}
-                videoRef={videoRef}
-                safe
-                showBg
-                overlay={
-                  <div className="absolute inset-0">
-                    {activeSubtitles.map((sub) => {
-                      const isSelected = sub.id === selectedId;
-                      return (
-                        <div
-                          key={sub.id}
-                          onClick={() => setSelectedId(sub.id)}
-                          className={cn(
-                            "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
-                            isSelected &&
-                              "ring-1 ring-dashed ring-blue-500 rounded",
-                          )}
-                          style={{
-                            left: `${clamp(sub.position.x, 0, 100)}%`,
-                            top: `${clamp(sub.position.y, 0, 100)}%`,
-                            transform: "translate(-50%, -50%)",
-                          }}
-                          aria-label={`Subtitle ${sub.text}`}
-                        >
-                          <span
+              {/* 9:16 Preview — resizable by height (textarea-like): whole 9:16 preview scales, video fills scaled zones */}
+              {(() => {
+                const HANDLE_H = 20; // mt-2 (8) + h-2.5 (10) + border (2)
+                const contentH = Math.max(300, previewHeight - HANDLE_H);
+                const contentW = Math.round((contentH * 9) / 16);
+                return (
+                  <div
+                    ref={previewWrapRef}
+                    className="resize-y overflow-auto min-h-[320px] max-h-[85vh] rounded-lg border border-kumo-line bg-black flex flex-col mx-auto"
+                    style={{
+                      height: previewHeight,
+                      width: contentW,
+                      maxWidth: "100%",
+                      resize: "vertical" as const,
+                    }}
+                  >
+                    <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden bg-black rounded-t-lg h-full">
+                      <MobilePreviewShared
+                        layout={layout}
+                        videoRef={videoRef}
+                        safe
+                        showBg
+                        height={contentH}
+                    overlay={
+                      <div className="absolute inset-0">
+                        {activeSubtitles.map((sub) => {
+                          const isSelected = sub.id === selectedId;
+                          return (
+                            <div
+                              key={sub.id}
+                              onClick={() => setSelectedId(sub.id)}
+                              className={cn(
+                                "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
+                                isSelected &&
+                                  "ring-1 ring-dashed ring-blue-500 rounded",
+                              )}
+                              style={{
+                                left: `${clamp(sub.position.x, 0, 100)}%`,
+                                top: `${clamp(sub.position.y, 0, 100)}%`,
+                                transform: "translate(-50%, -50%)",
+                              }}
+                              aria-label={`Subtitle ${sub.text}`}
+                            >
+                              <span
+                                style={{
+                                  ...renderSubtitleStyle(sub.style),
+                                  display: "inline-block",
+                                }}
+                              >
+                                {sub.text || "New subtitle"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {selectedSubtitle && (
+                          <div
+                            className="absolute size-2 rounded-full bg-kumo-brand border border-white shadow pointer-events-none"
                             style={{
-                              ...renderSubtitleStyle(sub.style),
-                              display: "inline-block",
+                              left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
+                              top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
+                              transform: "translate(-50%, -50%)",
                             }}
-                          >
-                            {sub.text || "New subtitle"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                    {selectedSubtitle && (
-                      <div
-                        className="absolute size-2 rounded-full bg-primary border border-white shadow pointer-events-none"
-                        style={{
-                          left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
-                          top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
-                          transform: "translate(-50%, -50%)",
-                        }}
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                }
-              />
+                            aria-hidden
+                          />
+                        )}
+                      </div>
+                    }
+                  />
+                </div>
+                {/* drag handle — same affordance as <textarea> resize handle, but full-width for height */}
+                <div
+                  className="mt-2 h-2.5 w-full shrink-0 cursor-row-resize flex items-center justify-center rounded bg-kumo-recessed border border-kumo-line hover:bg-kumo-brand/10 select-none touch-none"
+                  title="Drag to resize preview height"
+                  aria-label="Resize preview height"
+                  onPointerDown={(e) => {
+                    e.preventDefault();
+                    const startY = e.clientY;
+                    const startH = previewWrapRef.current?.getBoundingClientRect().height ?? previewHeight;
+                    let curH = startH;
+                    const onMove = (ev: PointerEvent) => {
+                      const dy = ev.clientY - startY;
+                      const next = Math.round(Math.max(320, Math.min(900, startH + dy)));
+                      curH = next;
+                      setPreviewHeight(next);
+                    };
+                    const onUp = () => {
+                      window.removeEventListener("pointermove", onMove);
+                      window.removeEventListener("pointerup", onUp);
+                      // also sync wrapper's inline height for native resize persistence
+                      if (previewWrapRef.current) previewWrapRef.current.style.height = `${curH}px`;
+                    };
+                    window.addEventListener("pointermove", onMove);
+                    window.addEventListener("pointerup", onUp);
+                  }}
+                >
+                  <div className="h-0.5 w-8 rounded bg-black/30 dark:bg-white/30" />
+                </div>
+              </div>
+                );
+              })()}
 
               {/* Player Controls */}
-              <div className="rounded-lg border bg-muted/10 p-3 space-y-3">
+              <div className="rounded-lg border bg-kumo-recessed/10 p-3 space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
                     size="sm"
@@ -932,7 +1013,7 @@ export default function PageEditorSubtitles() {
                   >
                     Loop {isLooping ? "On" : "Off"}
                   </Button>
-                  <span className="ml-auto text-xs tabular-nums text-muted-foreground">
+                  <span className="ml-auto text-xs tabular-nums text-kumo-subtle">
                     {formatTime(currentTime)} / {formatTime(effectiveDuration)}
                     {" · "}
                     Trim {formatTime(trimStart)} → {formatTime(trimEnd)}
@@ -940,7 +1021,7 @@ export default function PageEditorSubtitles() {
                 </div>
                 {/* Progress bar: trimStart..trimEnd */}
                 <div className="space-y-1">
-                  <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <div className="flex items-center justify-between text-[11px] text-kumo-subtle">
                     <span>Progress (trim range)</span>
                     <span className="tabular-nums">
                       {trimEnd > trimStart
@@ -1001,17 +1082,17 @@ export default function PageEditorSubtitles() {
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Timeline Editor</CardTitle>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-kumo-subtle">
                 Drag subtitle blocks or edges. Click timeline to seek. Trim
                 defines editable region.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Trim controls */}
-              <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+              <div className="rounded-lg border bg-kumo-recessed/20 p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold">Trim</span>
-                  <span className="text-[11px] tabular-nums text-muted-foreground">
+                  <span className="text-[11px] tabular-nums text-kumo-subtle">
                     {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
                     {formatTime(Math.max(0, trimEnd - trimStart))}
                   </span>
@@ -1095,12 +1176,12 @@ export default function PageEditorSubtitles() {
                 onUpdateTrack={handleMoveSubtitleToTrack}
                 onAddTrack={handleAddTrack}
               />
-              <div className="text-[11px] text-muted-foreground flex justify-between tabular-nums">
+              <div className="text-[11px] text-kumo-subtle flex justify-between tabular-nums">
                 <span>0:00</span>
                 <span className="flex items-center gap-1">
-                  <span className="size-2 bg-primary rounded-sm inline-block" />{" "}
+                  <span className="size-2 bg-kumo-brand rounded-sm inline-block" />{" "}
                   subtitle
-                  <span className="size-2 bg-primary/60 rounded-sm inline-block ml-2" />{" "}
+                  <span className="size-2 bg-kumo-brand/60 rounded-sm inline-block ml-2" />{" "}
                   selected
                 </span>
                 <span>{formatTime(effectiveDuration)}</span>
@@ -1124,13 +1205,13 @@ export default function PageEditorSubtitles() {
               >
                 + Add Subtitle at {formatTime(currentTime)}
               </Button>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-kumo-subtle">
                 New subtitle starts at current time, lasts 1s (clamped to Trim
                 End).
               </p>
               <div className="space-y-2 max-h-80 overflow-auto pr-1">
                 {subtitles.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center py-6 border border-dashed rounded-lg">
+                  <p className="text-xs text-kumo-subtle text-center py-6 border border-dashed rounded-lg">
                     No subtitles yet
                   </p>
                 )}
@@ -1148,8 +1229,8 @@ export default function PageEditorSubtitles() {
                         className={cn(
                           "w-full text-left rounded-lg border p-2.5 space-y-1 transition-colors",
                           isActive
-                            ? "border-primary bg-primary/5"
-                            : "border-border bg-card hover:bg-muted/50",
+                            ? "border-kumo-brand bg-kumo-brand/5"
+                            : "border-kumo-line bg-kumo-base hover:bg-kumo-recessed/50",
                           isVisible && "ring-1 ring-primary/20",
                         )}
                         aria-label={`Select subtitle ${sub.text}`}
@@ -1160,17 +1241,17 @@ export default function PageEditorSubtitles() {
                             {sub.text || "(empty)"}
                           </span>
                           <span className="flex items-center gap-1 shrink-0">
-                            <span className="text-[10px] bg-muted border px-1 rounded">
+                            <span className="text-[10px] bg-kumo-recessed border px-1 rounded">
                               T{getSubtitleTrack(sub) + 1}
                             </span>
                             {isVisible && (
-                              <span className="text-[10px] bg-primary text-primary-foreground px-1 rounded">
+                              <span className="text-[10px] bg-kumo-brand text-white px-1 rounded">
                                 ON
                               </span>
                             )}
                           </span>
                         </div>
-                        <div className="text-[11px] tabular-nums text-muted-foreground flex gap-2">
+                        <div className="text-[11px] tabular-nums text-kumo-subtle flex gap-2">
                           <span>{formatTime(sub.startTime)}</span>
                           <span>–</span>
                           <span>{formatTime(sub.endTime)}</span>
@@ -1178,7 +1259,7 @@ export default function PageEditorSubtitles() {
                             {(sub.endTime - sub.startTime).toFixed(2)}s
                           </span>
                         </div>
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-[10px] text-kumo-subtle">
                           Track {getSubtitleTrack(sub) + 1} · Pos {sub.position.x.toFixed(0)},{" "}
                           {sub.position.y.toFixed(0)} ·{" "}
                           {sub.style.fontFamily.split(",")[0]}
@@ -1195,7 +1276,7 @@ export default function PageEditorSubtitles() {
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm">Subtitle Settings</CardTitle>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-kumo-subtle truncate">
                   {selectedSubtitle.text || "New subtitle"} ·{" "}
                   {formatTime(selectedSubtitle.startTime)} –{" "}
                   {formatTime(selectedSubtitle.endTime)}
@@ -1246,7 +1327,7 @@ export default function PageEditorSubtitles() {
                     </Button>
                   </div>
                   {templates.length > 0 && (
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[10px] text-kumo-subtle">
                       Applying a template replaces all 15 style fields
                       (including outline/shadow/background toggles).
                       Text/timing/position are preserved.
@@ -1388,7 +1469,7 @@ export default function PageEditorSubtitles() {
                       + Track
                     </Button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[10px] text-kumo-subtle">
                     Move between tracks to avoid overlap. New subtitles at overlapping time auto-create a new track.
                   </p>
                 </div>
@@ -1457,7 +1538,7 @@ export default function PageEditorSubtitles() {
                     placeholder="Search Google Fonts…"
                     previewText={selectedSubtitle.text}
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-[11px] text-kumo-subtle">
                     Dynamic Google Fonts search — fonts are loaded on demand via Google Fonts CDN.
                   </p>
                 </div>
@@ -1522,7 +1603,7 @@ export default function PageEditorSubtitles() {
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Outline</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-[11px] text-kumo-subtle">
                         {selectedSubtitle.style.outlineEnabled ? "On" : "Off"}
                       </span>
                       <Switch
@@ -1603,7 +1684,7 @@ export default function PageEditorSubtitles() {
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Shadow</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-[11px] text-kumo-subtle">
                         {selectedSubtitle.style.shadowEnabled ? "On" : "Off"}
                       </span>
                       <Switch
@@ -1715,7 +1796,7 @@ export default function PageEditorSubtitles() {
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Background</Label>
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-[11px] text-kumo-subtle">
                         {selectedSubtitle.style.backgroundEnabled
                           ? "On"
                           : "Off"}
@@ -1827,7 +1908,7 @@ export default function PageEditorSubtitles() {
             </Card>
           ) : (
             <Card className="p-6 text-center">
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-kumo-subtle">
                 Select a subtitle to edit its style, position and timing.
                 Changes appear live in the preview.
               </p>
@@ -1837,7 +1918,7 @@ export default function PageEditorSubtitles() {
             <div className="text-xs font-medium">
               Templates stored: {templates.length}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-[11px] text-kumo-subtle mt-1">
               Key: {SUBTITLE_TEMPLATES_STORAGE_KEY} · Invalid localStorage data
               is ignored.
             </p>
@@ -1846,7 +1927,7 @@ export default function PageEditorSubtitles() {
                 {templates.map((t) => (
                   <span
                     key={t.id}
-                    className="text-[10px] bg-muted px-1.5 py-0.5 rounded border"
+                    className="text-[10px] bg-kumo-recessed px-1.5 py-0.5 rounded border"
                   >
                     {t.name}
                   </span>
@@ -1994,7 +2075,7 @@ function TimelineVisual({
           Tracks · {trackCount} {trackCount === 1 ? "lane" : "lanes"}
         </span>
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-muted-foreground hidden sm:inline">
+          <span className="text-[10px] text-kumo-subtle hidden sm:inline">
             Drag vertically to move between tracks
           </span>
           <Button size="sm" variant="outline" onClick={onAddTrack} aria-label="Add Track">
@@ -2006,13 +2087,13 @@ function TimelineVisual({
         ref={trackRef}
         data-role="track"
         onPointerDown={onPointerDownTrack}
-        className="relative rounded-lg border bg-muted/30 overflow-hidden select-none"
+        className="relative rounded-lg border bg-kumo-recessed/30 overflow-hidden select-none"
         style={{ height: totalHeight }}
         aria-label="Subtitle timeline with tracks"
       >
         {/* trim background spans all tracks */}
         <div
-          className="absolute bg-primary/10 border-x border-primary/20"
+          className="absolute bg-kumo-brand/10 border-x border-kumo-brand/20"
           style={{
             left: `${trimLeftPct}%`,
             width: `${trimWidthPct}%`,
@@ -2023,13 +2104,13 @@ function TimelineVisual({
         />
         {/* header ticks */}
         <div
-          className="absolute left-0 right-0 flex justify-between px-2 pt-1 pointer-events-none border-b border-border/40 bg-muted/20"
+          className="absolute left-0 right-0 flex justify-between px-2 pt-1 pointer-events-none border-b border-kumo-line/40 bg-kumo-recessed/20"
           style={{ height: HEADER_H, top: 0 }}
         >
-          <span className="text-[9px] text-muted-foreground tabular-nums">
+          <span className="text-[9px] text-kumo-subtle tabular-nums">
             {formatTime(trimStart)}
           </span>
-          <span className="text-[9px] text-muted-foreground tabular-nums">
+          <span className="text-[9px] text-kumo-subtle tabular-nums">
             {formatTime(trimEnd)}
           </span>
         </div>
@@ -2040,15 +2121,15 @@ function TimelineVisual({
             data-role="track-row"
             data-track={ti}
             className={cn(
-              "absolute left-0 right-0 border-b border-border/30 flex items-center",
-              ti % 2 === 0 ? "bg-card/40" : "bg-muted/10",
+              "absolute left-0 right-0 border-b border-kumo-line/30 flex items-center",
+              ti % 2 === 0 ? "bg-kumo-base/40" : "bg-kumo-recessed/10",
             )}
             style={{ top: HEADER_H + ti * ROW_H, height: ROW_H }}
           >
-            <span className="absolute left-1.5 text-[9px] font-medium text-muted-foreground tabular-nums w-10 select-none">
+            <span className="absolute left-1.5 text-[9px] font-medium text-kumo-subtle tabular-nums w-10 select-none">
               Track {ti + 1}
             </span>
-            <div className="absolute left-12 right-1 top-0 bottom-0 border-l border-dashed border-border/20" />
+            <div className="absolute left-12 right-1 top-0 bottom-0 border-l border-dashed border-kumo-line/20" />
           </div>
         ))}
         {/* subtitle blocks per track */}
@@ -2070,8 +2151,8 @@ function TimelineVisual({
               className={cn(
                 "absolute rounded border flex items-center overflow-hidden group",
                 isSelected
-                  ? "bg-primary text-primary-foreground border-primary z-10 shadow"
-                  : "bg-card border-border hover:border-primary/40",
+                  ? "bg-kumo-brand text-white border-kumo-brand z-10 shadow"
+                  : "bg-kumo-base border-kumo-line hover:border-kumo-brand/40",
                 isActive && !isSelected && "ring-1 ring-primary/30",
               )}
               style={{
@@ -2091,7 +2172,7 @@ function TimelineVisual({
               title={`Track ${clampedTrack + 1} · drag vertically to move`}
             >
               <div
-                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-primary/30 flex items-center justify-center"
+                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   onSelect(sub.id);
@@ -2129,7 +2210,7 @@ function TimelineVisual({
                 <span className="truncate">{sub.text || "…"}</span>
               </div>
               <div
-                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-primary/30 flex items-center justify-center"
+                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   onSelect(sub.id);
@@ -2152,17 +2233,17 @@ function TimelineVisual({
         })}
         {/* playhead spans full height */}
         <div
-          className="absolute top-0 bottom-0 w-0.5 bg-primary z-20 pointer-events-none"
+          className="absolute top-0 bottom-0 w-0.5 bg-kumo-brand z-20 pointer-events-none"
           style={{ left: `${playheadPct}%` }}
           aria-hidden
         >
-          <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 size-2.5 bg-primary rotate-45 border border-white shadow" />
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] bg-primary text-primary-foreground px-1 rounded translate-y-0 tabular-nums">
+          <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 size-2.5 bg-kumo-brand rotate-45 border border-white shadow" />
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] bg-kumo-brand text-white px-1 rounded translate-y-0 tabular-nums">
             {formatTime(currentTime)}
           </div>
         </div>
       </div>
-      <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+      <div className="flex justify-between text-[10px] tabular-nums text-kumo-subtle">
         <span>Trim Start {formatTime(trimStart)}</span>
         <span>Playhead {formatTime(currentTime)}</span>
         <span>Trim End {formatTime(trimEnd)}</span>

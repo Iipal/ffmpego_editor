@@ -33,8 +33,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
+      root.setAttribute("data-mode", "dark");
+      root.setAttribute("data-theme", "dark");
     } else {
       root.classList.remove("dark");
+      root.setAttribute("data-mode", "light");
+      root.setAttribute("data-theme", "kumo");
     }
   }, [theme]);
 

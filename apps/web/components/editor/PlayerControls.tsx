@@ -85,7 +85,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   };
 
   return (
-    <div className="border-t border-border bg-card px-4 py-3">
+    <div className="border-t border-kumo-line bg-kumo-base px-4 py-3 rounded-b-lg">
       <Slider
         className="mb-3"
         value={[currentTime]}
@@ -135,7 +135,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant={isLoopEnabled ? "secondary" : "ghost"}
                 aria-label={isLoopEnabled ? "Disable loop" : "Enable loop"}
-                className={cn(isLoopEnabled && "bg-primary text-primary-foreground border-primary")}
+                className={cn(isLoopEnabled && "bg-kumo-brand text-white border-transparent hover:bg-kumo-brand-hover")}
                 onClick={toggleLoop}
               />
             }
@@ -174,7 +174,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
           aria-label="Volume"
         />
 
-        <output className="ml-auto text-xs tabular-nums text-muted-foreground">
+        <output className="ml-auto text-xs tabular-nums text-kumo-subtle">
           {formatTime(currentTime)} / {formatTime(duration)}
         </output>
 

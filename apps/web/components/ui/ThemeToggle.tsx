@@ -13,7 +13,7 @@ export function ThemeToggle() {
       size="icon"
       onClick={toggleTheme}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-      className="rounded-full border-border bg-card shadow-sm"
+      className="rounded-full border-kumo-line bg-kumo-base shadow-sm"
     >
       {theme === "dark" ? (
         <Sun className="size-5" />

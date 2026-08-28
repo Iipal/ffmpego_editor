@@ -63,10 +63,10 @@ export function Timeline({ playerRef }: TimelineProps) {
   };
 
   return (
-    <section className="enterprise-card rounded-[8px] p-4">
+    <section className="enterprise-card rounded-lg p-4">
       <div className="relative py-4">
         <div
-          className="absolute top-0 z-10 h-full w-0.5 bg-primary"
+          className="absolute top-0 z-10 h-full w-0.5 bg-kumo-brand"
           style={{ left: `${playheadPosition}%` }}
         />
         <Slider
@@ -85,7 +85,7 @@ export function Timeline({ playerRef }: TimelineProps) {
           aria-label="Trim range"
         />
       </div>
-      <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
+      <div className="flex justify-between text-xs tabular-nums text-kumo-subtle">
         <span>{formatTime(trimRange[0])}</span>
         <span>{formatTime(trimRange[1] - trimRange[0])}</span>
         <span>{formatTime(trimRange[1])}</span>

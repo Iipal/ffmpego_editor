@@ -107,7 +107,7 @@ export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
       }}
     >
       <div
-        className="absolute border-2 border-primary"
+        className="absolute border-2 border-kumo-brand"
         style={{
           left: `${crop.x}%`,
           top: `${crop.y}%`,
@@ -129,7 +129,7 @@ export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
               startDrag(event, handle);
             }}
             className={cn(
-              "absolute size-2 cursor-pointer rounded-full border-2 border-white bg-primary shadow-sm",
+              "absolute size-2 cursor-pointer rounded-full border-2 border-white bg-kumo-brand shadow-sm",
               handle.includes("n") ? "-top-1" : handle.includes("s") ? "-bottom-1" : "top-1/2 -translate-y-1/2",
               handle.includes("w") ? "-left-1" : handle.includes("e") ? "-right-1" : "left-1/2 -translate-x-1/2"
             )}

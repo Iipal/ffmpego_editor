@@ -217,7 +217,7 @@ export function Sidebar() {
     });
   };
   return (
-    <aside className="enterprise-card rounded-[8px] space-y-4 p-4">
+    <aside className="enterprise-card rounded-lg space-y-4 p-4">
       <Input
         ref={fileInputRef}
         className="sr-only"
@@ -237,10 +237,10 @@ export function Sidebar() {
       >
         Choose other video
       </Button>
-      <Card className="p-4 rounded-[8px]">
+      <Card className="p-4 rounded-lg">
         <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
-            Info <ChevronDown className="size-4 text-muted-foreground" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
+            Info <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-3 pt-3">
             <div>
@@ -250,15 +250,15 @@ export function Sidebar() {
               >
                 {filename}
               </h2>
-              <p className="text-xs text-muted-foreground">{extension} video</p>
+              <p className="text-xs text-kumo-subtle">{extension} video</p>
             </div>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
               <div>
-                <dt className="text-muted-foreground">Length</dt>
+                <dt className="text-kumo-subtle">Length</dt>
                 <dd>{formatTime(state.duration)}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Size</dt>
+                <dt className="text-kumo-subtle">Size</dt>
                 <dd>
                   {state.file
                     ? `${(state.file.size / 1024 / 1024).toFixed(1)} MB`
@@ -266,17 +266,17 @@ export function Sidebar() {
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Canvas</dt>
+                <dt className="text-kumo-subtle">Canvas</dt>
                 <dd>
                   {state.sourceWidth} x {state.sourceHeight}
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Ratio</dt>
+                <dt className="text-kumo-subtle">Ratio</dt>
                 <dd>{state.sourceAspectRatio.toFixed(2)}:1</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Frame rate</dt>
+                <dt className="text-kumo-subtle">Frame rate</dt>
                 <dd>
                   {state.sourceFrameRate
                     ? `${state.sourceFrameRate.toFixed(2)} fps`
@@ -284,15 +284,15 @@ export function Sidebar() {
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Video codec</dt>
+                <dt className="text-kumo-subtle">Video codec</dt>
                 <dd>{state.videoCodec ?? "-"}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Audio codec</dt>
+                <dt className="text-kumo-subtle">Audio codec</dt>
                 <dd>{state.audioCodec ?? "None"}</dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Bitrate</dt>
+                <dt className="text-kumo-subtle">Bitrate</dt>
                 <dd>{state.bitrateKbps ? `${state.bitrateKbps} kbps` : "-"}</dd>
               </div>
             </dl>
@@ -320,7 +320,7 @@ export function Sidebar() {
                       Complete FFprobe report for {state.file?.name}
                     </DialogDescription>
                   </DialogHeader>
-                  <pre className="max-h-[calc(100dvh-10rem)] overflow-auto rounded-md border bg-muted p-3 text-xs leading-5 whitespace-pre-wrap break-all">
+                  <pre className="max-h-[calc(100dvh-10rem)] overflow-auto rounded-md border border-kumo-line bg-kumo-recessed p-3 text-xs leading-5 whitespace-pre-wrap break-all">
                     <code>
                       {JSON.stringify(extendedMetadataMutation.data, null, 2)}
                     </code>
@@ -331,10 +331,10 @@ export function Sidebar() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-      <Card className="p-4 rounded-[8px]">
+      <Card className="p-4 rounded-lg">
         <Collapsible defaultOpen>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
-            Crop <ChevronDown className="size-4 text-muted-foreground" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
+            Crop <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-3">
             <Label>Aspect ratio</Label>
@@ -356,19 +356,19 @@ export function Sidebar() {
             </Select>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
               <div>
-                <dt className="text-muted-foreground">Start X</dt>
+                <dt className="text-kumo-subtle">Start X</dt>
                 <dd>
                   {Math.round((state.crop.x / 100) * state.sourceWidth)} px
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">Start Y</dt>
+                <dt className="text-kumo-subtle">Start Y</dt>
                 <dd>
                   {Math.round((state.crop.y / 100) * state.sourceHeight)} px
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">End X</dt>
+                <dt className="text-kumo-subtle">End X</dt>
                 <dd>
                   {Math.round(
                     ((state.crop.x + state.crop.width) / 100) *
@@ -378,7 +378,7 @@ export function Sidebar() {
                 </dd>
               </div>
               <div>
-                <dt className="text-muted-foreground">End Y</dt>
+                <dt className="text-kumo-subtle">End Y</dt>
                 <dd>
                   {Math.round(
                     ((state.crop.y + state.crop.height) / 100) *
@@ -388,7 +388,7 @@ export function Sidebar() {
                 </dd>
               </div>
               <div className="col-span-2">
-                <dt className="text-muted-foreground">Width × Height</dt>
+                <dt className="text-kumo-subtle">Width × Height</dt>
                 <dd className="font-medium">
                   {Math.round((state.crop.width / 100) * state.sourceWidth)} ×{" "}
                   {Math.round((state.crop.height / 100) * state.sourceHeight)}
@@ -449,7 +449,7 @@ export function Sidebar() {
                   </TooltipTrigger>
                   <TooltipContent>Zoom out canvas</TooltipContent>
                 </Tooltip>
-                <output className="min-w-12 text-center text-xs tabular-nums">
+                <output className="min-w-12 text-center text-xs tabular-nums text-kumo-subtle">
                   {Math.round(state.canvasZoom * 100)}%
                 </output>
                 <Tooltip>
@@ -475,17 +475,17 @@ export function Sidebar() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-      <Card className="p-4 rounded-[8px]">
+      <Card className="p-4 rounded-lg">
         <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
-            Video Speed <ChevronDown className="size-4 text-muted-foreground" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
+            Video speed <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-3">
             <div className="space-y-3">
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="playback-speed">Playback speed</Label>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-kumo-subtle tabular-nums">
                     {state.playbackSpeed.toFixed(1)}x
                   </span>
                 </div>
@@ -508,7 +508,7 @@ export function Sidebar() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="export-speed">Export speed</Label>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-kumo-subtle tabular-nums">
                     {state.exportSpeed.toFixed(1)}x
                   </span>
                 </div>
@@ -532,10 +532,10 @@ export function Sidebar() {
           </CollapsibleContent>
         </Collapsible>
       </Card>
-      <Card className="p-4 rounded-[8px]">
+      <Card className="p-4 rounded-lg">
         <Collapsible>
-          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-wide uppercase">
-            Export <ChevronDown className="size-4 text-muted-foreground" />
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
+            Export <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-3">
             <Label>Output format</Label>
@@ -574,7 +574,7 @@ export function Sidebar() {
                       (Lower is better)
                     </span>
                   </Label>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-kumo-subtle tabular-nums">
                     {state.exportQuality}
                   </span>
                 </div>

@@ -12,6 +12,8 @@ interface MobilePreviewSharedProps {
   // overlay children rendered inside 9:16 container (e.g. subtitles)
   overlay?: React.ReactNode;
   interactiveSplit?: boolean;
+  /** Height of the 9:16 preview in px. When provided, canvas resolution scales with height (textarea-like resize). */
+  height?: number;
 }
 
 function drawZone(
@@ -64,7 +66,9 @@ export function MobilePreviewShared({
   showBg = true,
   overlay,
   interactiveSplit = false,
+  height,
 }: MobilePreviewSharedProps) {
+  const isResizable = typeof height === "number";
   const canvasFullRef = useRef<HTMLCanvasElement>(null);
   const canvasTopRef = useRef<HTMLCanvasElement>(null);
   const canvasBottomRef = useRef<HTMLCanvasElement>(null);
@@ -72,7 +76,8 @@ export function MobilePreviewShared({
 
   const resizeCanvases = useCallback(() => {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const baseW = 270;
+    // When height provided (resizable 9:16 preview), scale canvas to fill zones — keeps 9/16, video fills scaled zones
+    const baseW = isResizable && height ? Math.round((height * 9) / 16) : 270;
     if (layout.mode === "full") {
       const c = canvasFullRef.current;
       if (c) {
@@ -101,7 +106,7 @@ export function MobilePreviewShared({
         bottom.style.height = `${h}px`;
       }
     }
-  }, [layout.mode, layout.splitRatio]);
+  }, [layout.mode, layout.splitRatio, height, isResizable]);
 
   const drawAll = useCallback(() => {
     const video = videoRef.current;
@@ -210,21 +215,25 @@ export function MobilePreviewShared({
   const video = videoRef.current;
   if (!video || !video.src)
     return (
-      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-[8px] border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-lg border border-kumo-line bg-kumo-recessed flex items-center justify-center text-xs text-kumo-subtle">
         No preview
       </div>
     );
 
   if (layout.mode === "full") {
     return (
-      <div className="flex flex-col items-center gap-2">
+      <div className={`flex flex-col items-center gap-2 ${isResizable ? "w-full h-full" : ""}`}>
         <div
           ref={wrapRef}
-          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-[8px] bg-black shadow-sm border border-border flex items-center justify-center"
+          className={
+            isResizable
+              ? "relative w-full h-full overflow-hidden rounded-lg bg-black shadow-sm flex items-center justify-center"
+              : "relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-lg bg-black shadow-sm border border-kumo-line flex items-center justify-center"
+          }
         >
           <canvas ref={canvasFullRef} className="block max-w-full h-auto" />
           {safe && (
-            <div className="absolute inset-3 rounded-[6px] border border-white/20 pointer-events-none" />
+            <div className="absolute inset-3 rounded-md border border-white/20 pointer-events-none" />
           )}
           <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
             FULL
@@ -235,7 +244,7 @@ export function MobilePreviewShared({
             </div>
           )}
         </div>
-        <div className="text-[10px] text-muted-foreground tabular-nums">
+        <div className="text-[10px] text-kumo-subtle tabular-nums">
           {OUTPUT_W} × {OUTPUT_H} · FULL 9:16
         </div>
       </div>
@@ -244,10 +253,14 @@ export function MobilePreviewShared({
 
   const splitPx = layout.splitRatio;
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className={`flex flex-col items-center gap-2 ${isResizable ? "w-full h-full" : ""}`}>
       <div
         ref={wrapRef}
-        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-[8px] bg-black shadow-sm border border-border flex flex-col"
+        className={
+          isResizable
+            ? "relative w-full h-full overflow-hidden rounded-lg bg-black shadow-sm flex flex-col"
+            : "relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-lg bg-black shadow-sm border border-kumo-line flex flex-col"
+        }
       >
         <div
           className="relative overflow-hidden flex items-center justify-center"
@@ -255,7 +268,7 @@ export function MobilePreviewShared({
         >
           <canvas ref={canvasTopRef} className="block" />
           {safe && (
-            <div className="absolute inset-2 rounded-[6px] border border-white/20 pointer-events-none" />
+            <div className="absolute inset-2 rounded-md border border-white/20 pointer-events-none" />
           )}
           <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
             ZONE 1
@@ -265,8 +278,8 @@ export function MobilePreviewShared({
           onPointerDown={startDrag}
           className={
             interactiveSplit
-              ? "h-2 bg-muted hover:bg-primary/10 border-y border-border cursor-row-resize flex items-center justify-center shrink-0 z-10"
-              : "h-2 bg-muted border-y border-border flex items-center justify-center shrink-0"
+              ? "h-2 bg-kumo-recessed hover:bg-kumo-brand/10 border-y border-kumo-line cursor-row-resize flex items-center justify-center shrink-0 z-10"
+              : "h-2 bg-kumo-recessed border-y border-kumo-line flex items-center justify-center shrink-0"
           }
         >
           <div className="h-0.5 w-8 bg-black/30 rounded" />
@@ -277,7 +290,7 @@ export function MobilePreviewShared({
         >
           <canvas ref={canvasBottomRef} className="block" />
           {safe && (
-            <div className="absolute inset-2 rounded-[6px] border border-white/20 pointer-events-none" />
+            <div className="absolute inset-2 rounded-md border border-white/20 pointer-events-none" />
           )}
           <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
             ZONE 2
@@ -289,7 +302,7 @@ export function MobilePreviewShared({
           </div>
         )}
       </div>
-      <div className="text-[10px] text-muted-foreground tabular-nums">
+      <div className="text-[10px] text-kumo-subtle tabular-nums">
         {OUTPUT_W} × {OUTPUT_H} · {(splitPx * 100).toFixed(0)}% /{" "}
         {((1 - splitPx) * 100).toFixed(0)}%
       </div>

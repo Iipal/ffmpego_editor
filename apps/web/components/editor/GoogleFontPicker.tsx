@@ -143,7 +143,7 @@ export function GoogleFontPicker({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={placeholder}
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="flex-1 bg-transparent text-sm outline-none placeholder:text-kumo-subtle"
                 autoFocus={open}
                 aria-label="Search font"
               />
@@ -151,7 +151,7 @@ export function GoogleFontPicker({
                 <button
                   type="button"
                   onClick={() => setQuery("")}
-                  className="text-xs text-muted-foreground hover:text-foreground"
+                  className="text-xs text-kumo-subtle hover:text-foreground"
                   aria-label="Clear search"
                 >
                   ✕
@@ -164,7 +164,7 @@ export function GoogleFontPicker({
                 className="text-xs font-normal flex items-center gap-1.5 cursor-pointer"
               >
                 Cyrillic only
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-[11px] text-kumo-subtle">
                   (
                   {cyrillicOnly
                     ? filteredFonts.length
@@ -181,13 +181,13 @@ export function GoogleFontPicker({
             </div>
             {previewTrimmed && (
               <p
-                className="text-[11px] text-muted-foreground truncate"
+                className="text-[11px] text-kumo-subtle truncate"
                 title={previewTrimmed}
               >
                 Preview: “{previewTrimmed}”
               </p>
             )}
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-kumo-subtle">
               {loading
                 ? "Fetching…"
                 : query || cyrillicOnly
@@ -207,11 +207,11 @@ export function GoogleFontPicker({
             </CommandEmpty>
             <CommandGroup>
               {loading ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">
+                <div className="py-6 text-center text-sm text-kumo-subtle">
                   Loading Google Fonts…
                 </div>
               ) : filteredFonts.length === 0 ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">
+                <div className="py-6 text-center text-sm text-kumo-subtle">
                   No fonts match “{query}”
                 </div>
               ) : (
@@ -252,7 +252,7 @@ export function GoogleFontPicker({
                           {previewTrimmed ? previewTrimmed : name}
                         </span>
                         {previewTrimmed ? (
-                          <span className="truncate text-[11px] text-muted-foreground flex gap-1">
+                          <span className="truncate text-[11px] text-kumo-subtle flex gap-1">
                             <span>{name}</span>
                             <span className="hidden sm:inline">
                               • {f.includes(",") ? "System" : "Google"}
@@ -266,7 +266,7 @@ export function GoogleFontPicker({
                         ) : null}
                       </div>
                       {!previewTrimmed && (
-                        <span className="text-[11px] text-muted-foreground hidden sm:inline flex items-center gap-1">
+                        <span className="text-[11px] text-kumo-subtle hidden sm:inline flex items-center gap-1">
                           {f.includes(",") ? "System" : "Google"}
                           {supportsCy && (
                             <span className="text-[10px] px-1 rounded bg-emerald-500/10 text-emerald-600 border">
@@ -287,7 +287,7 @@ export function GoogleFontPicker({
               )}
             </CommandGroup>
           </CommandList>
-          <div className="border-t px-3 py-2 text-[11px] text-muted-foreground">
+          <div className="border-t px-3 py-2 text-[11px] text-kumo-subtle">
             {loading
               ? "Fetching…"
               : query

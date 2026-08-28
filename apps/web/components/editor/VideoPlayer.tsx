@@ -171,7 +171,7 @@ export function VideoPlayer() {
 
   return (
     <div className="space-y-3">
-      <Card className="overflow-hidden p-0 border border-border bg-card shadow-sm rounded-[var(--radius)]">
+      <Card className="overflow-hidden p-0 rounded-lg">
         <div ref={wrapperRef} className="relative aspect-video w-full">
           <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
             <div

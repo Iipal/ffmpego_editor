@@ -80,7 +80,7 @@ const PageEditorCrop: React.FC = () => {
       <div className="space-y-4">
         <Card className="p-6">
           <h2 className="text-base font-semibold">Crop Editor</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-kumo-subtle mt-1">
             Trim, crop and export your video. Select aspect ratio and fine-tune the crop area.
           </p>
           <div className="mt-6">
@@ -88,7 +88,7 @@ const PageEditorCrop: React.FC = () => {
           </div>
         </Card>
         <Card className="p-4 opacity-60">
-          <div className="aspect-video rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground">
+          <div className="aspect-video rounded-lg bg-kumo-recessed flex items-center justify-center text-xs text-kumo-subtle">
             Crop preview will appear once a video is loaded
           </div>
         </Card>
@@ -101,7 +101,7 @@ const PageEditorCrop: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">Crop Editor</h2>
-          <p className="text-xs text-muted-foreground">Static 16:9 → custom · Trim, crop and canvas zoom · Non-destructive</p>
+          <p className="text-xs text-kumo-subtle">Static 16:9 → custom · Trim, crop and canvas zoom · Non-destructive</p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           <UploadOtherButtonCrop />

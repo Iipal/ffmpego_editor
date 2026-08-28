@@ -68,24 +68,24 @@ export default function Home() {
   const [tab, setTab] = useState<EditorTab>("crop");
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 sm:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-        <header className="flex items-center justify-between border-b border-border bg-card -mx-4 -mt-8 px-4 py-4 sm:-mx-8 sm:px-8 mb-2">
-          <div>
-            <h1 className="font-sans text-2xl font-semibold tracking-tight text-foreground">FFmpeg Editor</h1>
-            <p className="text-sm text-muted-foreground">
-              Trim, crop, and export local video files.
-            </p>
+    <main className="min-h-screen bg-kumo-canvas px-4 py-8 sm:px-8">
+      <div className="mx-auto flex w-full max-w-[1200px] flex-col gap-6">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-kumo-line bg-kumo-base -mx-4 -mt-8 px-4 py-4 sm:-mx-8 sm:px-8 mb-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-6">
+            <div className="flex flex-col gap-1">
+              <h1 className="font-sans text-2xl font-semibold tracking-normal text-kumo-strong" style={{ letterSpacing: 0 }}>FFmpeg Editor</h1>
+              <p className="text-sm text-kumo-subtle leading-normal">
+                Trim, crop, and export local video files.
+              </p>
+            </div>
+            <TabSwitcher
+              tabs={TABS}
+              activeTab={tab}
+              onTabChange={(t) => setTab(t as EditorTab)}
+            />
           </div>
           <ThemeToggle />
         </header>
-        <div className="space-y-4">
-          <TabSwitcher
-            tabs={TABS}
-            activeTab={tab}
-            onTabChange={(t) => setTab(t as EditorTab)}
-          />
-        </div>
 
         {tab === "crop" ? (
           file ? (

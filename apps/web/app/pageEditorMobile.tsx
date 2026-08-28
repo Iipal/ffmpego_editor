@@ -222,7 +222,7 @@ function SourceStage({
 
   if (!mediaUrl)
     return (
-      <div className="aspect-video flex items-center justify-center bg-muted rounded-lg text-sm text-muted-foreground">
+      <div className="aspect-video flex items-center justify-center bg-kumo-recessed rounded-lg text-sm text-kumo-subtle">
         No video loaded
       </div>
     );
@@ -246,7 +246,7 @@ function SourceStage({
           className={cn(
             "absolute border-2 cursor-move rounded-[2px]",
             selected === z.id
-              ? "border-primary bg-primary/10"
+              ? "border-kumo-brand bg-kumo-brand/10"
               : "border-white/80 bg-white/5",
             z.locked && "opacity-60 cursor-not-allowed",
           )}
@@ -261,7 +261,7 @@ function SourceStage({
             className={cn(
               "absolute -top-5 left-0 text-[10px] px-1.5 py-0.5 rounded font-medium",
               selected === z.id
-                ? "bg-primary text-primary-foreground"
+                ? "bg-kumo-brand text-white"
                 : "bg-white/90 text-black",
             )}
           >
@@ -286,7 +286,7 @@ function SourceStage({
                 key={h}
                 onPointerDown={(e) => onPointerDown(e, z.id, h)}
                 className={cn(
-                  "absolute size-2 rounded-full bg-primary border-2 border-white shadow-sm -m-1",
+                  "absolute size-2 rounded-full bg-kumo-brand border-2 border-white shadow-sm -m-1",
                   h === "nw" && "top-0 left-0 cursor-nw-resize",
                   h === "ne" && "top-0 right-0 cursor-ne-resize",
                   h === "sw" && "bottom-0 left-0 cursor-sw-resize",
@@ -517,7 +517,7 @@ function PortraitPreview({
   const video = videoRef.current;
   if (!video || !video.src)
     return (
-      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-xl border border-border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-xl border border-kumo-line bg-kumo-recessed flex items-center justify-center text-xs text-kumo-subtle">
         No preview
       </div>
     );
@@ -527,7 +527,7 @@ function PortraitPreview({
       <div className="flex flex-col items-center gap-2">
         <div
           ref={wrapRef}
-          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-border flex items-center justify-center"
+          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-kumo-line flex items-center justify-center"
         >
           <canvas ref={canvasFullRef} className="block max-w-full h-auto" />
           {safe && (
@@ -537,7 +537,7 @@ function PortraitPreview({
             FULL
           </span>
         </div>
-        <div className="text-[10px] text-muted-foreground tabular-nums">
+        <div className="text-[10px] text-kumo-subtle tabular-nums">
           {OUTPUT_W} × {OUTPUT_H} · FULL 9:16
         </div>
       </div>
@@ -549,7 +549,7 @@ function PortraitPreview({
     <div className="flex flex-col items-center gap-2">
       <div
         ref={wrapRef}
-        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-border flex flex-col"
+        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-kumo-line flex flex-col"
       >
         <div
           className="relative overflow-hidden flex items-center justify-center"
@@ -565,7 +565,7 @@ function PortraitPreview({
         </div>
         <div
           onPointerDown={startDrag}
-          className="h-2 bg-muted hover:bg-primary/10 border-y border-border cursor-row-resize flex items-center justify-center shrink-0 z-10"
+          className="h-2 bg-kumo-recessed hover:bg-kumo-brand/10 border-y border-kumo-line cursor-row-resize flex items-center justify-center shrink-0 z-10"
         >
           <div className="h-0.5 w-8 bg-black/30 rounded" />
         </div>
@@ -582,7 +582,7 @@ function PortraitPreview({
           </span>
         </div>
       </div>
-      <div className="text-[10px] text-muted-foreground tabular-nums">
+      <div className="text-[10px] text-kumo-subtle tabular-nums">
         {OUTPUT_W} × {OUTPUT_H} · {(splitPx * 100).toFixed(0)}% /{" "}
         {((1 - splitPx) * 100).toFixed(0)}%
       </div>
@@ -1024,7 +1024,7 @@ export default function MobileEditorPage() {
       <div className="space-y-4">
         <Card className="p-6">
           <h2 className="text-base font-semibold">Mobile 9:16 Editor</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-sm text-kumo-subtle mt-1">
             Convert your 16:9 landscape video into a 9:16 portrait with a
             stacked two-zone layout (e.g. camera + gameplay).
           </p>
@@ -1034,11 +1034,11 @@ export default function MobileEditorPage() {
         </Card>
         <Card className="p-4 opacity-60">
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="aspect-video rounded-lg bg-muted flex items-center justify-center text-xs">
+            <div className="aspect-video rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
               16:9 SOURCE preview
             </div>
             <div className="flex justify-center">
-              <div className="aspect-9/16 w-40 rounded-lg bg-muted flex items-center justify-center text-xs">
+              <div className="aspect-9/16 w-40 rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
                 9:16 STACKED
               </div>
             </div>
@@ -1053,7 +1053,7 @@ export default function MobileEditorPage() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">Mobile Layout</h2>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-kumo-subtle">
             Static 16:9 → 9:16 · Two independent crop zones · Non-destructive
           </p>
         </div>
@@ -1239,7 +1239,7 @@ export default function MobileEditorPage() {
                 }}
                 className="flex-1"
               />
-              <span className="text-xs tabular-nums text-muted-foreground w-20 text-right">
+              <span className="text-xs tabular-nums text-kumo-subtle w-20 text-right">
                 {formatTime(ed.currentTime)} / {formatTime(duration)}
               </span>
               <Button
@@ -1252,10 +1252,10 @@ export default function MobileEditorPage() {
               </Button>
             </div>
             {/* Trim controls */}
-            <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+            <div className="rounded-lg border bg-kumo-recessed/20 p-3 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold">Trim</span>
-                <span className="text-[11px] tabular-nums text-muted-foreground">
+                <span className="text-[11px] tabular-nums text-kumo-subtle">
                   {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
                   {formatTime(trimmedDuration)}
                 </span>
@@ -1288,12 +1288,12 @@ export default function MobileEditorPage() {
                       }}
                       aria-hidden
                     >
-                      <div className="size-2 rounded-full bg-primary border border-white shadow -mb-0.5" />
-                      <div className="w-0.5 h-4 bg-primary rounded-full shadow" />
+                      <div className="size-2 rounded-full bg-kumo-brand border border-white shadow -mb-0.5" />
+                      <div className="w-0.5 h-4 bg-kumo-brand rounded-full shadow" />
                     </div>
                   )}
                 </div>
-                <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+                <div className="flex justify-between text-[10px] text-kumo-subtle tabular-nums">
                   <span>Start {formatTime(trimStart)}</span>
                   <span>Duration {formatTime(trimmedDuration)}</span>
                   <span>End {formatTime(trimEnd)}</span>
@@ -1319,8 +1319,8 @@ export default function MobileEditorPage() {
                   className={cn(
                     "rounded-lg border p-2 space-y-2",
                     ed.selected === z.id
-                      ? "border-primary bg-primary/5"
-                      : "bg-muted/30",
+                      ? "border-kumo-brand bg-kumo-brand/5"
+                      : "bg-kumo-recessed/30",
                   )}
                 >
                   <div className="flex items-center justify-between">
@@ -1417,7 +1417,7 @@ export default function MobileEditorPage() {
                     Split {Math.round(ed.layout.splitRatio * 100)}% /{" "}
                     {Math.round((1 - ed.layout.splitRatio) * 100)}%
                   </Label>
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[10px] text-kumo-subtle">
                     drag divider or slider
                   </span>
                 </div>
@@ -1482,7 +1482,7 @@ export default function MobileEditorPage() {
               >
                 Save preference
               </Button>
-              <p className="text-[10px] leading-3 text-muted-foreground">
+              <p className="text-[10px] leading-3 text-kumo-subtle">
                 Static zones across trimmed clip. Final render 1080×1920 · same
                 geometry as preview. Trim applied to export.
               </p>
@@ -1490,7 +1490,7 @@ export default function MobileEditorPage() {
           </Card>
           <Card className="p-3 space-y-2">
             <div className="text-xs font-medium">FFmpeg</div>
-            <code className="block text-[10px] leading-3 break-all bg-muted p-2 rounded">
+            <code className="block text-[10px] leading-3 break-all bg-kumo-recessed p-2 rounded">
               {buildMobileFilter(
                 ed.layout,
                 sourceWidth || 1920,
@@ -1498,7 +1498,7 @@ export default function MobileEditorPage() {
                 ed.layout.splitRatio,
               )}
             </code>
-            <div className="text-[11px] tabular-nums text-muted-foreground space-y-1">
+            <div className="text-[11px] tabular-nums text-kumo-subtle space-y-1">
               <div className="flex justify-between">
                 <span>Trim</span>
                 <span>

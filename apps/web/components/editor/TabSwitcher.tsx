@@ -74,16 +74,16 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
       aria-label="Editor mode"
       onKeyDown={onKeyDown}
       className={cn(
-        "relative inline-flex items-center gap-1 p-1 rounded-[var(--radius)]",
-        "bg-muted border border-border",
+        "relative inline-flex items-center gap-1 p-1 rounded-lg",
+        "bg-kumo-recessed border border-kumo-line",
         "w-full sm:w-auto sm:min-w-[280px]",
         "shadow-sm"
       )}
     >
-      {/* sliding indicator */}
+      {/* sliding indicator — Kumo base surface with line ring */}
       <div
         aria-hidden
-        className="absolute top-1 bottom-1 rounded-md bg-primary shadow-sm transition-all duration-200 ease-out"
+        className="absolute top-1 bottom-1 rounded-md bg-kumo-base border border-kumo-line shadow-sm transition-all duration-[250ms] ease-[cubic-bezier(0.77,0,0.175,1)]"
         style={{
           left: indicator.left,
           width: indicator.width,
@@ -108,11 +108,11 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
             onClick={() => onTabChange(tab.id)}
             className={cn(
               "relative z-[1] flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-focus focus-visible:ring-offset-2 focus-visible:ring-offset-kumo-canvas",
               "disabled:pointer-events-none disabled:opacity-50",
               isActive
-                ? "text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
+                ? "text-kumo-strong"
+                : "text-kumo-subtle hover:text-kumo-default"
             )}
           >
             {tab.icon && (
