@@ -189,19 +189,46 @@ export function VideoPlayer() {
                 className="size-full object-fill"
                 src={mediaUrl}
                 onLoadedMetadata={(event) => {
-                  videoStore.setState((previous) => ({
-                    ...previous,
-                    duration:
-                      previous.duration > 0
-                        ? previous.duration
-                        : event.currentTarget.duration,
-                    trimRange: [0, event.currentTarget.duration],
-                    sourceAspectRatio:
-                      event.currentTarget.videoWidth /
-                      event.currentTarget.videoHeight,
-                    sourceWidth: event.currentTarget.videoWidth,
-                    sourceHeight: event.currentTarget.videoHeight,
-                  }));
+                  const d = event.currentTarget.duration;
+                  videoStore.setState((previous) => {
+                    const needsInit =
+                      previous.trimRange[1] === 0 ||
+                      previous.trimRange[1] > d + 0.01 ||
+                      previous.trimRange[0] < 0 ||
+                      previous.trimRange[0] >= d;
+                    let nextTrim: [number, number];
+                    if (needsInit && d > 0 && Number.isFinite(d)) {
+                      // preserve existing trim if it was user-set and still fits; otherwise init
+                      if (
+                        previous.trimRange[1] > previous.trimRange[0] &&
+                        previous.trimRange[1] <= d &&
+                        previous.trimRange[0] >= 0
+                      ) {
+                        nextTrim = previous.trimRange;
+                      } else {
+                        nextTrim = [0, d] as [number, number];
+                      }
+                      // clamp persisted trim when duration changed (e.g. different video)
+                      if (nextTrim[1] > d) nextTrim = [Math.min(nextTrim[0], d - 0.01), d] as [number, number];
+                    } else if (previous.trimRange[1] > d) {
+                      nextTrim = [previous.trimRange[0], d] as [number, number];
+                    } else {
+                      nextTrim = previous.trimRange;
+                    }
+                    return {
+                      ...previous,
+                      duration:
+                        previous.duration > 0 && previous.duration === d
+                          ? previous.duration
+                          : d,
+                      trimRange: nextTrim,
+                      sourceAspectRatio:
+                        event.currentTarget.videoWidth /
+                        event.currentTarget.videoHeight,
+                      sourceWidth: event.currentTarget.videoWidth,
+                      sourceHeight: event.currentTarget.videoHeight,
+                    };
+                  });
                 }}
                 onTimeUpdate={(event) => {
                   videoStore.setState((previous) => ({

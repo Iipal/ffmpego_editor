@@ -3,11 +3,15 @@
 import { useMutation } from "@tanstack/react-query";
 import {
   API_BASE_URL,
-  apiFormPost,
   type TranscodeProgress,
   type TranscodeResponse,
 } from "@/lib/api-client";
 import { useVideoStore, useVideoState, type VideoState } from "@/store/useVideoStore";
+import {
+  shouldUseChunked,
+  uploadFileChunked,
+  uploadFormWithProgress,
+} from "@/lib/upload-chunked";
 
 type TranscodeRequest = Pick<
   VideoState,
@@ -46,6 +50,7 @@ async function downloadAndSaveFile(jobId: string, filename: string) {
   if (ext === "mp4") mimeType = "video/mp4";
   else if (ext === "webm") mimeType = "video/webm";
   else if (ext === "mov") mimeType = "video/quicktime";
+  else if (ext === "mkv") mimeType = "video/x-matroska";
 
   // Attempt to use the File System Access API for a native save dialog.
   // Must be called within user activation – after async SSE it will throw NotAllowedError, so fall back to anchor.
@@ -95,28 +100,71 @@ export function useTranscodeMutation() {
 
   return useMutation({
     mutationFn: async (request: TranscodeRequest) => {
-      const form = new FormData();
-      console.log(request);
-      form.append("file", request.file);
-      form.append(
-        "settings",
-        JSON.stringify({
-          crop: request.crop,
-          customFFmpegArgs: request.customFFmpegArgs,
-          exportFormat: request.exportFormat,
-          exportFps: request.exportFps,
-          exportFilename: request.exportFilename,
-          exportQuality: request.exportQuality,
-          exportSpeed: request.exportSpeed,
-          sourceHeight: request.sourceHeight,
-          sourceWidth: request.sourceWidth,
-          trimRange: request.trimRange,
-        }),
-      );
-      const response = await apiFormPost<TranscodeResponse>(
-        "/api/transcode",
-        form,
-      );
+      const settingsJson = JSON.stringify({
+        crop: request.crop,
+        customFFmpegArgs: request.customFFmpegArgs,
+        exportFormat: request.exportFormat,
+        exportFps: request.exportFps,
+        exportFilename: request.exportFilename,
+        exportQuality: request.exportQuality,
+        exportSpeed: request.exportSpeed,
+        sourceHeight: request.sourceHeight,
+        sourceWidth: request.sourceWidth,
+        trimRange: request.trimRange,
+      });
+
+      const setUpload = (sent: number, total: number) => {
+        const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
+        videoStore.setState((p) => ({
+          ...p,
+          uploadBytesSent: sent,
+          uploadBytesTotal: total,
+          uploadProgress: pct,
+          uploadStatus: "uploading",
+          uploadStage: "transcode",
+        }));
+      };
+
+      // For huge files (>256MB) use chunked resumable upload to avoid buffering
+      // 10GB in a single FormData body (Bun + browser would OOM). The server
+      // reuses the sparse temp file via x-upload-id header.
+      let response: TranscodeResponse;
+      if (shouldUseChunked(request.file)) {
+        const { uploadId } = await uploadFileChunked(request.file, {
+          onProgress: setUpload,
+        });
+        // File fully uploaded, now starting server transcode request
+        setUpload(request.file.size, request.file.size);
+        const form = new FormData();
+        form.append("settings", settingsJson);
+        const res = await fetch(`${API_BASE_URL}/api/transcode`, {
+          method: "POST",
+          headers: { "x-upload-id": uploadId },
+          body: form,
+        });
+        if (!res.ok) {
+          const err = (await res.json().catch(() => null)) as { error?: string } | null;
+          throw new Error(err?.error ?? `Transcode failed: ${res.status}`);
+        }
+        response = (await res.json()) as TranscodeResponse;
+      } else {
+        const form = new FormData();
+        form.append("file", request.file);
+        form.append("settings", settingsJson);
+        // XHR gives real upload.onprogress vs fetch which does not
+        response = await uploadFormWithProgress<TranscodeResponse>(
+          "/api/transcode",
+          form,
+          { onUploadProgress: setUpload },
+        );
+      }
+      // Mark upload done before switching to FFmpeg SSE progress
+      videoStore.setState((p) => ({
+        ...p,
+        uploadProgress: 100,
+        uploadStatus: "done",
+        uploadBytesSent: p.uploadBytesTotal,
+      }));
       const progressUrl = new URL(
         response.progressUrl,
         API_BASE_URL,
@@ -145,13 +193,18 @@ export function useTranscodeMutation() {
         };
       });
     },
-    onMutate: () => {
+    onMutate: (vars: TranscodeRequest) => {
       videoStore.setState((previous) => ({
         ...previous,
         transcodeStatus: "processing",
         transcodeProgress: 0,
         transcodeOutputPath: null,
         transcodeError: null,
+        uploadStage: "transcode",
+        uploadStatus: "uploading",
+        uploadProgress: 0,
+        uploadBytesSent: 0,
+        uploadBytesTotal: vars.file.size,
       }));
     },
     onSuccess: async (result) => {
@@ -197,6 +250,8 @@ export function useTranscodeMutation() {
           ...previous,
           transcodeStatus: "idle",
           transcodeProgress: 0,
+          uploadStatus: "idle",
+          uploadStage: null,
         }));
         return;
       }
@@ -205,6 +260,7 @@ export function useTranscodeMutation() {
         transcodeStatus: "failed",
         transcodeError:
           error instanceof Error ? error.message : "Export failed.",
+        uploadStatus: "error",
       }));
     },
   });

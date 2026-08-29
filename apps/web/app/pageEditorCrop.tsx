@@ -1,12 +1,14 @@
 import { Sidebar, SidebarToggle } from "@/components/editor/Sidebar";
 import { VideoPlayer } from "@/components/editor/VideoPlayer";
 import { VideoUploader } from "@/components/editor/VideoUploader";
+import { UploadProgress } from "@/components/editor/UploadProgress";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { toast } from "sonner";
 import React, { useRef } from "react";
+import { ACCEPTED_VIDEO_INPUT_ATTR, isAcceptedVideoFile, isFileTooLarge, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/video-file";
 
 function UploadOtherButtonCrop() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -14,9 +16,12 @@ function UploadOtherButtonCrop() {
   const metadataMutation = useVideoMetadataMutation();
   const onPick = (file: File | undefined) => {
     if (!file) return;
-    const accepted = new Set(["video/mp4", "video/webm", "video/quicktime"]);
-    if (!accepted.has(file.type)) {
-      toast.error("Unsupported format. Use MP4/WebM/MOV");
+    if (!isAcceptedVideoFile(file)) {
+      toast.error("Unsupported format. Use MP4/WebM/MOV/MKV (Matroska)");
+      return;
+    }
+    if (isFileTooLarge(file)) {
+      toast.error(`File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
@@ -60,7 +65,7 @@ function UploadOtherButtonCrop() {
       <input
         ref={inputRef}
         type="file"
-        accept="video/mp4,video/webm,video/quicktime"
+        accept={ACCEPTED_VIDEO_INPUT_ATTR}
         className="hidden"
         onChange={(e) => onPick(e.target.files?.[0])}
       />
@@ -72,7 +77,7 @@ function UploadOtherButtonCrop() {
 }
 
 const PageEditorCrop: React.FC = () => {
-  const { isSidebarOpen, file, mediaUrl } = useVideoState();
+  const { isSidebarOpen, file, mediaUrl, uploadStatus } = useVideoState();
   const hasVideo = !!file && !!mediaUrl;
 
   if (!hasVideo) {
@@ -108,6 +113,9 @@ const PageEditorCrop: React.FC = () => {
           {isSidebarOpen ? null : <SidebarToggle />}
         </div>
       </div>
+      {(uploadStatus === "uploading" || uploadStatus === "error") && (
+        <UploadProgress />
+      )}
 
       <div
         className={

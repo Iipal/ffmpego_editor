@@ -9,6 +9,7 @@ import { useState } from "react";
 import PageEditorCrop from "./pageEditorCrop";
 import PageEditorMobile from "./pageEditorMobile";
 import PageEditorSubtitles from "./pageEditorSubtitles";
+import PageAdmin from "./pageAdmin";
 
 const TABS = [
   {
@@ -60,6 +61,30 @@ const TABS = [
       </svg>
     ),
   },
+  {
+    id: "admin" as const,
+    label: "Admin",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8Z" />
+        <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+        <path d="M12 2v2" />
+        <path d="M12 20v2" />
+        <path d="M4.93 4.93l1.41 1.41" />
+        <path d="M17.66 17.66l1.41 1.41" />
+        <path d="M2 12h2" />
+        <path d="M20 12h2" />
+        <path d="M4.93 19.07l1.41-1.41" />
+        <path d="M17.66 6.34l1.41-1.41" />
+      </svg>
+    ),
+  },
 ] as const;
 
 type EditorTab = (typeof TABS)[number]["id"];
@@ -95,8 +120,10 @@ export default function Home() {
           )
         ) : tab === "mobile" ? (
           <PageEditorMobile />
-        ) : (
+        ) : tab === "subtitles" ? (
           <PageEditorSubtitles />
+        ) : (
+          <PageAdmin />
         )}
       </div>
       <Toaster />

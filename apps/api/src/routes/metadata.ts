@@ -1,6 +1,8 @@
 import { Hono } from "hono";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { consumeUpload } from "./upload.js";
 
 const app = new Hono();
 
@@ -18,17 +20,50 @@ interface FFprobeReport {
 }
 
 app.post("/metadata", async (c) => {
-  const form = await c.req.formData();
-  const file = form.get("file");
-  if (!(file instanceof File))
-    return c.json({ error: "Video file is required" }, 400);
+  // Allow either direct file upload OR reusable chunked uploadId (avoids re-uploading 10GB for metadata+transcode)
+  const uploadIdHeader = c.req.header("x-upload-id") ?? c.req.query("uploadId");
   const includeFrames = c.req.query("includeFrames") === "true";
   const includePackets = c.req.query("includePackets") === "true";
-  const temporaryPath = path.join(
-    os.tmpdir(),
-    `${crypto.randomUUID()}-${path.basename(file.name)}`,
-  );
-  await Bun.write(temporaryPath, file);
+
+  let temporaryPath: string;
+  let filename: string;
+  let isChunked = false;
+
+  if (uploadIdHeader) {
+    const p = consumeUpload(uploadIdHeader);
+    if (!p) return c.json({ error: "Upload session not found or expired" }, 404);
+    try { fs.accessSync(p); } catch { return c.json({ error: "Uploaded file not found on server" }, 404); }
+    temporaryPath = p;
+    filename = path.basename(p).replace(/^[0-9a-f-]{36}-/, "");
+    isChunked = true;
+  } else {
+    let form: FormData;
+    try {
+      form = await c.req.formData();
+    } catch (e) {
+      console.error("[metadata] formData parse failed:", e);
+      return c.json({ error: "Invalid multipart body / file too large" }, 400);
+    }
+    // also allow uploadId inside multipart (chunked flow)
+    const uploadIdField = form.get("uploadId");
+    if (typeof uploadIdField === "string" && uploadIdField.trim()) {
+      const p = consumeUpload(uploadIdField.trim());
+      if (!p) return c.json({ error: "Upload session not found or expired" }, 404);
+      temporaryPath = p;
+      filename = path.basename(p).replace(/^[0-9a-f-]{36}-/, "");
+      isChunked = true;
+    } else {
+      const file = form.get("file");
+      if (!(file instanceof File))
+        return c.json({ error: "Video file is required" }, 400);
+      temporaryPath = path.join(
+        os.tmpdir(),
+        `${crypto.randomUUID()}-${path.basename(file.name)}`,
+      );
+      await Bun.write(temporaryPath, file);
+      filename = path.basename(file.name);
+    }
+  }
   const args = [
     "ffprobe",
     "-v",
@@ -48,7 +83,8 @@ app.post("/metadata", async (c) => {
   args.push(temporaryPath);
   const process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
   const exitCode = await process.exited;
-  await Bun.$`rm -f ${temporaryPath}`;
+  // Only delete temp file if it was created for this single-shot request; chunked uploads are reused for transcode
+  if (!isChunked) await Bun.$`rm -f ${temporaryPath}`;
   if (exitCode !== 0) return c.json({ error: "Unable to inspect video" }, 422);
   const result = (await new Response(process.stdout).json()) as FFprobeReport;
   const format = result.format ?? {};
@@ -60,7 +96,7 @@ app.post("/metadata", async (c) => {
     .split("/")
     .map(Number);
   return c.json({
-    filename: path.basename(file.name),
+    filename,
     containerFormat: String(format.format_name ?? ""),
     durationSeconds: Number(format.duration),
     width: Number(video.width),

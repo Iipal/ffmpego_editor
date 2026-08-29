@@ -166,7 +166,8 @@ export default function PageEditorSubtitles() {
 
   // Migrate old store instances (HMR) that were created before subtitles fields existed
   useEffect(() => {
-    const s = (videoStore.state ?? (videoStore as unknown as { get: () => unknown }).get?.()) as unknown as {
+    const s = (videoStore.state ??
+      (videoStore as unknown as { get: () => unknown }).get?.()) as unknown as {
       subtitles?: Subtitle[];
       selectedSubtitleId?: string | null;
       subtitleTrackCountExplicit?: number;
@@ -205,8 +206,23 @@ export default function PageEditorSubtitles() {
 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [trimStart, setTrimStart] = useState(0);
-  const [trimEnd, setTrimEnd] = useState(0);
+  const trimRangeStore = (videoState as typeof videoState & { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+  const trimStart = trimRangeStore[0];
+  const trimEnd = trimRangeStore[1];
+  const setTrimStart = useCallback((v: number | ((prev: number) => number)) => {
+    videoStore.setState((prev) => {
+      const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+      const nextStart = typeof v === "function" ? (v as (x: number) => number)(cur[0]) : v;
+      return { ...prev, trimRange: [nextStart, cur[1]] as [number, number] };
+    });
+  }, [videoStore]);
+  const setTrimEnd = useCallback((v: number | ((prev: number) => number)) => {
+    videoStore.setState((prev) => {
+      const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+      const nextEnd = typeof v === "function" ? (v as (x: number) => number)(cur[1]) : v;
+      return { ...prev, trimRange: [cur[0], nextEnd] as [number, number] };
+    });
+  }, [videoStore]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [previewHeight, setPreviewHeight] = useState(560);
@@ -231,7 +247,9 @@ export default function PageEditorSubtitles() {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const clamped = Math.max(320, Math.min(900, h));
-        setPreviewHeight((prev) => (Math.abs(prev - clamped) > 2 ? clamped : prev));
+        setPreviewHeight((prev) =>
+          Math.abs(prev - clamped) > 2 ? clamped : prev,
+        );
       });
     });
     obs.observe(el);
@@ -242,11 +260,7 @@ export default function PageEditorSubtitles() {
   }, []);
 
   const setSubtitles = useCallback(
-    (
-      updater:
-        | Subtitle[]
-        | ((prev: Subtitle[]) => Subtitle[]),
-    ) => {
+    (updater: Subtitle[] | ((prev: Subtitle[]) => Subtitle[])) => {
       videoStore.setState((prev) => {
         const p = prev as unknown as { subtitles?: Subtitle[] };
         const cur = p.subtitles ?? [];
@@ -322,18 +336,22 @@ export default function PageEditorSubtitles() {
     }
   }, [maxTrackFromSubtitles, trackCountExplicit, setTrackCountExplicit]);
 
-  // init trim when duration available
+  // init/clamp global trim when duration available (global persistent across Crop/Mobile/Subtitles)
   useEffect(() => {
     if (effectiveDuration > 0 && trimEnd === 0) {
-      setTrimStart(0);
-      setTrimEnd(effectiveDuration);
+      videoStore.setState((prev) => {
+        const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+        if (cur[1] === 0) return { ...prev, trimRange: [0, effectiveDuration] as [number, number] };
+        return prev;
+      });
+    } else if (effectiveDuration > 0 && trimEnd > effectiveDuration) {
+      videoStore.setState((prev) => {
+        const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+        const ns = Math.min(cur[0], Math.max(0, effectiveDuration - 1));
+        return { ...prev, trimRange: [ns, effectiveDuration] as [number, number] };
+      });
     }
-    if (effectiveDuration > 0 && trimEnd > effectiveDuration) {
-      setTrimEnd(effectiveDuration);
-      if (trimStart >= effectiveDuration)
-        setTrimStart(Math.max(0, effectiveDuration - 1));
-    }
-  }, [effectiveDuration, trimEnd, trimStart]);
+  }, [effectiveDuration, trimEnd, trimStart, videoStore]);
 
   // templates persistence lifecycle: load on mount already, save on change
   useEffect(() => {
@@ -352,10 +370,12 @@ export default function PageEditorSubtitles() {
       const d = v.duration;
       if (Number.isFinite(d)) {
         setDuration(d);
-        if (trimEnd === 0) {
-          setTrimStart(0);
-          setTrimEnd(d);
-        }
+        videoStore.setState((prev) => {
+          const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+          if (cur[1] === 0) return { ...prev, trimRange: [0, d] as [number, number] };
+          if (cur[1] > d) return { ...prev, trimRange: [Math.min(cur[0], d - 0.2), d] as [number, number] };
+          return prev;
+        });
       }
     };
     const onTimeUpdate = () => {
@@ -511,7 +531,14 @@ export default function PageEditorSubtitles() {
       return [...prev, newSub];
     });
     setSelectedId(id);
-  }, [hasVideo, effectiveDuration, currentTime, trimStart, trimEnd, trackCountExplicit]);
+  }, [
+    hasVideo,
+    effectiveDuration,
+    currentTime,
+    trimStart,
+    trimEnd,
+    trackCountExplicit,
+  ]);
 
   const handleDeleteSubtitle = useCallback(() => {
     if (!selectedId) return;
@@ -645,8 +672,7 @@ export default function PageEditorSubtitles() {
       if (s < 0) s = 0;
       if (e > d) e = d;
       if (s >= e) return;
-      setTrimStart(s);
-      setTrimEnd(e);
+      videoStore.setState((prev) => ({ ...prev, trimRange: [s, e] as [number, number] }));
       // clamp subtitles inside
       setSubtitles((prev) =>
         prev.map((sub) => {
@@ -670,7 +696,7 @@ export default function PageEditorSubtitles() {
         }),
       );
     },
-    [effectiveDuration],
+    [effectiveDuration, videoStore],
   );
 
   const handleExport = useCallback(async () => {
@@ -684,15 +710,26 @@ export default function PageEditorSubtitles() {
     }
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
-    const baseName = (file.name.replace(/\.[^.]+$/, "") || "video") + "_mobile_subtitles_1080x1920";
+    const baseName =
+      (file.name.replace(/\.[^.]+$/, "") || "video") +
+      "_mobile_subtitles_1080x1920";
     const outName = baseName + ".mp4";
     setIsExporting(true);
-    toast.loading(subtitles.length ? `Rendering ${subtitles.length} subtitle PNGs…` : "Exporting mobile mp4 (CRF 10)…", { id: "subtitles-export" });
+    toast.loading(
+      subtitles.length
+        ? `Rendering ${subtitles.length} subtitle PNGs…`
+        : "Exporting mobile mp4 (CRF 10)…",
+      { id: "subtitles-export" },
+    );
     try {
       const { API_BASE_URL } = await import("@/lib/api-client");
       // Render PNGs: front-end bakes text style into fitted images
-      const rendered = subtitles.length ? await renderAllSubtitlesToPngs(subtitles) : [];
-      toast.loading(`Exporting ${rendered.length} subtitles + 9:16…`, { id: "subtitles-export" });
+      const rendered = subtitles.length
+        ? await renderAllSubtitlesToPngs(subtitles)
+        : [];
+      toast.loading(`Exporting ${rendered.length} subtitles + 9:16…`, {
+        id: "subtitles-export",
+      });
       const fd = new FormData();
       fd.append("file", file);
       fd.append(
@@ -721,15 +758,22 @@ export default function PageEditorSubtitles() {
       }));
       fd.append("subtitles", JSON.stringify(subtitlesMeta));
       rendered.forEach((r, i) => {
-        const f = new File([r.blob], `subtitle_${i}.png`, { type: "image/png" });
+        const f = new File([r.blob], `subtitle_${i}.png`, {
+          type: "image/png",
+        });
         fd.append(`subtitle_${i}`, f);
       });
-      const res = await fetch(`${API_BASE_URL}/api/transcode/mobile/subtitles`, {
-        method: "POST",
-        body: fd,
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/api/transcode/mobile/subtitles`,
+        {
+          method: "POST",
+          body: fd,
+        },
+      );
       if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        const payload = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         throw new Error(payload?.error ?? `Export failed: ${res.status}`);
       }
       const j = (await res.json()) as { jobId: string; progressUrl: string };
@@ -738,9 +782,15 @@ export default function PageEditorSubtitles() {
         const source = new EventSource(progressUrl);
         source.onmessage = (event) => {
           try {
-            const progress = JSON.parse(event.data) as { status: string; progress: number; error?: string };
+            const progress = JSON.parse(event.data) as {
+              status: string;
+              progress: number;
+              error?: string;
+            };
             if (progress.status === "processing") {
-              toast.loading(`Exporting… ${Math.round(progress.progress)}%`, { id: "subtitles-export" });
+              toast.loading(`Exporting… ${Math.round(progress.progress)}%`, {
+                id: "subtitles-export",
+              });
             }
             if (progress.status === "completed") {
               source.close();
@@ -761,8 +811,12 @@ export default function PageEditorSubtitles() {
       const downloadUrl = `${API_BASE_URL}/api/transcode/download/${j.jobId}`;
       const response = await fetch(downloadUrl);
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? `Download failed: ${response.status}`);
+        const payload = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(
+          payload?.error ?? `Download failed: ${response.status}`,
+        );
       }
       const blob = await response.blob();
       const mimeType = "video/mp4";
@@ -772,17 +826,25 @@ export default function PageEditorSubtitles() {
             window as unknown as {
               showSaveFilePicker: (o: {
                 suggestedName?: string;
-                types?: Array<{ description?: string; accept: Record<string, string[]> }>;
+                types?: Array<{
+                  description?: string;
+                  accept: Record<string, string[]>;
+                }>;
               }) => Promise<FileSystemFileHandle>;
             }
           ).showSaveFilePicker({
             suggestedName: outName,
-            types: [{ description: "MP4 video", accept: { [mimeType]: [".mp4"] } }],
+            types: [
+              { description: "MP4 video", accept: { [mimeType]: [".mp4"] } },
+            ],
           });
           const writable = await handle.createWritable();
           await writable.write(blob);
           await writable.close();
-          toast.success("Video saved", { id: "subtitles-export", description: handle.name });
+          toast.success("Video saved", {
+            id: "subtitles-export",
+            description: handle.name,
+          });
           return;
         } catch (e) {
           if ((e as DOMException)?.name === "AbortError") {
@@ -799,10 +861,14 @@ export default function PageEditorSubtitles() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("Video saved", { id: "subtitles-export", description: outName });
+      toast.success("Video saved", {
+        id: "subtitles-export",
+        description: outName,
+      });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Export failed";
-      if ((e as DOMException)?.name === "AbortError") toast.dismiss("subtitles-export");
+      if ((e as DOMException)?.name === "AbortError")
+        toast.dismiss("subtitles-export");
       else toast.error(msg, { id: "subtitles-export" });
     } finally {
       setIsExporting(false);
@@ -869,7 +935,9 @@ export default function PageEditorSubtitles() {
             Refresh layout
           </Button>
           <Button size="sm" onClick={handleExport} disabled={isExporting}>
-            {isExporting ? "Exporting…" : `Export 9:16 + ${subtitles.length} subtitles`}
+            {isExporting
+              ? "Exporting…"
+              : `Export 9:16 + ${subtitles.length} subtitles`}
           </Button>
         </div>
       </div>
@@ -893,7 +961,7 @@ export default function PageEditorSubtitles() {
                 return (
                   <div
                     ref={previewWrapRef}
-                    className="resize-y overflow-auto min-h-[320px] max-h-[85vh] rounded-lg border border-kumo-line bg-black flex flex-col mx-auto"
+                    className="resize-y overflow-auto min-h-80 max-h-[85vh] rounded-lg border border-kumo-line bg-black flex flex-col mx-auto"
                     style={{
                       height: previewHeight,
                       width: contentW,
@@ -908,81 +976,86 @@ export default function PageEditorSubtitles() {
                         safe
                         showBg
                         height={contentH}
-                    overlay={
-                      <div className="absolute inset-0">
-                        {activeSubtitles.map((sub) => {
-                          const isSelected = sub.id === selectedId;
-                          return (
-                            <div
-                              key={sub.id}
-                              onClick={() => setSelectedId(sub.id)}
-                              className={cn(
-                                "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
-                                isSelected &&
-                                  "ring-1 ring-dashed ring-blue-500 rounded",
-                              )}
-                              style={{
-                                left: `${clamp(sub.position.x, 0, 100)}%`,
-                                top: `${clamp(sub.position.y, 0, 100)}%`,
-                                transform: "translate(-50%, -50%)",
-                              }}
-                              aria-label={`Subtitle ${sub.text}`}
-                            >
-                              <span
+                        overlay={
+                          <div className="absolute inset-0">
+                            {activeSubtitles.map((sub) => {
+                              const isSelected = sub.id === selectedId;
+                              return (
+                                <div
+                                  key={sub.id}
+                                  onClick={() => setSelectedId(sub.id)}
+                                  className={cn(
+                                    "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
+                                    isSelected &&
+                                      "ring-1 ring-dashed ring-blue-500 rounded",
+                                  )}
+                                  style={{
+                                    left: `${clamp(sub.position.x, 0, 100)}%`,
+                                    top: `${clamp(sub.position.y, 0, 100)}%`,
+                                    transform: "translate(-50%, -50%)",
+                                  }}
+                                  aria-label={`Subtitle ${sub.text}`}
+                                >
+                                  <span
+                                    style={{
+                                      ...renderSubtitleStyle(sub.style),
+                                      display: "inline-block",
+                                    }}
+                                  >
+                                    {sub.text || "New subtitle"}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {selectedSubtitle && (
+                              <div
+                                className="absolute size-2 rounded-full bg-kumo-brand border border-white shadow pointer-events-none"
                                 style={{
-                                  ...renderSubtitleStyle(sub.style),
-                                  display: "inline-block",
+                                  left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
+                                  top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
+                                  transform: "translate(-50%, -50%)",
                                 }}
-                              >
-                                {sub.text || "New subtitle"}
-                              </span>
-                            </div>
+                                aria-hidden
+                              />
+                            )}
+                          </div>
+                        }
+                      />
+                    </div>
+                    {/* drag handle — same affordance as <textarea> resize handle, but full-width for height */}
+                    <div
+                      className="mt-2 h-2.5 w-full shrink-0 cursor-row-resize flex items-center justify-center rounded bg-kumo-recessed border border-kumo-line hover:bg-kumo-brand/10 select-none touch-none"
+                      title="Drag to resize preview height"
+                      aria-label="Resize preview height"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        const startY = e.clientY;
+                        const startH =
+                          previewWrapRef.current?.getBoundingClientRect()
+                            .height ?? previewHeight;
+                        let curH = startH;
+                        const onMove = (ev: PointerEvent) => {
+                          const dy = ev.clientY - startY;
+                          const next = Math.round(
+                            Math.max(320, Math.min(900, startH + dy)),
                           );
-                        })}
-                        {selectedSubtitle && (
-                          <div
-                            className="absolute size-2 rounded-full bg-kumo-brand border border-white shadow pointer-events-none"
-                            style={{
-                              left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
-                              top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
-                              transform: "translate(-50%, -50%)",
-                            }}
-                            aria-hidden
-                          />
-                        )}
-                      </div>
-                    }
-                  />
-                </div>
-                {/* drag handle — same affordance as <textarea> resize handle, but full-width for height */}
-                <div
-                  className="mt-2 h-2.5 w-full shrink-0 cursor-row-resize flex items-center justify-center rounded bg-kumo-recessed border border-kumo-line hover:bg-kumo-brand/10 select-none touch-none"
-                  title="Drag to resize preview height"
-                  aria-label="Resize preview height"
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    const startY = e.clientY;
-                    const startH = previewWrapRef.current?.getBoundingClientRect().height ?? previewHeight;
-                    let curH = startH;
-                    const onMove = (ev: PointerEvent) => {
-                      const dy = ev.clientY - startY;
-                      const next = Math.round(Math.max(320, Math.min(900, startH + dy)));
-                      curH = next;
-                      setPreviewHeight(next);
-                    };
-                    const onUp = () => {
-                      window.removeEventListener("pointermove", onMove);
-                      window.removeEventListener("pointerup", onUp);
-                      // also sync wrapper's inline height for native resize persistence
-                      if (previewWrapRef.current) previewWrapRef.current.style.height = `${curH}px`;
-                    };
-                    window.addEventListener("pointermove", onMove);
-                    window.addEventListener("pointerup", onUp);
-                  }}
-                >
-                  <div className="h-0.5 w-8 rounded bg-black/30 dark:bg-white/30" />
-                </div>
-              </div>
+                          curH = next;
+                          setPreviewHeight(next);
+                        };
+                        const onUp = () => {
+                          window.removeEventListener("pointermove", onMove);
+                          window.removeEventListener("pointerup", onUp);
+                          // also sync wrapper's inline height for native resize persistence
+                          if (previewWrapRef.current)
+                            previewWrapRef.current.style.height = `${curH}px`;
+                        };
+                        window.addEventListener("pointermove", onMove);
+                        window.addEventListener("pointerup", onUp);
+                      }}
+                    >
+                      <div className="h-0.5 w-8 rounded bg-black/30 dark:bg-white/30" />
+                    </div>
+                  </div>
                 );
               })()}
 
@@ -1260,7 +1333,8 @@ export default function PageEditorSubtitles() {
                           </span>
                         </div>
                         <div className="text-[10px] text-kumo-subtle">
-                          Track {getSubtitleTrack(sub) + 1} · Pos {sub.position.x.toFixed(0)},{" "}
+                          Track {getSubtitleTrack(sub) + 1} · Pos{" "}
+                          {sub.position.x.toFixed(0)},{" "}
                           {sub.position.y.toFixed(0)} ·{" "}
                           {sub.style.fontFamily.split(",")[0]}
                         </div>
@@ -1446,7 +1520,11 @@ export default function PageEditorSubtitles() {
                         );
                       }}
                     >
-                      <SelectTrigger id="sub-track" aria-label="Track" className="flex-1">
+                      <SelectTrigger
+                        id="sub-track"
+                        aria-label="Track"
+                        className="flex-1"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1470,7 +1548,8 @@ export default function PageEditorSubtitles() {
                     </Button>
                   </div>
                   <p className="text-[10px] text-kumo-subtle">
-                    Move between tracks to avoid overlap. New subtitles at overlapping time auto-create a new track.
+                    Move between tracks to avoid overlap. New subtitles at
+                    overlapping time auto-create a new track.
                   </p>
                 </div>
 
@@ -1539,7 +1618,8 @@ export default function PageEditorSubtitles() {
                     previewText={selectedSubtitle.text}
                   />
                   <p className="text-[11px] text-kumo-subtle">
-                    Dynamic Google Fonts search — fonts are loaded on demand via Google Fonts CDN.
+                    Dynamic Google Fonts search — fonts are loaded on demand via
+                    Google Fonts CDN.
                   </p>
                 </div>
 
@@ -2059,7 +2139,15 @@ function TimelineVisual({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [drag, toTime, trimStart, trimEnd, onUpdateSubtitle, onUpdateTrack, trackCount]);
+  }, [
+    drag,
+    toTime,
+    trimStart,
+    trimEnd,
+    onUpdateSubtitle,
+    onUpdateTrack,
+    trackCount,
+  ]);
 
   const playheadPct =
     duration > 0 ? clamp((currentTime / duration) * 100, 0, 100) : 0;
@@ -2078,7 +2166,12 @@ function TimelineVisual({
           <span className="text-[10px] text-kumo-subtle hidden sm:inline">
             Drag vertically to move between tracks
           </span>
-          <Button size="sm" variant="outline" onClick={onAddTrack} aria-label="Add Track">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onAddTrack}
+            aria-label="Add Track"
+          >
             + Add Track
           </Button>
         </div>
@@ -2136,9 +2229,7 @@ function TimelineVisual({
         {subtitles.map((sub) => {
           const left = duration > 0 ? (sub.startTime / duration) * 100 : 0;
           const width =
-            duration > 0
-              ? ((sub.endTime - sub.startTime) / duration) * 100
-              : 0;
+            duration > 0 ? ((sub.endTime - sub.startTime) / duration) * 100 : 0;
           const isSelected = sub.id === selectedId;
           const isActive =
             currentTime >= sub.startTime && currentTime < sub.endTime;

@@ -17,6 +17,8 @@ import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { VideoUploader } from "@/components/editor/VideoUploader";
+import { UploadProgress } from "@/components/editor/UploadProgress";
+import { ACCEPTED_VIDEO_INPUT_ATTR, isAcceptedVideoFile, isFileTooLarge, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/video-file";
 import { formatTime } from "@/lib/format-time";
 import {
   zoneAspect,
@@ -596,9 +598,12 @@ function UploadOtherButton() {
   const metadataMutation = useVideoMetadataMutation();
   const onPick = (file: File | undefined) => {
     if (!file) return;
-    const accepted = new Set(["video/mp4", "video/webm", "video/quicktime"]);
-    if (!accepted.has(file.type)) {
-      toast.error("Unsupported format. Use MP4/WebM/MOV");
+    if (!isAcceptedVideoFile(file)) {
+      toast.error("Unsupported format. Use MP4/WebM/MOV/MKV (Matroska)");
+      return;
+    }
+    if (isFileTooLarge(file)) {
+      toast.error(`File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
@@ -633,7 +638,7 @@ function UploadOtherButton() {
       <input
         ref={inputRef}
         type="file"
-        accept="video/mp4,video/webm,video/quicktime"
+        accept={ACCEPTED_VIDEO_INPUT_ATTR}
         className="hidden"
         onChange={(e) => onPick(e.target.files?.[0])}
       />
@@ -655,14 +660,26 @@ export default function MobileEditorPage() {
     duration: srcDuration,
     sourceWidth,
     sourceHeight,
+    uploadStatus,
+    trimRange,
   } = useVideoState();
+  const videoStore = useVideoStore();
   const ed = useMobileEditor();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlayingLocal, setIsPlayingLocal] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoopTrim, setIsLoopTrim] = useState(false);
-  const [trimRange, setTrimRange] = useState<[number, number]>([0, 0]);
+
+  const setTrimRange = useCallback(
+    (updater: [number, number] | ((prev: [number, number]) => [number, number])) => {
+      videoStore.setState((prev) => ({
+        ...prev,
+        trimRange: typeof updater === "function" ? (updater as (p: [number, number]) => [number, number])(prev.trimRange) : updater,
+      }));
+    },
+    [videoStore],
+  );
 
   const hasVideo = !!mediaUrl && !!file;
   const duration = ed.duration || srcDuration || 0;
@@ -670,15 +687,14 @@ export default function MobileEditorPage() {
   const trimEnd = trimRange[1];
   const trimmedDuration = Math.max(0, trimEnd - trimStart);
 
-  // init trim when duration becomes available
+  // init/clamp global trim when duration becomes available (preserves cross-page trim)
   useEffect(() => {
     if (duration > 0 && trimRange[1] === 0) {
-      setTrimRange([0, duration]);
+      videoStore.setState((prev) => (prev.trimRange[1] === 0 ? { ...prev, trimRange: [0, duration] as [number, number] } : prev));
+    } else if (duration > 0 && trimRange[1] > duration) {
+      videoStore.setState((prev) => ({ ...prev, trimRange: [Math.min(prev.trimRange[0], duration - 0.2), duration] as [number, number] }));
     }
-    if (duration > 0 && trimRange[1] > duration) {
-      setTrimRange([trimRange[0], duration]);
-    }
-  }, [duration]);
+  }, [duration, trimRange, videoStore]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -698,8 +714,12 @@ export default function MobileEditorPage() {
     };
     const onMeta = () => {
       ed.setDuration(v.duration);
-      if (trimRange[1] === 0 || trimRange[1] > v.duration) {
-        setTrimRange([0, v.duration]);
+      const d = v.duration;
+      if (Number.isFinite(d)) {
+        videoStore.setState((prev) => {
+          if (prev.trimRange[1] === 0 || prev.trimRange[1] > d) return { ...prev, trimRange: [0, d] as [number, number] } as typeof prev;
+          return prev;
+        });
       }
     };
     const onPlay = () => setIsPlayingLocal(true);
@@ -919,31 +939,68 @@ export default function MobileEditorPage() {
     toast.info(`FFmpeg filter ready`, {
       description: filter.slice(0, 120) + "…",
     });
+    const { API_BASE_URL } = await import("@/lib/api-client");
+    const { shouldUseChunked, uploadFileChunked, uploadFormWithProgress } =
+      await import("@/lib/upload-chunked");
+    const vs = videoStore;
     setIsExporting(true);
     toast.loading("Exporting mobile mp4 (CRF 10)...", { id: "mobile-export" });
     try {
-      const { API_BASE_URL } = await import("@/lib/api-client");
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append(
-        "settings",
-        JSON.stringify({
-          mobileLayout: ed.layout,
-          sourceWidth: sw,
-          sourceHeight: sh,
-          trimRange,
-          exportFormat: "mp4",
-          exportFps: 30,
-          exportFilename: baseName,
-          exportQuality: 10,
-          exportSpeed: 1,
-          customFFmpegArgs: "",
-        }),
-      );
-      const res = await fetch(`${API_BASE_URL}/api/transcode/mobile`, {
-        method: "POST",
-        body: fd,
+      const setUpload = (sent: number, total: number) =>
+        vs.setState((p) => ({
+          ...p,
+          uploadStage: "transcode",
+          uploadStatus: "uploading",
+          uploadProgress: total ? Math.round((sent / total) * 100) : 0,
+          uploadBytesSent: sent,
+          uploadBytesTotal: total,
+        }));
+      vs.setState((p) => ({
+        ...p,
+        uploadStage: "transcode",
+        uploadStatus: "uploading",
+        uploadProgress: 0,
+        uploadBytesSent: 0,
+        uploadBytesTotal: file.size,
+      }));
+      const settingsJson = JSON.stringify({
+        mobileLayout: ed.layout,
+        sourceWidth: sw,
+        sourceHeight: sh,
+        trimRange,
+        exportFormat: "mp4",
+        exportFps: 30,
+        exportFilename: baseName,
+        exportQuality: 10,
+        exportSpeed: 1,
+        customFFmpegArgs: "",
       });
+      let res: Response;
+      if (shouldUseChunked(file)) {
+        const { uploadId } = await uploadFileChunked(file, { onProgress: setUpload });
+        setUpload(file.size, file.size);
+        const fd2 = new FormData();
+        fd2.append("settings", settingsJson);
+        res = await fetch(`${API_BASE_URL}/api/transcode/mobile`, {
+          method: "POST",
+          headers: { "x-upload-id": uploadId },
+          body: fd2,
+        });
+      } else {
+        const fd = new FormData();
+        fd.append("file", file);
+        fd.append("settings", settingsJson);
+        // reuse XHR progress for small files so UploadProgress is accurate, then unwrap
+        const json = await uploadFormWithProgress<{ jobId: string; progressUrl: string }>(
+          "/api/transcode/mobile",
+          fd,
+          { onUploadProgress: setUpload },
+        );
+        // synthesize a Response-like object for the shared flow below
+        res = new Response(JSON.stringify(json), { status: 200 });
+      }
+      // mark upload done before SSE
+      vs.setState((p) => ({ ...p, uploadProgress: 100, uploadStatus: "done" }));
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as {
           error?: string;
@@ -992,8 +1049,10 @@ export default function MobileEditorPage() {
       const msg = e instanceof Error ? e.message : "Export failed";
       if ((e as DOMException)?.name === "AbortError") {
         toast.dismiss("mobile-export");
+        vs.setState((p) => ({ ...p, uploadStatus: "idle", uploadStage: null }));
       } else {
         toast.error(msg, { id: "mobile-export" });
+        vs.setState((p) => ({ ...p, uploadStatus: "error" }));
         navigator.clipboard?.writeText(filter).catch(() => {});
       }
     } finally {
@@ -1114,6 +1173,7 @@ export default function MobileEditorPage() {
           </Button>
         </div>
       </div>
+      {(uploadStatus === "uploading" || uploadStatus === "error") && <UploadProgress />}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_320px]">
         <Card className="overflow-hidden">

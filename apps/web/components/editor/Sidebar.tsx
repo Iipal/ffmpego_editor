@@ -48,11 +48,19 @@ import {
   useVideoMetadataMutation,
 } from "@/hooks/useVideoMetadata";
 import {
+  ACCEPTED_VIDEO_INPUT_ATTR,
+  isAcceptedVideoFile,
+  isFileTooLarge,
+  formatFileSize,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/video-file";
+import {
   useVideoState,
   useVideoStore,
   type VideoState,
 } from "@/store/useVideoStore";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
+import { UploadProgress } from "@/components/editor/UploadProgress";
 import { cn } from "@/lib/utils";
 
 export function SidebarToggle() {
@@ -97,11 +105,14 @@ export function Sidebar() {
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
   const filename = state.file?.name.replace(/\.[^.]+$/, "") ?? "Untitled video";
   const selectReplacementFile = (file: File | undefined) => {
-    if (
-      !file ||
-      !["video/mp4", "video/webm", "video/quicktime"].includes(file.type)
-    )
+    if (!file || !isAcceptedVideoFile(file)) {
+      if (file) toast.error("Unsupported format. Use MP4/WebM/MOV/MKV");
       return;
+    }
+    if (isFileTooLarge(file)) {
+      toast.error(`File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+      return;
+    }
     const mediaUrl = URL.createObjectURL(file);
     const defaultFilename = file.name.replace(/\.[^.]+$/, "");
     store.setState((previous) => {
@@ -222,7 +233,7 @@ export function Sidebar() {
         ref={fileInputRef}
         className="sr-only"
         type="file"
-        accept="video/mp4,video/webm,video/quicktime"
+        accept={ACCEPTED_VIDEO_INPUT_ATTR}
         onChange={(event) => selectReplacementFile(event.target.files?.[0])}
       />
 
@@ -237,6 +248,9 @@ export function Sidebar() {
       >
         Choose other video
       </Button>
+      {(state.uploadStatus === "uploading" || state.uploadStatus === "error") && (
+        <UploadProgress />
+      )}
       <Card className="p-4 rounded-lg">
         <Collapsible>
           <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
@@ -635,6 +649,9 @@ export function Sidebar() {
                   }
                 />
               </>
+            )}
+            {state.uploadStatus === "uploading" && state.uploadStage === "transcode" && (
+              <UploadProgress />
             )}
             {state.transcodeStatus === "processing" && (
               <Progress

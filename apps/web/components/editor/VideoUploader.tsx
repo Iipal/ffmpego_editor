@@ -5,21 +5,35 @@ import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { UploadProgress } from "@/components/editor/UploadProgress";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { cn } from "@/lib/utils";
-import { useVideoStore } from "@/store/useVideoStore";
-
-const acceptedTypes = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+import { useVideoStore, useVideoState } from "@/store/useVideoStore";
+import {
+  ACCEPTED_VIDEO_INPUT_ATTR,
+  ACCEPTED_VIDEO_LABEL,
+  isAcceptedVideoFile,
+  isFileTooLarge,
+  formatFileSize,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/video-file";
+import { toast } from "sonner";
 
 export function VideoUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const videoStore = useVideoStore();
+  const { uploadStatus } = useVideoState();
   const metadataMutation = useVideoMetadataMutation();
 
   const selectFile = useCallback(
     (file: File | undefined) => {
-      if (!file || !acceptedTypes.has(file.type)) {
+      if (!file || !isAcceptedVideoFile(file)) {
+        if (file) toast.error(`Unsupported format. Use ${ACCEPTED_VIDEO_LABEL}`);
+        return;
+      }
+      if (isFileTooLarge(file)) {
+        toast.error(`File too large (${formatFileSize(file.size)}). Max is ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
         return;
       }
 
@@ -83,18 +97,27 @@ export function VideoUploader() {
       }}
     >
       <Upload className="mb-4 size-10 text-kumo-subtle" />
-      <p className="text-base font-medium text-kumo-strong">Drop an MP4 or WebM video here</p>
-      <p className="mt-1 text-sm text-kumo-subtle">or choose a file</p>
+      <p className="text-base font-medium text-kumo-strong">Drop an MP4, WebM, MOV or MKV video here</p>
+      <p className="mt-1 text-sm text-kumo-subtle">or choose a file · up to 10 GB · Matroska supported</p>
       <Input
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept="video/mp4,video/webm,video/quicktime"
+        accept={ACCEPTED_VIDEO_INPUT_ATTR}
         onChange={(event) => selectFile(event.target.files?.[0])}
       />
-      <Button className="mt-5" onClick={() => inputRef.current?.click()}>
-        Choose video
+      <Button
+        className="mt-5"
+        onClick={() => inputRef.current?.click()}
+        disabled={metadataMutation.isPending}
+      >
+        {metadataMutation.isPending ? "Uploading..." : "Choose video"}
       </Button>
+      {(metadataMutation.isPending || uploadStatus === "uploading" || uploadStatus === "error") && (
+        <div className="mt-6 w-full max-w-md">
+          <UploadProgress />
+        </div>
+      )}
     </Card>
   );
 }
