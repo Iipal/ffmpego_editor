@@ -19,6 +19,7 @@ interface TranscodeSettings {
   exportQuality: number;
   exportSpeed: number;
   customFFmpegArgs: string;
+  watermark?: boolean;
   mobileLayout?: {
     mode: "full" | "stacked";
     splitRatio: number;
@@ -92,17 +93,33 @@ function killJob(job: TranscodeJob) {
 }
 
 async function resolveInputFile(
-  c: { req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined } },
+  c: {
+    req: {
+      header: (n: string) => string | undefined;
+      query: (n: string) => string | undefined;
+    };
+  },
   form: FormData,
-): Promise<{ temporaryPath: string; filename: string; isChunked: boolean } | null> {
+): Promise<{
+  temporaryPath: string;
+  filename: string;
+  isChunked: boolean;
+} | null> {
   const headerId = c.req.header("x-upload-id");
   const queryId = c.req.query("uploadId");
   const fieldId = form.get("uploadId");
-  const uploadId = headerId ?? queryId ?? (typeof fieldId === "string" ? fieldId.trim() : null);
+  const uploadId =
+    headerId ??
+    queryId ??
+    (typeof fieldId === "string" ? fieldId.trim() : null);
   if (uploadId) {
     const p = consumeUpload(uploadId);
     if (!p) return null;
-    try { fs.accessSync(p); } catch { return null; }
+    try {
+      fs.accessSync(p);
+    } catch {
+      return null;
+    }
     const name = path.basename(p).replace(/^[0-9a-f-]{36}-/, "");
     return { temporaryPath: p, filename: name, isChunked: true };
   }
@@ -242,7 +259,7 @@ function parseMobileSettings(value: FormDataEntryValue | null):
   | null {
   if (typeof value !== "string") return null;
   try {
-    const s = JSON.parse(value) as TranscodeSettings;
+    const s = JSON.parse(value) as TranscodeSettings & { watermark?: unknown };
     if (
       !Number.isFinite(s.sourceWidth) ||
       !Number.isFinite(s.sourceHeight) ||
@@ -280,6 +297,8 @@ function parseMobileSettings(value: FormDataEntryValue | null):
       !Number.isFinite(s.exportQuality)
     )
       return null;
+    if (s.watermark !== undefined && typeof s.watermark !== "boolean")
+      return null;
     return s as unknown as TranscodeSettings & {
       mobileLayout: NonNullable<TranscodeSettings["mobileLayout"]>;
     };
@@ -306,8 +325,17 @@ app.post("/transcode/mobile", async (c) => {
       400,
     );
   }
-  const resolved = await resolveInputFile(c as unknown as { req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined } }, form);
-  if (!resolved) return c.json({ error: "A video file or uploadId is required." }, 400);
+  const resolved = await resolveInputFile(
+    c as unknown as {
+      req: {
+        header: (n: string) => string | undefined;
+        query: (n: string) => string | undefined;
+      };
+    },
+    form,
+  );
+  if (!resolved)
+    return c.json({ error: "A video file or uploadId is required." }, 400);
   const { temporaryPath, filename } = resolved;
   const format = "mp4" as const;
   const jobId = crypto.randomUUID();
@@ -326,7 +354,7 @@ app.post("/transcode/mobile", async (c) => {
   const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
     .replace(/(^|\s)-an(\s|$)/g, " ")
     .trim();
-  const originalArgs = buildFFmpegArgs({
+  let originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
     filename: settings.exportFilename.trim() || filename,
     sourceWidth: settings.sourceWidth,
@@ -334,12 +362,13 @@ app.post("/transcode/mobile", async (c) => {
     trimRange: settings.trimRange,
     crop: { x: 0, y: 0, width: 100, height: 100 },
     format,
-    fps: settings.exportFps,
+    fps: 60,
     crf: 10,
     customArgs: sanitizedCustomArgs,
     outputPath: originalOutputPath,
     mobileLayout: mobileLayout as never,
     speed: settings.exportSpeed,
+    watermark: !!settings.watermark,
   });
   console.log("MOBILE ARGS", originalArgs);
   const job: TranscodeJob = {
@@ -385,9 +414,22 @@ app.post("/transcode/mobile/subtitles", async (c) => {
       400,
     );
   }
-  const resolvedSubtitle = await resolveInputFile(c as unknown as { req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined } }, form);
-  if (!resolvedSubtitle) return c.json({ error: "A video file or uploadId is required for subtitles endpoint." }, 400);
-  const { temporaryPath: subtitleTmp, filename: subtitleFilename } = resolvedSubtitle;
+  const resolvedSubtitle = await resolveInputFile(
+    c as unknown as {
+      req: {
+        header: (n: string) => string | undefined;
+        query: (n: string) => string | undefined;
+      };
+    },
+    form,
+  );
+  if (!resolvedSubtitle)
+    return c.json(
+      { error: "A video file or uploadId is required for subtitles endpoint." },
+      400,
+    );
+  const { temporaryPath: subtitleTmp, filename: subtitleFilename } =
+    resolvedSubtitle;
   // alias for below reuse — shadow outer file var already removed
   const file = { name: subtitleFilename } as File;
 
@@ -589,8 +631,17 @@ app.post("/transcode", async (c) => {
       400,
     );
   }
-  const resolvedMain = await resolveInputFile(c as unknown as { req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined } }, form);
-  if (!resolvedMain) return c.json({ error: "A video file or uploadId is required." }, 400);
+  const resolvedMain = await resolveInputFile(
+    c as unknown as {
+      req: {
+        header: (n: string) => string | undefined;
+        query: (n: string) => string | undefined;
+      };
+    },
+    form,
+  );
+  if (!resolvedMain)
+    return c.json({ error: "A video file or uploadId is required." }, 400);
   const { temporaryPath, filename } = resolvedMain;
   const file = { name: filename } as File;
   console.log(file, settings, form);
@@ -894,30 +945,48 @@ app.get("/transcode/progress/:jobId", (c) => {
       const send = () => {
         try {
           // Avoid leaking Bun proc handle into JSON (strips proc)
-          const { proc: _p, ...safe } = job as unknown as Record<string, unknown>;
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(safe)}\n\n`));
+          const { proc: _p, ...safe } = job as unknown as Record<
+            string,
+            unknown
+          >;
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(safe)}\n\n`),
+          );
         } catch {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ jobId: job.jobId, status: job.status, progress: job.progress })}\n\n`));
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({ jobId: job.jobId, status: job.status, progress: job.progress })}\n\n`,
+            ),
+          );
         }
         if (job.status !== "processing") {
           if (interval) clearInterval(interval);
           if (timeout) clearTimeout(timeout);
-          try { controller.close(); } catch {}
+          try {
+            controller.close();
+          } catch {}
         }
         // Hard cap 5min to avoid infinite SSE holding browser connection slots (6 per host)
         if (Date.now() - startMs > 5 * 60 * 1000) {
           if (interval) clearInterval(interval);
           if (timeout) clearTimeout(timeout);
-          try { controller.close(); } catch {}
+          try {
+            controller.close();
+          } catch {}
         }
       };
       send();
       interval = setInterval(send, 200);
       // Safety timeout
-      timeout = setTimeout(() => {
-        if (interval) clearInterval(interval);
-        try { controller.close(); } catch {}
-      }, 5 * 60 * 1000 + 1000);
+      timeout = setTimeout(
+        () => {
+          if (interval) clearInterval(interval);
+          try {
+            controller.close();
+          } catch {}
+        },
+        5 * 60 * 1000 + 1000,
+      );
     },
     cancel() {
       if (interval) clearInterval(interval);

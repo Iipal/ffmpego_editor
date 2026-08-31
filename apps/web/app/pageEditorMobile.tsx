@@ -18,7 +18,13 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { VideoUploader } from "@/components/editor/VideoUploader";
 import { UploadProgress } from "@/components/editor/UploadProgress";
-import { ACCEPTED_VIDEO_INPUT_ATTR, isAcceptedVideoFile, isFileTooLarge, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/video-file";
+import {
+  ACCEPTED_VIDEO_INPUT_ATTR,
+  isAcceptedVideoFile,
+  isFileTooLarge,
+  formatFileSize,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/video-file";
 import { formatTime } from "@/lib/format-time";
 import {
   zoneAspect,
@@ -50,7 +56,7 @@ function useMobileEditor() {
     "zone-1",
   );
   const [safe, setSafe] = useState(true);
-  const [showBg, setShowBg] = useState(true);
+  const [useWatermark, setUseWatermark] = useState(true);
   const [undo, setUndo] = useState<UndoEntry[]>([]);
   const [redo, setRedo] = useState<UndoEntry[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -113,8 +119,8 @@ function useMobileEditor() {
     setSelected,
     safe,
     setSafe,
-    showBg,
-    setShowBg,
+    useWatermark,
+    setUseWatermark,
     undo,
     redo,
     undoOp,
@@ -246,7 +252,7 @@ function SourceStage({
           onPointerDown={(e) => onPointerDown(e, z.id, "move")}
           onClick={() => onSelect(z.id)}
           className={cn(
-            "absolute border-2 cursor-move rounded-[2px]",
+            "absolute border-2 cursor-move rounded-xs",
             selected === z.id
               ? "border-kumo-brand bg-kumo-brand/10"
               : "border-white/80 bg-white/5",
@@ -327,19 +333,35 @@ function PortraitPreview({
   videoRef,
   onSplit,
   safe,
-  showBg,
+  useWatermark,
 }: {
   layout: MobileLayout;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onSplit: (v: number) => void;
   safe: boolean;
-  showBg: boolean;
+  useWatermark: boolean;
 }) {
   const canvasFullRef = useRef<HTMLCanvasElement>(null);
   const canvasTopRef = useRef<HTMLCanvasElement>(null);
   const canvasBottomRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const watermarkImgRef = useRef<HTMLImageElement | null>(null);
+  const [watermarkLoaded, setWatermarkLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!useWatermark) return;
+    const img = new window.Image();
+    img.src = "/minozavr.png";
+    img.onload = () => {
+      watermarkImgRef.current = img;
+      setWatermarkLoaded(true);
+    };
+    img.onerror = () => setWatermarkLoaded(false);
+    return () => {
+      // keep ref for reuse
+    };
+  }, [useWatermark]);
 
   const drawZone = useCallback(
     (canvas: HTMLCanvasElement | null, zone: CropZone) => {
@@ -360,16 +382,8 @@ function PortraitPreview({
       ctx.save();
       ctx.scale(dpr, dpr);
       ctx.clearRect(0, 0, w, h);
-      if (showBg) {
-        ctx.filter = "blur(18px)";
-        ctx.drawImage(video, 0, 0, vw, vh, -10, -10, w + 20, h + 20);
-        ctx.filter = "none";
-        ctx.fillStyle = "rgba(0,0,0,0.35)";
-        ctx.fillRect(0, 0, w, h);
-      } else {
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, w, h);
-      }
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, w, h);
       // zoom-aware: zoom shrinks crop centered
       const z = zone.zoom ?? 1;
       const zsw = sw / z;
@@ -380,7 +394,52 @@ function PortraitPreview({
       ctx.drawImage(video, zsx, zsy, zsw, zsh, 0, 0, w, h);
       ctx.restore();
     },
-    [videoRef, showBg],
+    [videoRef],
+  );
+
+  const drawWatermark = useCallback(
+    (canvas: HTMLCanvasElement | null, slice: "full" | "top" | "bottom") => {
+      if (
+        !useWatermark ||
+        !watermarkLoaded ||
+        !watermarkImgRef.current ||
+        !canvas
+      )
+        return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = canvas.width / dpr;
+      const h = canvas.height / dpr;
+      const img = watermarkImgRef.current;
+      // watermark source is 1080x1920, same aspect as preview
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      if (slice === "full") {
+        ctx.drawImage(
+          img,
+          0,
+          0,
+          img.naturalWidth || 1080,
+          img.naturalHeight || 1920,
+          0,
+          0,
+          w,
+          h,
+        );
+      } else if (slice === "top") {
+        const split = clamp(layout.splitRatio, MIN_SPLIT, MAX_SPLIT);
+        const h1 = 1920 * split;
+        ctx.drawImage(img, 0, 0, 1080, h1, 0, 0, w, h);
+      } else {
+        const split = clamp(layout.splitRatio, MIN_SPLIT, MAX_SPLIT);
+        const h1 = 1920 * split;
+        const h2 = 1920 - h1;
+        ctx.drawImage(img, 0, h1, 1080, h2, 0, 0, w, h);
+      }
+      ctx.restore();
+    },
+    [useWatermark, watermarkLoaded, layout.splitRatio],
   );
 
   const resizeCanvases = useCallback(() => {
@@ -431,9 +490,12 @@ function PortraitPreview({
     const drawAll = () => {
       if (layout.mode === "full") {
         drawZone(canvasFullRef.current, layout.zones[0]);
+        drawWatermark(canvasFullRef.current, "full");
       } else {
         drawZone(canvasTopRef.current, layout.zones[0]);
+        drawWatermark(canvasTopRef.current, "top");
         drawZone(canvasBottomRef.current, layout.zones[1]);
+        drawWatermark(canvasBottomRef.current, "bottom");
       }
     };
     let running = true;
@@ -494,7 +556,38 @@ function PortraitPreview({
         } catch {}
       }
     };
-  }, [layout, drawZone, resizeCanvases, videoRef]);
+  }, [
+    layout,
+    drawZone,
+    drawWatermark,
+    resizeCanvases,
+    videoRef,
+    useWatermark,
+    watermarkLoaded,
+  ]);
+
+  // Redraw when watermark finishes loading or toggled (outside rvfc loop)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    // force a redraw of current frame (drawWatermark internally checks flag)
+    if (layout.mode === "full") {
+      drawZone(canvasFullRef.current, layout.zones[0]);
+      drawWatermark(canvasFullRef.current, "full");
+    } else {
+      drawZone(canvasTopRef.current, layout.zones[0]);
+      drawWatermark(canvasTopRef.current, "top");
+      drawZone(canvasBottomRef.current, layout.zones[1]);
+      drawWatermark(canvasBottomRef.current, "bottom");
+    }
+  }, [
+    watermarkLoaded,
+    useWatermark,
+    layout,
+    drawZone,
+    drawWatermark,
+    videoRef,
+  ]);
 
   const startDrag = (e: React.PointerEvent) => {
     if (layout.mode === "full") return;
@@ -533,7 +626,7 @@ function PortraitPreview({
         >
           <canvas ref={canvasFullRef} className="block max-w-full h-auto" />
           {safe && (
-            <div className="absolute inset-3 rounded-[6px] border border-white/20 pointer-events-none" />
+            <div className="absolute inset-3 rounded-md border border-white/20 pointer-events-none" />
           )}
           <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
             FULL
@@ -559,7 +652,7 @@ function PortraitPreview({
         >
           <canvas ref={canvasTopRef} className="block" />
           {safe && (
-            <div className="absolute inset-2 rounded-[6px] border border-white/20 pointer-events-none" />
+            <div className="absolute inset-2 rounded-md border border-white/20 pointer-events-none" />
           )}
           <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
             ZONE 1
@@ -577,7 +670,7 @@ function PortraitPreview({
         >
           <canvas ref={canvasBottomRef} className="block" />
           {safe && (
-            <div className="absolute inset-2 rounded-[6px] border border-white/20 pointer-events-none" />
+            <div className="absolute inset-2 rounded-md border border-white/20 pointer-events-none" />
           )}
           <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
             ZONE 2
@@ -603,7 +696,9 @@ function UploadOtherButton() {
       return;
     }
     if (isFileTooLarge(file)) {
-      toast.error(`File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+      toast.error(
+        `File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+      );
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
@@ -672,10 +767,19 @@ export default function MobileEditorPage() {
   const [isLoopTrim, setIsLoopTrim] = useState(false);
 
   const setTrimRange = useCallback(
-    (updater: [number, number] | ((prev: [number, number]) => [number, number])) => {
+    (
+      updater:
+        | [number, number]
+        | ((prev: [number, number]) => [number, number]),
+    ) => {
       videoStore.setState((prev) => ({
         ...prev,
-        trimRange: typeof updater === "function" ? (updater as (p: [number, number]) => [number, number])(prev.trimRange) : updater,
+        trimRange:
+          typeof updater === "function"
+            ? (updater as (p: [number, number]) => [number, number])(
+                prev.trimRange,
+              )
+            : updater,
       }));
     },
     [videoStore],
@@ -690,9 +794,19 @@ export default function MobileEditorPage() {
   // init/clamp global trim when duration becomes available (preserves cross-page trim)
   useEffect(() => {
     if (duration > 0 && trimRange[1] === 0) {
-      videoStore.setState((prev) => (prev.trimRange[1] === 0 ? { ...prev, trimRange: [0, duration] as [number, number] } : prev));
+      videoStore.setState((prev) =>
+        prev.trimRange[1] === 0
+          ? { ...prev, trimRange: [0, duration] as [number, number] }
+          : prev,
+      );
     } else if (duration > 0 && trimRange[1] > duration) {
-      videoStore.setState((prev) => ({ ...prev, trimRange: [Math.min(prev.trimRange[0], duration - 0.2), duration] as [number, number] }));
+      videoStore.setState((prev) => ({
+        ...prev,
+        trimRange: [Math.min(prev.trimRange[0], duration - 0.2), duration] as [
+          number,
+          number,
+        ],
+      }));
     }
   }, [duration, trimRange, videoStore]);
 
@@ -717,7 +831,11 @@ export default function MobileEditorPage() {
       const d = v.duration;
       if (Number.isFinite(d)) {
         videoStore.setState((prev) => {
-          if (prev.trimRange[1] === 0 || prev.trimRange[1] > d) return { ...prev, trimRange: [0, d] as [number, number] } as typeof prev;
+          if (prev.trimRange[1] === 0 || prev.trimRange[1] > d)
+            return {
+              ...prev,
+              trimRange: [0, d] as [number, number],
+            } as typeof prev;
           return prev;
         });
       }
@@ -974,10 +1092,13 @@ export default function MobileEditorPage() {
         exportQuality: 10,
         exportSpeed: 1,
         customFFmpegArgs: "",
+        watermark: ed.useWatermark,
       });
       let res: Response;
       if (shouldUseChunked(file)) {
-        const { uploadId } = await uploadFileChunked(file, { onProgress: setUpload });
+        const { uploadId } = await uploadFileChunked(file, {
+          onProgress: setUpload,
+        });
         setUpload(file.size, file.size);
         const fd2 = new FormData();
         fd2.append("settings", settingsJson);
@@ -991,11 +1112,10 @@ export default function MobileEditorPage() {
         fd.append("file", file);
         fd.append("settings", settingsJson);
         // reuse XHR progress for small files so UploadProgress is accurate, then unwrap
-        const json = await uploadFormWithProgress<{ jobId: string; progressUrl: string }>(
-          "/api/transcode/mobile",
-          fd,
-          { onUploadProgress: setUpload },
-        );
+        const json = await uploadFormWithProgress<{
+          jobId: string;
+          progressUrl: string;
+        }>("/api/transcode/mobile", fd, { onUploadProgress: setUpload });
         // synthesize a Response-like object for the shared flow below
         res = new Response(JSON.stringify(json), { status: 200 });
       }
@@ -1162,7 +1282,7 @@ export default function MobileEditorPage() {
               setIsMuted(false);
               setIsLoopTrim(false);
               ed.setSafe(true);
-              ed.setShowBg(true);
+              ed.setUseWatermark(true);
               ed.setSelected("zone-1");
             }}
           >
@@ -1173,7 +1293,9 @@ export default function MobileEditorPage() {
           </Button>
         </div>
       </div>
-      {(uploadStatus === "uploading" || uploadStatus === "error") && <UploadProgress />}
+      {(uploadStatus === "uploading" || uploadStatus === "error") && (
+        <UploadProgress />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_320px]">
         <Card className="overflow-hidden">
@@ -1469,7 +1591,7 @@ export default function MobileEditorPage() {
                 videoRef={videoRef}
                 onSplit={handleSplit}
                 safe={ed.safe}
-                showBg={ed.showBg}
+                useWatermark={ed.useWatermark}
               />
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between">
@@ -1499,8 +1621,11 @@ export default function MobileEditorPage() {
                 <Switch checked={ed.safe} onCheckedChange={ed.setSafe} />
               </div>
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Blur background</Label>
-                <Switch checked={ed.showBg} onCheckedChange={ed.setShowBg} />
+                <Label className="text-xs">Use watermark</Label>
+                <Switch
+                  checked={ed.useWatermark}
+                  onCheckedChange={ed.setUseWatermark}
+                />
               </div>
               <div className="grid grid-cols-3 gap-1.5 pt-1">
                 <Button

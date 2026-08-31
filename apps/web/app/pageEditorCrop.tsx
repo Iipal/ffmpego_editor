@@ -8,7 +8,13 @@ import { Button } from "@/components/ui/button";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { toast } from "sonner";
 import React, { useRef } from "react";
-import { ACCEPTED_VIDEO_INPUT_ATTR, isAcceptedVideoFile, isFileTooLarge, formatFileSize, MAX_UPLOAD_BYTES } from "@/lib/video-file";
+import {
+  ACCEPTED_VIDEO_INPUT_ATTR,
+  isAcceptedVideoFile,
+  isFileTooLarge,
+  formatFileSize,
+  MAX_UPLOAD_BYTES,
+} from "@/lib/video-file";
 
 function UploadOtherButtonCrop() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -21,11 +27,16 @@ function UploadOtherButtonCrop() {
       return;
     }
     if (isFileTooLarge(file)) {
-      toast.error(`File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+      toast.error(
+        `File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+      );
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
     const defaultFilename = file.name.replace(/\.[^.]+$/, "");
+    try {
+      localStorage.removeItem("ffmpeg_editor_trimRange_v1");
+    } catch {}
     videoStore.setState((prev) => {
       if (prev.mediaUrl) URL.revokeObjectURL(prev.mediaUrl);
       return {
@@ -69,7 +80,11 @@ function UploadOtherButtonCrop() {
         className="hidden"
         onChange={(e) => onPick(e.target.files?.[0])}
       />
-      <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => inputRef.current?.click()}
+      >
         Upload other video
       </Button>
     </>
@@ -86,7 +101,8 @@ const PageEditorCrop: React.FC = () => {
         <Card className="p-6">
           <h2 className="text-base font-semibold">Crop Editor</h2>
           <p className="text-sm text-kumo-subtle mt-1">
-            Trim, crop and export your video. Select aspect ratio and fine-tune the crop area.
+            Trim, crop and export your video. Select aspect ratio and fine-tune
+            the crop area.
           </p>
           <div className="mt-6">
             <VideoUploader />
@@ -106,7 +122,9 @@ const PageEditorCrop: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">Crop Editor</h2>
-          <p className="text-xs text-kumo-subtle">Static 16:9 → custom · Trim, crop and canvas zoom · Non-destructive</p>
+          <p className="text-xs text-kumo-subtle">
+            Static 16:9 → custom · Trim, crop and canvas zoom · Non-destructive
+          </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           <UploadOtherButtonCrop />

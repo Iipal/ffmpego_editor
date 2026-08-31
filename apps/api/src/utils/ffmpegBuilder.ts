@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 /**
@@ -34,6 +35,7 @@ export interface TranscodeOptions {
   customArgs?: string;
   outputPath?: string;
   mobileLayout?: MobileLayoutForFFmpeg | null;
+  watermark?: boolean;
 }
 
 /**
@@ -155,7 +157,28 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     options.outputPath ??
     `${options.filename}${options.outputSuffix ?? ""}.${options.format}`;
 
-  const args = [
+  const watermarkEnabled = !!options.watermark && !!options.mobileLayout;
+  let watermarkPath: string | null = null;
+  if (watermarkEnabled) {
+    const candidates = [
+      path.join(import.meta.dir, "../assets/minozavr.png"),
+      path.resolve("apps/api/assets/minozavr.png"),
+      path.resolve("assets/minozavr.png"),
+      path.join(process.cwd(), "apps/api/assets/minozavr.png"),
+      path.join(process.cwd(), "assets/minozavr.png"),
+    ];
+    for (const c of candidates) {
+      try {
+        if (fs.existsSync(c)) {
+          watermarkPath = c;
+          break;
+        }
+      } catch {}
+    }
+    if (!watermarkPath) watermarkPath = candidates[0];
+  }
+
+  const args: string[] = [
     "-y",
     "-ss",
     String(options.trimRange[0]),
@@ -163,8 +186,11 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     String(options.trimRange[1]),
     "-i",
     options.inputPath,
-    ...buildFormatArgs(options.format, options.crf),
   ];
+  if (watermarkEnabled && watermarkPath) {
+    args.push("-loop", "1", "-framerate", "30", "-i", watermarkPath);
+  }
+  args.push(...buildFormatArgs(options.format, options.crf));
 
   const videoFilters: string[] = [];
 
@@ -225,27 +251,40 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     const setpts = hasSpeed
       ? `,setpts=${(1 / (options.speed as number)).toFixed(6)}*PTS`
       : "";
+    const wm = watermarkEnabled;
+    const getAtempo = (): string | null => {
+      if (!hasSpeed) return null;
+      const atempo = options.speed as number;
+      if (atempo > 0 && atempo < 0.5) {
+        const factors: string[] = [];
+        let remaining = atempo;
+        while (remaining < 0.5) {
+          factors.push("atempo=0.5");
+          remaining *= 2;
+        }
+        factors.push(`atempo=${remaining.toFixed(6)}`);
+        return factors.join(",");
+      }
+      return `atempo=${atempo.toFixed(6)}`;
+    };
     if (ml.mode === "full" && ml.zones[0]) {
       const c = toCrop(ml.zones[0] as never);
-      videoFilters.length = 0;
-      videoFilters.push(
-        `crop=${c.cw}:${c.ch}:${c.cx}:${c.cy}`,
-        `scale=1080:1920:flags=lanczos${setpts}`,
-      );
-      if (hasSpeed) {
-        const atempo = options.speed as number;
-        if (atempo > 0 && atempo < 0.5) {
-          const factors: string[] = [];
-          let remaining = atempo;
-          while (remaining < 0.5) {
-            factors.push("atempo=0.5");
-            remaining *= 2;
-          }
-          factors.push(`atempo=${remaining.toFixed(6)}`);
-          args.push("-filter:a", factors.join(","));
-        } else {
-          args.push("-filter:a", `atempo=${atempo.toFixed(6)}`);
-        }
+      if (wm) {
+        // use filter_complex for watermark overlay on top of cropped/scaled video
+        const base = `[0:v]crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=1080:1920:flags=lanczos${setpts}[vbase]`;
+        const filterComplex = `${base};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
+        const af = getAtempo();
+        if (af) args.push("-filter_complex", filterComplex, "-map", "[v]", "-map", "0:a", "-filter:a", af);
+        else args.push("-filter_complex", filterComplex, "-map", "[v]", "-map", "0:a?");
+        videoFilters.length = 0;
+      } else {
+        videoFilters.length = 0;
+        videoFilters.push(
+          `crop=${c.cw}:${c.ch}:${c.cx}:${c.cy}`,
+          `scale=1080:1920:flags=lanczos${setpts}`,
+        );
+        const af = getAtempo();
+        if (af) args.push("-filter:a", af);
       }
     } else if (ml.mode === "stacked" && ml.zones.length >= 2) {
       const a = toCrop(ml.zones[0] as never);
@@ -253,41 +292,17 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       const split = Math.max(0.2, Math.min(0.8, ml.splitRatio ?? 0.5));
       const h1 = Math.round(1920 * split);
       const h2 = 1920 - h1;
-      const filterComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[v]`;
-      if (hasSpeed) {
-        const atempo = options.speed as number;
-        let afilter = "";
-        if (atempo > 0 && atempo < 0.5) {
-          const factors: string[] = [];
-          let remaining = atempo;
-          while (remaining < 0.5) {
-            factors.push("atempo=0.5");
-            remaining *= 2;
-          }
-          factors.push(`atempo=${remaining.toFixed(6)}`);
-          afilter = factors.join(",");
-        } else {
-          afilter = `atempo=${atempo.toFixed(6)}`;
-        }
-        args.push(
-          "-filter_complex",
-          filterComplex,
-          "-map",
-          "[v]",
-          "-map",
-          "0:a",
-          `-filter:a`,
-          afilter,
-        );
+      const baseComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[vbase]`;
+      if (wm) {
+        const fullComplex = `${baseComplex};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
+        const af = getAtempo();
+        if (af) args.push("-filter_complex", fullComplex, "-map", "[v]", "-map", "0:a", "-filter:a", af);
+        else args.push("-filter_complex", fullComplex, "-map", "[v]", "-map", "0:a?");
       } else {
-        args.push(
-          "-filter_complex",
-          filterComplex,
-          "-map",
-          "[v]",
-          "-map",
-          "0:a?",
-        );
+        const simpleComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[v]`;
+        const af = getAtempo();
+        if (af) args.push("-filter_complex", simpleComplex, "-map", "[v]", "-map", "0:a", "-filter:a", af);
+        else args.push("-filter_complex", simpleComplex, "-map", "[v]", "-map", "0:a?");
       }
       videoFilters.length = 0;
     }
