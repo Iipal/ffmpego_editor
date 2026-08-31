@@ -1,7 +1,7 @@
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
-import { cva, type VariantProps } from "class-variance-authority"
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 /**
  * Kumo-aligned Button — maps legacy shadcn variants to Kumo semantics.
@@ -34,7 +34,8 @@ const buttonVariants = cva(
         link: "text-kumo-link underline-offset-4 hover:underline border-transparent bg-transparent shadow-none h-auto px-0 py-0",
       },
       size: {
-        default: "h-9 gap-1.5 px-3 text-sm has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
+        default:
+          "h-9 gap-1.5 px-3 text-sm has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
         xs: "h-5 gap-1 px-1.5 text-xs rounded-sm has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
         sm: "h-6.5 gap-1 px-2 text-xs rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
         lg: "h-10 gap-2 px-4 text-sm",
@@ -48,8 +49,8 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 function Button({
   className,
@@ -61,10 +62,16 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       data-kumo-component="button"
-      className={cn(buttonVariants({ variant: variant as any, size: size as any, className }))}
+      className={cn(
+        buttonVariants({
+          variant: variant as any,
+          size: size as any,
+          className,
+        }),
+      )}
       {...props}
     />
-  )
+  );
 }
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };

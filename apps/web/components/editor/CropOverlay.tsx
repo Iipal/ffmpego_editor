@@ -130,8 +130,16 @@ export function CropOverlay({ onCanvasPanStart }: CropOverlayProps) {
             }}
             className={cn(
               "absolute size-2 cursor-pointer rounded-full border-2 border-white bg-kumo-brand shadow-sm",
-              handle.includes("n") ? "-top-1" : handle.includes("s") ? "-bottom-1" : "top-1/2 -translate-y-1/2",
-              handle.includes("w") ? "-left-1" : handle.includes("e") ? "-right-1" : "left-1/2 -translate-x-1/2"
+              handle.includes("n")
+                ? "-top-1"
+                : handle.includes("s")
+                  ? "-bottom-1"
+                  : "top-1/2 -translate-y-1/2",
+              handle.includes("w")
+                ? "-left-1"
+                : handle.includes("e")
+                  ? "-right-1"
+                  : "left-1/2 -translate-x-1/2",
             )}
           />
         ))}

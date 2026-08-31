@@ -29,11 +29,14 @@ export function VideoUploader() {
   const selectFile = useCallback(
     (file: File | undefined) => {
       if (!file || !isAcceptedVideoFile(file)) {
-        if (file) toast.error(`Unsupported format. Use ${ACCEPTED_VIDEO_LABEL}`);
+        if (file)
+          toast.error(`Unsupported format. Use ${ACCEPTED_VIDEO_LABEL}`);
         return;
       }
       if (isFileTooLarge(file)) {
-        toast.error(`File too large (${formatFileSize(file.size)}). Max is ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+        toast.error(
+          `File too large (${formatFileSize(file.size)}). Max is ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+        );
         return;
       }
 
@@ -97,8 +100,12 @@ export function VideoUploader() {
       }}
     >
       <Upload className="mb-4 size-10 text-kumo-subtle" />
-      <p className="text-base font-medium text-kumo-strong">Drop an MP4, WebM, MOV or MKV video here</p>
-      <p className="mt-1 text-sm text-kumo-subtle">or choose a file · up to 10 GB · Matroska supported</p>
+      <p className="text-base font-medium text-kumo-strong">
+        Drop an MP4, WebM, MOV or MKV video here
+      </p>
+      <p className="mt-1 text-sm text-kumo-subtle">
+        or choose a file · up to 10 GB · Matroska supported
+      </p>
       <Input
         ref={inputRef}
         className="sr-only"
@@ -113,7 +120,9 @@ export function VideoUploader() {
       >
         {metadataMutation.isPending ? "Uploading..." : "Choose video"}
       </Button>
-      {(metadataMutation.isPending || uploadStatus === "uploading" || uploadStatus === "error") && (
+      {(metadataMutation.isPending ||
+        uploadStatus === "uploading" ||
+        uploadStatus === "error") && (
         <div className="mt-6 w-full max-w-md">
           <UploadProgress />
         </div>

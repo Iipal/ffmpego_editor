@@ -5,8 +5,13 @@ import { formatFileSize } from "@/lib/video-file";
 import { useVideoState } from "@/store/useVideoStore";
 
 export function UploadProgress({ className }: { className?: string }) {
-  const { uploadProgress, uploadStatus, uploadStage, uploadBytesSent, uploadBytesTotal } =
-    useVideoState();
+  const {
+    uploadProgress,
+    uploadStatus,
+    uploadStage,
+    uploadBytesSent,
+    uploadBytesTotal,
+  } = useVideoState();
 
   if (uploadStatus !== "uploading" && uploadStatus !== "error") {
     // Hide when idle/done; keep visible briefly after done is handled by callers if needed
@@ -25,7 +30,10 @@ export function UploadProgress({ className }: { className?: string }) {
 
   return (
     <div
-      className={className ?? "space-y-2 rounded-lg border border-kumo-line bg-kumo-recessed p-3"}
+      className={
+        className ??
+        "space-y-2 rounded-lg border border-kumo-line bg-kumo-recessed p-3"
+      }
       aria-live="polite"
       aria-busy={isUploading}
     >
@@ -37,7 +45,10 @@ export function UploadProgress({ className }: { className?: string }) {
           {isError ? "error" : `${Math.round(uploadProgress)}%`}
         </span>
       </div>
-      <Progress value={isError ? 100 : uploadProgress} aria-label={stageLabel} />
+      <Progress
+        value={isError ? 100 : uploadProgress}
+        aria-label={stageLabel}
+      />
       <div className="flex justify-between text-[11px] tabular-nums text-kumo-subtle">
         <span>
           {formatFileSize(uploadBytesSent)} / {formatFileSize(uploadBytesTotal)}

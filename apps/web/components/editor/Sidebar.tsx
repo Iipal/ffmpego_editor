@@ -110,7 +110,9 @@ export function Sidebar() {
       return;
     }
     if (isFileTooLarge(file)) {
-      toast.error(`File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`);
+      toast.error(
+        `File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+      );
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
@@ -248,9 +250,8 @@ export function Sidebar() {
       >
         Choose other video
       </Button>
-      {(state.uploadStatus === "uploading" || state.uploadStatus === "error") && (
-        <UploadProgress />
-      )}
+      {(state.uploadStatus === "uploading" ||
+        state.uploadStatus === "error") && <UploadProgress />}
       <Card className="p-4 rounded-lg">
         <Collapsible>
           <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
@@ -650,9 +651,8 @@ export function Sidebar() {
                 />
               </>
             )}
-            {state.uploadStatus === "uploading" && state.uploadStage === "transcode" && (
-              <UploadProgress />
-            )}
+            {state.uploadStatus === "uploading" &&
+              state.uploadStage === "transcode" && <UploadProgress />}
             {state.transcodeStatus === "processing" && (
               <Progress
                 value={state.transcodeProgress}

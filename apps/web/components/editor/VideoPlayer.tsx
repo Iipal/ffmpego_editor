@@ -209,7 +209,11 @@ export function VideoPlayer() {
                         nextTrim = [0, d] as [number, number];
                       }
                       // clamp persisted trim when duration changed (e.g. different video)
-                      if (nextTrim[1] > d) nextTrim = [Math.min(nextTrim[0], d - 0.01), d] as [number, number];
+                      if (nextTrim[1] > d)
+                        nextTrim = [Math.min(nextTrim[0], d - 0.01), d] as [
+                          number,
+                          number,
+                        ];
                     } else if (previous.trimRange[1] > d) {
                       nextTrim = [previous.trimRange[0], d] as [number, number];
                     } else {

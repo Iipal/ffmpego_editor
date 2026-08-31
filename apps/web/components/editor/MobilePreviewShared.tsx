@@ -222,7 +222,9 @@ export function MobilePreviewShared({
 
   if (layout.mode === "full") {
     return (
-      <div className={`flex flex-col items-center gap-2 ${isResizable ? "w-full h-full" : ""}`}>
+      <div
+        className={`flex flex-col items-center gap-2 ${isResizable ? "w-full h-full" : ""}`}
+      >
         <div
           ref={wrapRef}
           className={
@@ -253,7 +255,9 @@ export function MobilePreviewShared({
 
   const splitPx = layout.splitRatio;
   return (
-    <div className={`flex flex-col items-center gap-2 ${isResizable ? "w-full h-full" : ""}`}>
+    <div
+      className={`flex flex-col items-center gap-2 ${isResizable ? "w-full h-full" : ""}`}
+    >
       <div
         ref={wrapRef}
         className={

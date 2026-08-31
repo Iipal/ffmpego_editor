@@ -266,7 +266,7 @@ export function GoogleFontPicker({
                         ) : null}
                       </div>
                       {!previewTrimmed && (
-                        <span className="text-[11px] text-kumo-subtle hidden sm:inline flex items-center gap-1">
+                        <span className="text-[11px] text-kumo-subtle sm:inline flex items-center gap-1">
                           {f.includes(",") ? "System" : "Google"}
                           {supportsCy && (
                             <span className="text-[10px] px-1 rounded bg-emerald-500/10 text-emerald-600 border">

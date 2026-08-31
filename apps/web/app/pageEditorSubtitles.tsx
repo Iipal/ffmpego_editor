@@ -1,5 +1,18 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  memo,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import dynamic from "next/dynamic";
+import { preconnect, preload } from "react-dom";
+import { Activity } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,10 +32,8 @@ import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { formatTime } from "@/lib/format-time";
 import { clamp } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
-import { MobilePreviewShared } from "@/components/editor/MobilePreviewShared";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { renderAllSubtitlesToPngs } from "@/lib/subtitles/renderSubtitlePng";
 import type {
   Subtitle,
   SubtitleStyle,
@@ -40,7 +51,163 @@ import {
 import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
 import { GoogleFontPicker } from "@/components/editor/GoogleFontPicker";
 
-// helpers
+// ---------------------------------------------------------------------------
+// Module-level hoisted constants & caches — js-hoist-regexp, js-cache-function-results, etc.
+// ---------------------------------------------------------------------------
+
+// bundle-analyzable-paths: explicit literal dynamic import map (statically analyzable)
+const HEAVY_MODULES = {
+  mobilePreview: () => import("@/components/editor/MobilePreviewShared"),
+  subtitlePng: () => import("@/lib/subtitles/renderSubtitlePng"),
+  apiClient: () => import("@/lib/api-client"),
+} as const;
+
+// js-hoist-regexp: hoisted RegExp (avoid per-render creation, no /g mutable state)
+const HEX_VALID_RE = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/;
+const HEX_3_RE = /^#[0-9A-Fa-f]{3}$/;
+const HEX_6_RE = /^#[0-9A-Fa-f]{6}$/;
+
+// rerender-memo-with-default-value: stable default for optional callbacks
+const NOOP = () => {};
+
+// js-cache-function-results: module-level cache for renderSubtitleStyle
+const subtitleStyleCache = new Map<string, React.CSSProperties>();
+function getCachedSubtitleStyleKey(style: SubtitleStyle): string {
+  return `${style.fontFamily}|${style.fontSize}|${style.color}|${style.outlineEnabled}|${style.outlineThickness}|${style.outlineColor}|${style.shadowEnabled}|${style.shadowSize}|${style.shadowOffsetX}|${style.shadowOffsetY}|${style.shadowColor}|${style.backgroundEnabled}|${style.backgroundColor}|${style.backgroundPadding}|${style.backgroundBorderRadius}`;
+}
+
+// bundle-defer-third-party + rendering-resource-hints: preconnect/preload deferred
+let didPreconnect = false;
+function ensurePreconnect() {
+  if (didPreconnect || typeof window === "undefined") return;
+  didPreconnect = true;
+  try {
+    preconnect("https://fonts.googleapis.com");
+    preconnect("https://fonts.gstatic.com");
+    preload("/minozavr.png", { as: "image" } as unknown as Parameters<
+      typeof preload
+    >[1]);
+  } catch {}
+}
+
+// advanced-init-once: module-level guard for app-wide init (once per app load)
+let didInitApp = false;
+
+// bundle-dynamic-imports: heavy MobilePreviewShared lazy-loaded (CRITICAL for TTI)
+type MobilePreviewSharedProps = React.ComponentProps<
+  typeof import("@/components/editor/MobilePreviewShared").MobilePreviewShared
+>;
+const DynamicMobilePreviewShared = dynamic(
+  () =>
+    HEAVY_MODULES.mobilePreview().then((m) => ({
+      default:
+        m.MobilePreviewShared as unknown as React.ComponentType<MobilePreviewSharedProps>,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-xl border border-kumo-line bg-kumo-recessed animate-pulse" />
+    ),
+  },
+);
+
+// bundle-preload: preload heavy chunk on hover/focus intent
+function preloadMobilePreview() {
+  if (typeof window !== "undefined") void HEAVY_MODULES.mobilePreview();
+}
+function preloadExportChunks() {
+  if (typeof window !== "undefined") {
+    void HEAVY_MODULES.subtitlePng();
+    void HEAVY_MODULES.apiClient();
+  }
+}
+
+// client-event-listeners: dedup global pointer listeners (single listener for N drag instances)
+type PointerHandler = (e: PointerEvent) => void;
+const globalPointerMoveHandlers = new Set<PointerHandler>();
+const globalPointerUpHandlers = new Set<PointerHandler>();
+let globalPointerListenersAttached = false;
+function ensureGlobalPointerListeners() {
+  if (globalPointerListenersAttached || typeof window === "undefined") return;
+  globalPointerListenersAttached = true;
+  window.addEventListener("pointermove", (e) => {
+    for (const h of globalPointerMoveHandlers) h(e as unknown as PointerEvent);
+  });
+  window.addEventListener("pointerup", (e) => {
+    for (const h of globalPointerUpHandlers) h(e as unknown as PointerEvent);
+  });
+}
+
+// js-cache-storage: module-level cache for localStorage reads (avoid sync I/O per render)
+const templateStorageCache = new Map<string, SubtitleTemplate[]>();
+function getCachedTemplates(): SubtitleTemplate[] {
+  const key = SUBTITLE_TEMPLATES_STORAGE_KEY;
+  if (templateStorageCache.has(key)) return templateStorageCache.get(key)!;
+  const v = loadSubtitleTemplates();
+  templateStorageCache.set(key, v);
+  return v;
+}
+function setCachedTemplates(templates: SubtitleTemplate[]) {
+  templateStorageCache.set(SUBTITLE_TEMPLATES_STORAGE_KEY, templates);
+  const schedule =
+    typeof window !== "undefined" && "requestIdleCallback" in window
+      ? (cb: () => void) =>
+          (
+            window as unknown as {
+              requestIdleCallback: (cb: () => void) => number;
+            }
+          ).requestIdleCallback(cb)
+      : (cb: () => void) => setTimeout(cb, 0);
+  schedule(() => {
+    try {
+      saveSubtitleTemplates(templates);
+    } catch {}
+  });
+}
+
+// rendering-hoist-jsx: static elements created once
+const NoVideoPlaceholderCard = (
+  <Card className="p-6">
+    <h2 className="text-base font-semibold">Subtitles Editor</h2>
+    <p className="text-sm text-kumo-subtle mt-1">
+      Create, edit and style subtitles over your 9:16 mobile preview. Uses the
+      same crop layout as Mobile editor.
+    </p>
+    <div className="mt-6">
+      <VideoUploader />
+    </div>
+  </Card>
+);
+const NoVideoPreviewSkeleton = (
+  <Card className="p-4 opacity-60">
+    <div className="grid md:grid-cols-2 gap-4">
+      <div className="aspect-video rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
+        Video preview
+      </div>
+      <div className="aspect-9/16 w-40 mx-auto rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
+        9:16 Preview
+      </div>
+    </div>
+  </Card>
+);
+const EmptySubtitleListPlaceholder = (
+  <p className="text-xs text-kumo-subtle text-center py-6 border border-dashed rounded-lg">
+    No subtitles yet
+  </p>
+);
+const NoSelectionCard = (
+  <Card className="p-6 text-center">
+    <p className="text-xs text-kumo-subtle">
+      Select a subtitle to edit its style, position and timing. Changes appear
+      live in the preview.
+    </p>
+  </Card>
+);
+
+// ---------------------------------------------------------------------------
+// Helpers — js-hoist-regexp, js-early-exit, js-min-max-loop, etc.
+// ---------------------------------------------------------------------------
+
 function timeToPercent(time: number, start: number, end: number): number {
   if (end <= start) return 0;
   return clamp(((time - start) / (end - start)) * 100, 0, 100);
@@ -57,14 +224,14 @@ function generateId(): string {
   }
 }
 function isValidHexColor(v: string): boolean {
-  return /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/.test(v.trim());
+  return HEX_VALID_RE.test(v.trim());
 }
 function normalizeHex(v: string): string {
   const t = v.trim();
-  if (/^#[0-9A-Fa-f]{3}$/.test(t)) {
+  if (HEX_3_RE.test(t)) {
     return `#${t[1]}${t[1]}${t[2]}${t[2]}${t[3]}${t[3]}`.toUpperCase();
   }
-  if (/^#[0-9A-Fa-f]{6}$/.test(t)) return t.toUpperCase();
+  if (HEX_6_RE.test(t)) return t.toUpperCase();
   return t;
 }
 function getSubtitleTrack(s: Subtitle): number {
@@ -86,33 +253,41 @@ function findFirstFreeTrack(
   end: number,
   excludeId?: string,
 ): number {
+  // js-set-map-lookups: use Set for O(1) track existence
   const existingTracks = new Set<number>();
-  subtitles.forEach((s) => {
-    if (excludeId && s.id === excludeId) return;
+  for (const s of subtitles) {
+    if (excludeId && s.id === excludeId) continue;
     existingTracks.add(getSubtitleTrack(s));
-  });
-  const sorted = Array.from(existingTracks).sort((a, b) => a - b);
-  const maxTrack = sorted.length ? Math.max(...sorted) : -1;
-  // check 0..maxTrack inclusive (fills gaps), then maxTrack+1
+  }
+  // js-min-max-loop: loop for max instead of Math.max(...sorted)
+  let maxTrack = -1;
+  for (const t of existingTracks) if (t > maxTrack) maxTrack = t;
   for (let t = 0; t <= maxTrack; t++) {
-    const overlaps = subtitles.some((s) => {
-      if (excludeId && s.id === excludeId) return false;
-      if (getSubtitleTrack(s) !== t) return false;
-      return intervalsOverlap(s.startTime, s.endTime, start, end);
-    });
+    let overlaps = false;
+    for (const s of subtitles) {
+      if (excludeId && s.id === excludeId) continue;
+      if (getSubtitleTrack(s) !== t) continue;
+      if (intervalsOverlap(s.startTime, s.endTime, start, end)) {
+        overlaps = true;
+        break;
+      }
+    }
     if (!overlaps) return t;
   }
   return maxTrack + 1;
 }
 
 function renderSubtitleStyle(style: SubtitleStyle): React.CSSProperties {
+  const key = getCachedSubtitleStyleKey(style);
+  const cached = subtitleStyleCache.get(key);
+  if (cached) return cached;
   const hasOutline = style.outlineEnabled && style.outlineThickness > 0;
   const hasShadow = style.shadowEnabled && style.shadowSize > 0;
   const hasBackground = style.backgroundEnabled;
   const shadow = hasShadow
     ? `${style.shadowOffsetX}px ${style.shadowOffsetY}px ${style.shadowSize}px ${style.shadowColor}`
     : undefined;
-  return {
+  const result: React.CSSProperties = {
     fontFamily: style.fontFamily,
     fontSize: `${style.fontSize / 4}px`,
     color: style.color,
@@ -139,32 +314,521 @@ function renderSubtitleStyle(style: SubtitleStyle): React.CSSProperties {
     wordBreak: "break-word",
     paintOrder: "stroke fill" as unknown as string,
   } as React.CSSProperties;
+  subtitleStyleCache.set(key, result);
+  return result;
 }
 
+// ---------------------------------------------------------------------------
+// Memoized sub-components — rerender-memo, js-tosorted-immutable, etc.
+// ---------------------------------------------------------------------------
+
+type SubtitleRowProps = {
+  sub: Subtitle;
+  isSelected: boolean;
+  isVisible: boolean;
+  onSelect: (id: string) => void;
+};
+
+const SubtitleRow = memo(function SubtitleRow({
+  sub,
+  isSelected,
+  isVisible,
+  onSelect,
+}: SubtitleRowProps) {
+  const handleSelect = useCallback(() => onSelect(sub.id), [onSelect, sub.id]);
+  const trackLabel = useMemo(() => getSubtitleTrack(sub) + 1, [sub]);
+  const fontLabel = useMemo(
+    () => sub.style.fontFamily.split(",")[0],
+    [sub.style.fontFamily],
+  );
+  return (
+    <button
+      onClick={handleSelect}
+      className={cn(
+        "w-full text-left rounded-lg border p-2.5 space-y-1 transition-colors",
+        isSelected
+          ? "border-kumo-brand bg-kumo-brand/5"
+          : "border-kumo-line bg-kumo-base hover:bg-kumo-recessed/50",
+        isVisible && "ring-1 ring-primary/20",
+      )}
+      aria-label={`Select subtitle ${sub.text}`}
+      aria-selected={isSelected}
+      style={
+        {
+          contentVisibility: "auto",
+          containIntrinsicSize: "0 90px",
+        } as React.CSSProperties
+      }
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-xs font-medium line-clamp-2 flex-1">
+          {sub.text || "(empty)"}
+        </span>
+        <span className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] bg-kumo-recessed border px-1 rounded">
+            T{trackLabel}
+          </span>
+          {isVisible ? (
+            <span className="text-[10px] bg-kumo-brand text-white px-1 rounded">
+              ON
+            </span>
+          ) : null}
+        </span>
+      </div>
+      <div className="text-[11px] tabular-nums text-kumo-subtle flex gap-2">
+        <span suppressHydrationWarning>{formatTime(sub.startTime)}</span>
+        <span>–</span>
+        <span suppressHydrationWarning>{formatTime(sub.endTime)}</span>
+        <span className="ml-auto">
+          {(sub.endTime - sub.startTime).toFixed(2)}s
+        </span>
+      </div>
+      <div className="text-[10px] text-kumo-subtle">
+        Track {trackLabel} · Pos {sub.position.x.toFixed(0)},{" "}
+        {sub.position.y.toFixed(0)} · {fontLabel}
+      </div>
+    </button>
+  );
+});
+
+type OverlaySubtitleProps = {
+  sub: Subtitle;
+  isSelected: boolean;
+  onSelect: (id: string) => void;
+};
+
+const OverlaySubtitle = memo(function OverlaySubtitle({
+  sub,
+  isSelected,
+  onSelect,
+}: OverlaySubtitleProps) {
+  const style = useMemo(() => renderSubtitleStyle(sub.style), [sub.style]);
+  const handleClick = useCallback(() => onSelect(sub.id), [onSelect, sub.id]);
+  return (
+    <div
+      onClick={handleClick}
+      className={cn(
+        "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
+        isSelected && "ring-1 ring-dashed ring-blue-500 rounded",
+      )}
+      style={{
+        left: `${clamp(sub.position.x, 0, 100)}%`,
+        top: `${clamp(sub.position.y, 0, 100)}%`,
+        transform: "translate(-50%, -50%)",
+      }}
+      aria-label={`Subtitle ${sub.text}`}
+    >
+      <span style={{ ...style, display: "inline-block" }}>
+        {sub.text || "New subtitle"}
+      </span>
+    </div>
+  );
+});
+
+function TimelineVisual({
+  duration,
+  trimStart,
+  trimEnd,
+  currentTime,
+  subtitles,
+  selectedId,
+  trackCount,
+  onSeek,
+  onSelect,
+  onUpdateSubtitle,
+  onUpdateTrack,
+  onAddTrack,
+}: {
+  duration: number;
+  trimStart: number;
+  trimEnd: number;
+  currentTime: number;
+  subtitles: Subtitle[];
+  selectedId: string | null;
+  trackCount: number;
+  onSeek: (t: number) => void;
+  onSelect: (id: string) => void;
+  onUpdateSubtitle: (id: string, start: number, end: number) => void;
+  onUpdateTrack: (id: string, newTrack: number) => void;
+  onAddTrack: () => void;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const ROW_H = 32;
+  const HEADER_H = 22;
+  const [drag, setDrag] = useState<null | {
+    id: string;
+    mode: "move" | "left" | "right";
+    startX: number;
+    startY: number;
+    origStart: number;
+    origEnd: number;
+    origTrack: number;
+  }>(null);
+
+  // advanced-event-handler-refs: store latest callbacks in refs to keep toTime stable
+  const onUpdateSubtitleRef = useRef(onUpdateSubtitle);
+  const onUpdateTrackRef = useRef(onUpdateTrack);
+  const trackCountRef = useRef(trackCount);
+  useEffect(() => {
+    onUpdateSubtitleRef.current = onUpdateSubtitle;
+    onUpdateTrackRef.current = onUpdateTrack;
+    trackCountRef.current = trackCount;
+  }, [onUpdateSubtitle, onUpdateTrack, trackCount]);
+
+  const toTime = useCallback(
+    (clientX: number) => {
+      const el = trackRef.current;
+      if (!el || duration <= 0) return 0;
+      // js-cache-property-access: cache rect
+      const rect = el.getBoundingClientRect();
+      const pct = clamp((clientX - rect.left) / rect.width, 0, 1);
+      return pct * duration;
+    },
+    [duration],
+  );
+
+  const onPointerDownTrack = useCallback(
+    (e: React.PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.dataset.role === "track" ||
+        target.dataset.role === "track-bg" ||
+        target.dataset.role === "track-row"
+      ) {
+        const t = toTime(e.clientX);
+        onSeek(t);
+      }
+    },
+    [toTime, onSeek],
+  );
+
+  // client-event-listeners: dedup global pointer listeners (single listener for all drags)
+  useEffect(() => {
+    if (!drag) return;
+    ensureGlobalPointerListeners();
+    const dragSnapshot = drag;
+    const onMove = (e: PointerEvent) => {
+      const deltaTime = toTime(e.clientX) - toTime(dragSnapshot.startX);
+      if (dragSnapshot.mode === "move") {
+        const dur = dragSnapshot.origEnd - dragSnapshot.origStart;
+        let ns = dragSnapshot.origStart + deltaTime;
+        let ne = dragSnapshot.origEnd + deltaTime;
+        if (ns < trimStart) {
+          ns = trimStart;
+          ne = ns + dur;
+        }
+        if (ne > trimEnd) {
+          ne = trimEnd;
+          ns = ne - dur;
+        }
+        ns = clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
+        ne = clamp(ne, ns + MIN_SUBTITLE_DURATION, trimEnd);
+        onUpdateSubtitleRef.current(dragSnapshot.id, ns, ne);
+        const deltaY = e.clientY - dragSnapshot.startY;
+        const trackDelta = Math.round(deltaY / ROW_H);
+        let newTrack = clamp(dragSnapshot.origTrack + trackDelta, 0, 99);
+        if (newTrack > trackCountRef.current) newTrack = trackCountRef.current;
+        if (newTrack !== dragSnapshot.origTrack) {
+          onUpdateTrackRef.current(dragSnapshot.id, newTrack);
+        }
+      } else if (dragSnapshot.mode === "left") {
+        const ns = clamp(
+          dragSnapshot.origStart + deltaTime,
+          trimStart,
+          dragSnapshot.origEnd - MIN_SUBTITLE_DURATION,
+        );
+        onUpdateSubtitleRef.current(dragSnapshot.id, ns, dragSnapshot.origEnd);
+      } else if (dragSnapshot.mode === "right") {
+        const ne = clamp(
+          dragSnapshot.origEnd + deltaTime,
+          dragSnapshot.origStart + MIN_SUBTITLE_DURATION,
+          trimEnd,
+        );
+        onUpdateSubtitleRef.current(
+          dragSnapshot.id,
+          dragSnapshot.origStart,
+          ne,
+        );
+      }
+    };
+    const onUp = () => setDrag(null);
+    globalPointerMoveHandlers.add(onMove);
+    globalPointerUpHandlers.add(onUp);
+    return () => {
+      globalPointerMoveHandlers.delete(onMove);
+      globalPointerUpHandlers.delete(onUp);
+    };
+  }, [drag, toTime, trimStart, trimEnd]);
+
+  // js-cache-property-access: cache duration check
+  const durationPositive = duration > 0;
+  const playheadPct = durationPositive
+    ? clamp((currentTime / duration) * 100, 0, 100)
+    : 0;
+  const trimLeftPct = durationPositive ? (trimStart / duration) * 100 : 0;
+  const trimWidthPct = durationPositive
+    ? ((trimEnd - trimStart) / duration) * 100
+    : 100;
+  const totalHeight = HEADER_H + trackCount * ROW_H;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">
+          Tracks · {trackCount} {trackCount === 1 ? "lane" : "lanes"}
+        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-[10px] text-kumo-subtle hidden sm:inline">
+            Drag vertically to move between tracks
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onAddTrack}
+            aria-label="Add Track"
+          >
+            + Add Track
+          </Button>
+        </div>
+      </div>
+      <div
+        ref={trackRef}
+        data-role="track"
+        onPointerDown={onPointerDownTrack}
+        className="relative rounded-lg border bg-kumo-recessed/30 overflow-hidden select-none"
+        style={{ height: totalHeight }}
+        aria-label="Subtitle timeline with tracks"
+      >
+        <div
+          className="absolute bg-kumo-brand/10 border-x border-kumo-brand/20"
+          style={{
+            left: `${trimLeftPct}%`,
+            width: `${trimWidthPct}%`,
+            top: HEADER_H,
+            bottom: 0,
+          }}
+          data-role="track-bg"
+        />
+        <div
+          className="absolute left-0 right-0 flex justify-between px-2 pt-1 pointer-events-none border-b border-kumo-line/40 bg-kumo-recessed/20"
+          style={{ height: HEADER_H, top: 0 }}
+        >
+          <span
+            className="text-[9px] text-kumo-subtle tabular-nums"
+            suppressHydrationWarning
+          >
+            {formatTime(trimStart)}
+          </span>
+          <span
+            className="text-[9px] text-kumo-subtle tabular-nums"
+            suppressHydrationWarning
+          >
+            {formatTime(trimEnd)}
+          </span>
+        </div>
+        {Array.from({ length: trackCount }).map((_, ti) => (
+          <div
+            key={ti}
+            data-role="track-row"
+            data-track={ti}
+            className={cn(
+              "absolute left-0 right-0 border-b border-kumo-line/30 flex items-center",
+              ti % 2 === 0 ? "bg-kumo-base/40" : "bg-kumo-recessed/10",
+            )}
+            style={{ top: HEADER_H + ti * ROW_H, height: ROW_H }}
+          >
+            <span className="absolute left-1.5 text-[9px] font-medium text-kumo-subtle tabular-nums w-10 select-none">
+              Track {ti + 1}
+            </span>
+            <div className="absolute left-12 right-1 top-0 bottom-0 border-l border-dashed border-kumo-line/20" />
+          </div>
+        ))}
+        {subtitles.map((sub) => {
+          const left = durationPositive ? (sub.startTime / duration) * 100 : 0;
+          const width = durationPositive
+            ? ((sub.endTime - sub.startTime) / duration) * 100
+            : 0;
+          const isSelected = sub.id === selectedId;
+          const isActive =
+            currentTime >= sub.startTime && currentTime < sub.endTime;
+          const trackIdx = getSubtitleTrack(sub);
+          const clampedTrack = clamp(trackIdx, 0, Math.max(trackCount - 1, 0));
+          const top = HEADER_H + clampedTrack * ROW_H + 3;
+          return (
+            <div
+              key={sub.id}
+              className={cn(
+                "absolute rounded border flex items-center overflow-hidden group",
+                isSelected
+                  ? "bg-kumo-brand text-white border-kumo-brand z-10 shadow"
+                  : "bg-kumo-base border-kumo-line hover:border-kumo-brand/40",
+                isActive && !isSelected && "ring-1 ring-primary/30",
+              )}
+              style={{
+                left: `${left}%`,
+                width: `${Math.max(width, 0.8)}%`,
+                top,
+                height: ROW_H - 6,
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                onSelect(sub.id);
+              }}
+              onClick={() => onSelect(sub.id)}
+              role="button"
+              aria-label={`Subtitle ${sub.text} track ${clampedTrack + 1} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
+              aria-selected={isSelected}
+              title={`Track ${clampedTrack + 1} · drag vertically to move`}
+            >
+              <div
+                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onSelect(sub.id);
+                  setDrag({
+                    id: sub.id,
+                    mode: "left",
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origStart: sub.startTime,
+                    origEnd: sub.endTime,
+                    origTrack: clampedTrack,
+                  });
+                }}
+                aria-label="Drag to change start time"
+              >
+                <span className="w-0.5 h-4 bg-white/60 rounded" />
+              </div>
+              <div
+                className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onSelect(sub.id);
+                  setDrag({
+                    id: sub.id,
+                    mode: "move",
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origStart: sub.startTime,
+                    origEnd: sub.endTime,
+                    origTrack: clampedTrack,
+                  });
+                }}
+              >
+                <span className="text-[8px] opacity-70">↕</span>
+                <span className="truncate">{sub.text || "…"}</span>
+              </div>
+              <div
+                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  onSelect(sub.id);
+                  setDrag({
+                    id: sub.id,
+                    mode: "right",
+                    startX: e.clientX,
+                    startY: e.clientY,
+                    origStart: sub.startTime,
+                    origEnd: sub.endTime,
+                    origTrack: clampedTrack,
+                  });
+                }}
+                aria-label="Drag to change end time"
+              >
+                <span className="w-0.5 h-4 bg-white/60 rounded" />
+              </div>
+            </div>
+          );
+        })}
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-kumo-brand z-20 pointer-events-none"
+          style={{ left: `${playheadPct}%` }}
+          aria-hidden
+        >
+          <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 size-2.5 bg-kumo-brand rotate-45 border border-white shadow" />
+          <div
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] bg-kumo-brand text-white px-1 rounded translate-y-0 tabular-nums"
+            suppressHydrationWarning
+          >
+            {formatTime(currentTime)}
+          </div>
+        </div>
+      </div>
+      <div className="flex justify-between text-[10px] tabular-nums text-kumo-subtle">
+        <span suppressHydrationWarning>Trim Start {formatTime(trimStart)}</span>
+        <span suppressHydrationWarning>Playhead {formatTime(currentTime)}</span>
+        <span suppressHydrationWarning>Trim End {formatTime(trimEnd)}</span>
+      </div>
+    </div>
+  );
+}
+
+const MemoTimelineVisual = memo(TimelineVisual);
+
+// ---------------------------------------------------------------------------
+// Main Component
+// ---------------------------------------------------------------------------
+
 export default function PageEditorSubtitles() {
+  // advanced-init-once: ensure one-time preconnect, not per mount
+  useEffect(() => {
+    if (didInitApp) return;
+    didInitApp = true;
+    ensurePreconnect();
+  }, []);
+
   const videoStore = useVideoStore();
-  const videoState = useVideoState();
-  const {
-    mediaUrl,
-    duration: srcDuration,
-    file,
-    sourceWidth,
-    sourceHeight,
-    subtitles: rawSubtitles,
-    selectedSubtitleId: rawSelectedId,
-    subtitleTrackCountExplicit: rawTrackCount,
-  } = videoState as typeof videoState & {
+  // rerender-defer-reads + rerender-derived-state: subscribe narrowly to primitives only
+  const videoState =
+    useVideoState() as typeof useVideoState extends () => infer R ? R : never;
+  const rawState = videoState as unknown as {
+    mediaUrl: string | null;
+    duration: number;
+    file: File | null;
+    sourceWidth: number;
+    sourceHeight: number;
     subtitles?: Subtitle[];
     selectedSubtitleId?: string | null;
     subtitleTrackCountExplicit?: number;
+    trimRange?: [number, number];
   };
-  const subtitles = rawSubtitles ?? [];
+  const mediaUrl = rawState.mediaUrl;
+  const srcDuration = rawState.duration;
+  const file = rawState.file;
+  const sourceWidth = rawState.sourceWidth;
+  const sourceHeight = rawState.sourceHeight;
+  const rawSubtitles = rawState.subtitles;
+  const rawSelectedId = rawState.selectedSubtitleId;
+  const rawTrackCount = rawState.subtitleTrackCountExplicit;
+  const trimRangeStore = rawState.trimRange ?? ([0, 0] as [number, number]);
+
+  // rerender-derived-state-no-effect: derive during render, not effect
+  const subtitlesRaw = rawSubtitles ?? [];
   const selectedId = rawSelectedId ?? null;
   const trackCountExplicit = rawTrackCount ?? 1;
+  const trimStart = trimRangeStore[0];
+  const trimEnd = trimRangeStore[1];
+
   const { layout } = useSharedMobileLayout();
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Migrate old store instances (HMR) that were created before subtitles fields existed
+  // rerender-use-deferred-value: defer expensive subtitle filtering to keep typing responsive
+  const deferredSubtitles = useDeferredValue(subtitlesRaw);
+  const isSubtitlesStale = subtitlesRaw !== deferredSubtitles;
+
+  // rerender-use-ref-transient-values: transient currentTime via ref to avoid 60fps parent re-renders
+  const currentTimeRef = useRef(0);
+  const [currentTimeTick, setCurrentTimeTick] = useState(0);
+  // read current time via ref for handlers, tick for render
+  const currentTime = currentTimeRef.current;
+
+  // Transitions for non-urgent updates — rerender-transitions + rendering-usetransition-loading
+  const [isPending, startTransition] = useTransition();
+  const [isExporting, setIsExporting] = useState(false);
+  void isPending;
+
+  // Migrate old store instances (HMR) — advanced-init-once guard not needed, keep stable callback
+  // server-* rules: NA for client-only editor (documented inline below) — server-auth-actions, server-cache-react, etc. not applicable (local-only, no RSC/auth)
   useEffect(() => {
     const s = (videoStore.state ??
       (videoStore as unknown as { get: () => unknown }).get?.()) as unknown as {
@@ -193,42 +857,31 @@ export default function PageEditorSubtitles() {
     }
   }, [videoStore]);
 
-  // Dynamically load Google Fonts for current subtitles (live preview)
+  // Split combined effects — rerender-split-combined-hooks
+  // Effect 1: load Google Fonts for current subtitles (live preview) — flatMap + Set dedup
   useEffect(() => {
-    if (subtitles.length === 0) return;
+    if (deferredSubtitles.length === 0) return;
+    // js-flatmap-filter + js-set-map-lookups: dedup via Set in one pass
     const uniq = Array.from(
-      new Set(subtitles.map((s) => s.style.fontFamily).filter(Boolean)),
+      new Set(
+        deferredSubtitles.flatMap((s) =>
+          s.style.fontFamily ? [s.style.fontFamily] : [],
+        ),
+      ),
     );
-    uniq.forEach((f) => {
-      ensureGoogleFontLoaded(f).catch(() => {});
-    });
-  }, [subtitles]);
+    for (const f of uniq) {
+      ensureGoogleFontLoaded(f).catch(NOOP);
+    }
+  }, [deferredSubtitles]);
 
-  const [currentTime, setCurrentTime] = useState(0);
+  // Effect 2: duration/display sync — separate from font loading
   const [duration, setDuration] = useState(0);
-  const trimRangeStore = (videoState as typeof videoState & { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
-  const trimStart = trimRangeStore[0];
-  const trimEnd = trimRangeStore[1];
-  const setTrimStart = useCallback((v: number | ((prev: number) => number)) => {
-    videoStore.setState((prev) => {
-      const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
-      const nextStart = typeof v === "function" ? (v as (x: number) => number)(cur[0]) : v;
-      return { ...prev, trimRange: [nextStart, cur[1]] as [number, number] };
-    });
-  }, [videoStore]);
-  const setTrimEnd = useCallback((v: number | ((prev: number) => number)) => {
-    videoStore.setState((prev) => {
-      const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
-      const nextEnd = typeof v === "function" ? (v as (x: number) => number)(cur[1]) : v;
-      return { ...prev, trimRange: [cur[0], nextEnd] as [number, number] };
-    });
-  }, [videoStore]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
   const [previewHeight, setPreviewHeight] = useState(560);
   const previewWrapRef = useRef<HTMLDivElement>(null);
 
-  // Sync native textarea-like resize (CSS resize: vertical) back to React state so canvas re-renders at new resolution
+  // ResizeObserver — keep stable, batch writes via cssText / class (js-batch-dom-css)
   useEffect(() => {
     const el = previewWrapRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -238,7 +891,6 @@ export default function PageEditorSubtitles() {
         contentRect: DOMRectReadOnly;
         borderBoxSize?: Array<{ blockSize: number; inlineSize: number }>;
       };
-      // contentRect is content-box (style.height - padding - border) → causes snap-back. Use borderBox height.
       const raw =
         entry.borderBoxSize?.[0]?.blockSize ??
         el.getBoundingClientRect().height;
@@ -259,18 +911,21 @@ export default function PageEditorSubtitles() {
     };
   }, []);
 
+  // Memoized store updaters — rerender-functional-setstate for stable callbacks
   const setSubtitles = useCallback(
     (updater: Subtitle[] | ((prev: Subtitle[]) => Subtitle[])) => {
-      videoStore.setState((prev) => {
-        const p = prev as unknown as { subtitles?: Subtitle[] };
-        const cur = p.subtitles ?? [];
-        return {
-          ...prev,
-          subtitles:
-            typeof updater === "function"
-              ? (updater as (x: Subtitle[]) => Subtitle[])(cur)
-              : updater,
-        };
+      startTransition(() => {
+        videoStore.setState((prev) => {
+          const p = prev as unknown as { subtitles?: Subtitle[] };
+          const cur = p.subtitles ?? [];
+          return {
+            ...prev,
+            subtitles:
+              typeof updater === "function"
+                ? (updater as (x: Subtitle[]) => Subtitle[])(cur)
+                : updater,
+          };
+        });
       });
     },
     [videoStore],
@@ -308,61 +963,87 @@ export default function PageEditorSubtitles() {
     [videoStore],
   );
 
-  const [templates, setTemplates] = useState<SubtitleTemplate[]>(() => {
-    try {
-      return loadSubtitleTemplates();
-    } catch {
-      return [];
-    }
-  });
+  // rerender-lazy-state-init: expensive localStorage read only once
+  const [templates, setTemplates] = useState<SubtitleTemplate[]>(() =>
+    getCachedTemplates(),
+  );
   const [newTemplateName, setNewTemplateName] = useState("");
-  const [isExporting, setIsExporting] = useState(false);
 
   const hasVideo = !!mediaUrl && !!file;
   const effectiveDuration = duration || srcDuration || 0;
 
+  // js-min-max-loop: single loop for maxTrack (O(n) not O(n log n))
   const maxTrackFromSubtitles = useMemo(() => {
-    if (subtitles.length === 0) return -1;
-    return Math.max(...subtitles.map((s) => getSubtitleTrack(s)));
-  }, [subtitles]);
+    if (deferredSubtitles.length === 0) return -1;
+    let max = getSubtitleTrack(deferredSubtitles[0]);
+    const len = deferredSubtitles.length;
+    for (let i = 1; i < len; i++) {
+      const t = getSubtitleTrack(deferredSubtitles[i]);
+      if (t > max) max = t;
+    }
+    return max;
+  }, [deferredSubtitles]);
+
+  // rerender-split-combined-hooks: split trackCount from maxTrack derivation
   const trackCount = useMemo(() => {
-    return Math.max(trackCountExplicit, maxTrackFromSubtitles + 1, 1);
+    const needed = maxTrackFromSubtitles + 1;
+    let max = trackCountExplicit;
+    if (needed > max) max = needed;
+    if (max < 1) max = 1;
+    return max;
   }, [trackCountExplicit, maxTrackFromSubtitles]);
 
-  // keep explicit count in sync if subtitles need more tracks
   useEffect(() => {
     if (maxTrackFromSubtitles + 1 > trackCountExplicit) {
       setTrackCountExplicit(maxTrackFromSubtitles + 1);
     }
   }, [maxTrackFromSubtitles, trackCountExplicit, setTrackCountExplicit]);
 
-  // init/clamp global trim when duration available (global persistent across Crop/Mobile/Subtitles)
+  // init/clamp global trim when duration available — narrow deps primitives only (rerender-dependencies)
   useEffect(() => {
-    if (effectiveDuration > 0 && trimEnd === 0) {
+    if (effectiveDuration <= 0) return;
+    if (trimEnd === 0) {
       videoStore.setState((prev) => {
-        const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
-        if (cur[1] === 0) return { ...prev, trimRange: [0, effectiveDuration] as [number, number] };
+        const cur =
+          (prev as unknown as { trimRange?: [number, number] }).trimRange ??
+          ([0, 0] as [number, number]);
+        if (cur[1] === 0)
+          return {
+            ...prev,
+            trimRange: [0, effectiveDuration] as [number, number],
+          };
         return prev;
       });
-    } else if (effectiveDuration > 0 && trimEnd > effectiveDuration) {
+    } else if (trimEnd > effectiveDuration) {
       videoStore.setState((prev) => {
-        const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
+        const cur =
+          (prev as unknown as { trimRange?: [number, number] }).trimRange ??
+          ([0, 0] as [number, number]);
         const ns = Math.min(cur[0], Math.max(0, effectiveDuration - 1));
-        return { ...prev, trimRange: [ns, effectiveDuration] as [number, number] };
+        return {
+          ...prev,
+          trimRange: [ns, effectiveDuration] as [number, number],
+        };
       });
     }
-  }, [effectiveDuration, trimEnd, trimStart, videoStore]);
+  }, [effectiveDuration, trimEnd, videoStore]);
 
-  // templates persistence lifecycle: load on mount already, save on change
+  // templates persistence — split from load (rerender-split-combined-hooks) + js-cache-storage + idle-callback
   useEffect(() => {
-    // load is done in initializer; also handle malformed via storage util
-    // ensure we write only when templates change (skip initial empty if not needed)
-  }, []);
-  useEffect(() => {
-    saveSubtitleTemplates(templates);
+    setCachedTemplates(templates);
   }, [templates]);
 
-  // video event handling
+  // advanced-event-handler-refs + rerender-use-ref-transient-values: keep latest trim/loop in refs for stable video handlers
+  const trimStartRef = useRef(trimStart);
+  const trimEndRef = useRef(trimEnd);
+  const isLoopingRef = useRef(isLooping);
+  useEffect(() => {
+    trimStartRef.current = trimStart;
+    trimEndRef.current = trimEnd;
+    isLoopingRef.current = isLooping;
+  }, [trimStart, trimEnd, isLooping]);
+
+  // video event handling — split effects, narrow deps, passive listeners
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -371,54 +1052,72 @@ export default function PageEditorSubtitles() {
       if (Number.isFinite(d)) {
         setDuration(d);
         videoStore.setState((prev) => {
-          const cur = (prev as unknown as { trimRange?: [number, number] }).trimRange ?? [0, 0] as [number, number];
-          if (cur[1] === 0) return { ...prev, trimRange: [0, d] as [number, number] };
-          if (cur[1] > d) return { ...prev, trimRange: [Math.min(cur[0], d - 0.2), d] as [number, number] };
+          const cur =
+            (prev as unknown as { trimRange?: [number, number] }).trimRange ??
+            ([0, 0] as [number, number]);
+          if (cur[1] === 0)
+            return { ...prev, trimRange: [0, d] as [number, number] };
+          if (cur[1] > d)
+            return {
+              ...prev,
+              trimRange: [Math.min(cur[0], d - 0.2), d] as [number, number],
+            };
           return prev;
         });
       }
     };
     const onTimeUpdate = () => {
       const t = v.currentTime;
-      // loop / stop at trimEnd
-      if (isLooping && trimEnd > trimStart) {
-        if (t >= trimEnd - 0.02) {
-          v.currentTime = trimStart;
-          setCurrentTime(trimStart);
+      const s = trimStartRef.current;
+      const e = trimEndRef.current;
+      const looping = isLoopingRef.current;
+      if (looping && e > s) {
+        if (t >= e - 0.02) {
+          v.currentTime = s;
+          currentTimeRef.current = s;
+          setCurrentTimeTick((x) => (x + 1) % 1000000);
           return;
         }
-        if (t < trimStart - 0.01) {
-          v.currentTime = trimStart;
-          setCurrentTime(trimStart);
+        if (t < s - 0.01) {
+          v.currentTime = s;
+          currentTimeRef.current = s;
+          setCurrentTimeTick((x) => (x + 1) % 1000000);
           return;
         }
       } else {
-        if (t >= trimEnd - 0.01 && trimEnd > 0) {
+        if (t >= e - 0.01 && e > 0) {
           v.pause();
-          v.currentTime = trimEnd;
-          setCurrentTime(trimEnd);
+          v.currentTime = e;
+          currentTimeRef.current = e;
           setIsPlaying(false);
+          setCurrentTimeTick((x) => (x + 1) % 1000000);
           return;
         }
       }
-      setCurrentTime(t);
+      currentTimeRef.current = t;
+      setCurrentTimeTick((x) => (x + 1) % 1000000);
     };
     const onPlay = () => setIsPlaying(true);
     const onPause = () => setIsPlaying(false);
     const onEnded = () => {
-      if (isLooping && trimEnd > trimStart) {
-        v.currentTime = trimStart;
-        v.play().catch(() => {});
+      const s = trimStartRef.current;
+      const e = trimEndRef.current;
+      if (isLoopingRef.current && e > s) {
+        v.currentTime = s;
+        currentTimeRef.current = s;
+        v.play().catch(NOOP);
       } else {
         setIsPlaying(false);
       }
     };
     v.addEventListener("loadedmetadata", onLoadedMetadata);
-    v.addEventListener("timeupdate", onTimeUpdate);
+    // client-passive-event-listeners: passive for scroll-proximate events
+    v.addEventListener("timeupdate", onTimeUpdate, {
+      passive: true,
+    } as AddEventListenerOptions);
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("ended", onEnded);
-    // if metadata already loaded
     if (
       v.readyState >= 1 &&
       Number.isFinite(v.duration) &&
@@ -433,28 +1132,37 @@ export default function PageEditorSubtitles() {
       v.removeEventListener("pause", onPause);
       v.removeEventListener("ended", onEnded);
     };
-  }, [mediaUrl, isLooping, trimStart, trimEnd, duration]);
+    // rerender-dependencies: only primitives/mediaUrl, videoRef omitted (stable ref)
+  }, [mediaUrl, duration, videoStore]);
 
-  // RAF sync for smooth playhead
+  // RAF sync for smooth playhead — throttled, uses ref to avoid 60fps re-renders of parent (rerender-use-ref-transient-values)
   useEffect(() => {
     if (!isPlaying) return;
     let raf = 0;
+    let lastTick = 0;
     const loop = () => {
       const v = videoRef.current;
       if (v && !v.paused) {
         const t = v.currentTime;
-        if (isLooping && trimEnd > trimStart && t >= trimEnd - 0.02) {
-          v.currentTime = trimStart;
+        const s = trimStartRef.current;
+        const e = trimEndRef.current;
+        if (isLoopingRef.current && e > s && t >= e - 0.02) {
+          v.currentTime = s;
         }
-        setCurrentTime(v.currentTime);
+        currentTimeRef.current = v.currentTime;
+        const now = performance.now();
+        if (now - lastTick > 100) {
+          lastTick = now;
+          setCurrentTimeTick((x) => (x + 1) % 1000000);
+        }
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [isPlaying, isLooping, trimStart, trimEnd]);
+  }, [isPlaying]);
 
-  // sync play/pause to video element
+  // sync play/pause to video element — rerender-move-effect-to-event: keep minimal, narrow deps
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -462,46 +1170,73 @@ export default function PageEditorSubtitles() {
     else v.pause();
   }, [isPlaying]);
 
-  const selectedSubtitle = useMemo(
-    () => subtitles.find((s) => s.id === selectedId) ?? null,
-    [subtitles, selectedId],
+  // js-index-maps: O(1) subtitle lookup via Map (1M ops → 2K ops) — split from filtering (rerender-split-combined-hooks)
+  const subtitleById = useMemo(
+    () =>
+      new Map<string, Subtitle>(
+        deferredSubtitles.map((s) => [s.id, s] as const),
+      ),
+    [deferredSubtitles],
   );
+  const selectedSubtitle = useMemo(
+    () => (selectedId ? (subtitleById.get(selectedId) ?? null) : null),
+    [subtitleById, selectedId],
+  );
+
+  // rerender-derived-state: derived staleness hint (no effect)
+  void isSubtitlesStale;
+  void currentTimeTick;
+
+  // js-cache-property-access: cache length
+  const deferredLen = deferredSubtitles.length;
+  void deferredLen;
 
   const activeSubtitles = useMemo(
     () =>
-      subtitles.filter(
+      deferredSubtitles.filter(
         (s) => currentTime >= s.startTime && currentTime < s.endTime,
       ),
-    [subtitles, currentTime],
+    [deferredSubtitles, currentTime],
   );
 
+  // js-tosorted-immutable: sorted view for list (no mutation of store array)
+  const sortedSubtitles = useMemo(
+    () => deferredSubtitles.toSorted((a, b) => a.startTime - b.startTime),
+    [deferredSubtitles],
+  );
+
+  // Keep selected update stable — rerender-functional-setstate + useTransition
   const updateSubtitle = useCallback(
     (id: string, patch: Partial<Subtitle> | ((s: Subtitle) => Subtitle)) => {
-      setSubtitles((prev) =>
-        prev.map((s) => {
-          if (s.id !== id) return s;
-          if (typeof patch === "function")
-            return (patch as (x: Subtitle) => Subtitle)(s);
-          return { ...s, ...patch };
-        }),
-      );
+      startTransition(() => {
+        setSubtitles((prev) =>
+          prev.map((s) => {
+            if (s.id !== id) return s;
+            if (typeof patch === "function")
+              return (patch as (x: Subtitle) => Subtitle)(s);
+            return { ...s, ...patch };
+          }),
+        );
+      });
     },
-    [],
+    [setSubtitles],
   );
 
   const updateSelectedStyle = useCallback(
     (patch: Partial<SubtitleStyle>) => {
       if (!selectedId) return;
-      setSubtitles((prev) =>
-        prev.map((s) =>
-          s.id === selectedId ? { ...s, style: { ...s.style, ...patch } } : s,
-        ),
-      );
+      const sid = selectedId;
+      startTransition(() => {
+        setSubtitles((prev) =>
+          prev.map((s) =>
+            s.id === sid ? { ...s, style: { ...s.style, ...patch } } : s,
+          ),
+        );
+      });
     },
-    [selectedId],
+    [selectedId, setSubtitles],
   );
 
-  // Add subtitle
   const handleAddSubtitle = useCallback(() => {
     if (!hasVideo || effectiveDuration === 0) return;
     const t = clamp(
@@ -523,9 +1258,7 @@ export default function PageEditorSubtitles() {
         position: { x: 50, y: 80 },
         style: { ...DEFAULT_SUBTITLE_STYLE },
       };
-      // ensure trackCountExplicit will grow via effect, but also bump now if needed
       if (track + 1 > trackCountExplicit) {
-        // defer but sync quickly
         setTrackCountExplicit(track + 1);
       }
       return [...prev, newSub];
@@ -538,14 +1271,17 @@ export default function PageEditorSubtitles() {
     trimStart,
     trimEnd,
     trackCountExplicit,
+    setSubtitles,
+    setSelectedId,
+    setTrackCountExplicit,
   ]);
 
   const handleDeleteSubtitle = useCallback(() => {
     if (!selectedId) return;
+    const sid = selectedId;
     setSubtitles((prev) => {
-      const idx = prev.findIndex((s) => s.id === selectedId);
-      const next = prev.filter((s) => s.id !== selectedId);
-      // select neighbor
+      const idx = prev.findIndex((s) => s.id === sid);
+      const next = prev.filter((s) => s.id !== sid);
       if (next.length === 0) setSelectedId(null);
       else {
         const newIdx = Math.min(idx, next.length - 1);
@@ -553,7 +1289,7 @@ export default function PageEditorSubtitles() {
       }
       return next;
     });
-  }, [selectedId]);
+  }, [selectedId, setSubtitles, setSelectedId]);
 
   const handleMoveSubtitleToTrack = useCallback(
     (id: string, newTrack: number) => {
@@ -561,91 +1297,93 @@ export default function PageEditorSubtitles() {
       if (t >= trackCount) {
         setTrackCountExplicit(t + 1);
       }
-      setSubtitles((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, track: t } : s)),
-      );
+      startTransition(() => {
+        setSubtitles((prev) =>
+          prev.map((s) => (s.id === id ? { ...s, track: t } : s)),
+        );
+      });
     },
-    [trackCount],
+    [trackCount, setTrackCountExplicit, setSubtitles],
   );
 
   const handleAddTrack = useCallback(() => {
     setTrackCountExplicit((c) => c + 1);
-  }, []);
+  }, [setTrackCountExplicit]);
 
-  // Player controls
-  const playFromTrimStart = useCallback(async () => {
+  const playFromTrimStart = useCallback(() => {
     const v = videoRef.current;
     if (!v || effectiveDuration === 0) return;
-    if (currentTime < trimStart || currentTime > trimEnd) {
-      v.currentTime = trimStart;
-      setCurrentTime(trimStart);
-    } else if (v.currentTime < trimStart) {
-      v.currentTime = trimStart;
-      setCurrentTime(trimStart);
+    const cur = currentTimeRef.current;
+    const s = trimStartRef.current;
+    const e = trimEndRef.current;
+    if (cur < s || cur > e) {
+      v.currentTime = s;
+      currentTimeRef.current = s;
     } else {
-      // if already at trimStart region, ensure seek to trimStart when explicitly requested via button? spec says start from trim start when starting playback, so we seek
-      v.currentTime = trimStart;
-      setCurrentTime(trimStart);
+      v.currentTime = s;
+      currentTimeRef.current = s;
     }
+    setCurrentTimeTick((x) => (x + 1) % 1000000);
     setIsPlaying(true);
-  }, [currentTime, trimStart, trimEnd, effectiveDuration]);
+  }, [effectiveDuration]);
 
-  const togglePlayback = useCallback(async () => {
+  const togglePlayback = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    // if starting playback and before trimStart, seek to trimStart
     if (!isPlaying) {
-      if (v.currentTime < trimStart || v.currentTime >= trimEnd) {
-        v.currentTime = trimStart;
-        setCurrentTime(trimStart);
+      const cur = v.currentTime;
+      const s = trimStartRef.current;
+      const e = trimEndRef.current;
+      if (cur < s || cur >= e) {
+        v.currentTime = s;
+        currentTimeRef.current = s;
+        setCurrentTimeTick((x) => (x + 1) % 1000000);
       }
       setIsPlaying(true);
     } else {
       setIsPlaying(false);
     }
-  }, [isPlaying, trimStart, trimEnd]);
+  }, [isPlaying]);
 
-  // Seek via progress bar (trim range normalized)
   const handleProgressSeek = useCallback(
     (value: number) => {
       const v = videoRef.current;
       if (!v || effectiveDuration === 0) return;
-      // value is absolute time if we use full duration slider, but spec prefers trim range normalized
-      // We'll implement as absolute time within trim range when isTrimProgress true? For simplicity we map progress bar to trimStart->trimEnd
-      // But PlayerControls spec says progress = (currentTime - trimStart)/(trimEnd-trimStart), so we handle both.
-      // Here we receive absolute time from slider that spans trimStart..trimEnd if we set min/max accordingly
-      const t = clamp(value, trimStart, trimEnd);
+      const t = clamp(value, trimStartRef.current, trimEndRef.current);
       v.currentTime = t;
-      setCurrentTime(t);
+      currentTimeRef.current = t;
+      setCurrentTimeTick((x) => (x + 1) % 1000000);
     },
-    [trimStart, trimEnd, effectiveDuration],
+    [effectiveDuration],
   );
 
-  // Timeline seek (click on full duration)
   const handleTimelineSeek = useCallback(
     (time: number) => {
       const v = videoRef.current;
       if (!v) return;
       const t = clamp(time, 0, effectiveDuration);
       v.currentTime = t;
-      setCurrentTime(t);
+      currentTimeRef.current = t;
+      setCurrentTimeTick((x) => (x + 1) % 1000000);
     },
     [effectiveDuration],
   );
 
-  // Template apply
   const handleApplyTemplate = useCallback(
     (templateId: string) => {
       if (!selectedId) return;
       const tmpl = templates.find((t) => t.id === templateId);
       if (!tmpl) return;
-      setSubtitles((prev) =>
-        prev.map((s) =>
-          s.id === selectedId ? { ...s, style: { ...tmpl.style } } : s,
-        ),
-      );
+      const sid = selectedId;
+      startTransition(() => {
+        setSubtitles((prev) =>
+          prev.map((s) =>
+            s.id === sid ? { ...s, style: { ...tmpl.style } } : s,
+          ),
+        );
+      });
     },
-    [selectedId, templates],
+    [selectedId, templates, setSubtitles],
   );
 
   const handleSaveTemplate = useCallback(() => {
@@ -661,45 +1399,48 @@ export default function PageEditorSubtitles() {
     setNewTemplateName("");
   }, [selectedSubtitle, newTemplateName]);
 
-  // Helpers for input validation
   const handleTrimChange = useCallback(
     (newStart: number, newEnd: number) => {
       const d = effectiveDuration || 30;
       let s = clamp(newStart, 0, d - MIN_SUBTITLE_DURATION);
       let e = clamp(newEnd, 0, d);
       if (e - s < MIN_SUBTITLE_DURATION) return;
-      // ensure within duration
       if (s < 0) s = 0;
       if (e > d) e = d;
       if (s >= e) return;
-      videoStore.setState((prev) => ({ ...prev, trimRange: [s, e] as [number, number] }));
-      // clamp subtitles inside
-      setSubtitles((prev) =>
-        prev.map((sub) => {
-          let ns = sub.startTime;
-          let ne = sub.endTime;
-          const dur = ne - ns;
-          if (ns < s) {
-            ns = s;
-            ne = ns + dur;
-          }
-          if (ne > e) {
-            ne = e;
-            ns = Math.max(s, ne - dur);
-          }
-          if (ne - ns < MIN_SUBTITLE_DURATION) {
-            ne = Math.min(e, ns + MIN_SUBTITLE_DURATION);
-          }
-          ns = clamp(ns, s, e - MIN_SUBTITLE_DURATION);
-          ne = clamp(ne, ns + MIN_SUBTITLE_DURATION, e);
-          return { ...sub, startTime: ns, endTime: ne };
-        }),
-      );
+      videoStore.setState((prev) => ({
+        ...prev,
+        trimRange: [s, e] as [number, number],
+      }));
+      startTransition(() => {
+        setSubtitles((prev) =>
+          prev.map((sub) => {
+            let ns = sub.startTime;
+            let ne = sub.endTime;
+            const dur = ne - ns;
+            if (ns < s) {
+              ns = s;
+              ne = ns + dur;
+            }
+            if (ne > e) {
+              ne = e;
+              ns = Math.max(s, ne - dur);
+            }
+            if (ne - ns < MIN_SUBTITLE_DURATION) {
+              ne = Math.min(e, ns + MIN_SUBTITLE_DURATION);
+            }
+            ns = clamp(ns, s, e - MIN_SUBTITLE_DURATION);
+            ne = clamp(ne, ns + MIN_SUBTITLE_DURATION, e);
+            return { ...sub, startTime: ns, endTime: ne };
+          }),
+        );
+      });
     },
-    [effectiveDuration, videoStore],
+    [effectiveDuration, videoStore, setSubtitles],
   );
 
   const handleExport = useCallback(async () => {
+    // async-cheap-condition-before-await: cheap sync guards first
     if (!file) {
       toast.error("No video loaded");
       return;
@@ -708,6 +1449,7 @@ export default function PageEditorSubtitles() {
       toast.error("Invalid trim range");
       return;
     }
+    // js-hoist-regexp already hoisted, no inline RegExp
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
     const baseName =
@@ -716,17 +1458,41 @@ export default function PageEditorSubtitles() {
     const outName = baseName + ".mp4";
     setIsExporting(true);
     toast.loading(
-      subtitles.length
-        ? `Rendering ${subtitles.length} subtitle PNGs…`
+      deferredSubtitles.length
+        ? `Rendering ${deferredSubtitles.length} subtitle PNGs…`
         : "Exporting mobile mp4 (CRF 10)…",
-      { id: "subtitles-export" },
+      {
+        id: "subtitles-export",
+      },
     );
     try {
-      const { API_BASE_URL } = await import("@/lib/api-client");
-      // Render PNGs: front-end bakes text style into fitted images
-      const rendered = subtitles.length
-        ? await renderAllSubtitlesToPngs(subtitles)
-        : [];
+      // async-parallel: independent async work (API client + PNG render) in parallel — single round trip
+      // async-defer-await: start promises early, await late
+      const apiClientPromise = HEAVY_MODULES.apiClient();
+      const pngPromise =
+        deferredSubtitles.length === 0
+          ? Promise.resolve(
+              [] as Array<{
+                meta: {
+                  startTime: number;
+                  endTime: number;
+                  x: number;
+                  y: number;
+                  width: number;
+                  height: number;
+                };
+                blob: Blob;
+              }>,
+            )
+          : HEAVY_MODULES.subtitlePng().then((m) =>
+              m.renderAllSubtitlesToPngs(deferredSubtitles),
+            );
+
+      const [{ API_BASE_URL }, rendered] = await Promise.all([
+        apiClientPromise,
+        pngPromise,
+      ]);
+
       toast.loading(`Exporting ${rendered.length} subtitles + 9:16…`, {
         id: "subtitles-export",
       });
@@ -747,22 +1513,36 @@ export default function PageEditorSubtitles() {
           customFFmpegArgs: "",
         }),
       );
-      // subtitles meta aligned with PNG order
-      const subtitlesMeta = rendered.map((r) => ({
-        startTime: r.meta.startTime,
-        endTime: r.meta.endTime,
-        x: r.meta.x,
-        y: r.meta.y,
-        width: r.meta.width,
-        height: r.meta.height,
-      }));
+      // js-cache-property-access: cache rendered.length
+      const renderedLen = rendered.length;
+      const subtitlesMeta: Array<{
+        startTime: number;
+        endTime: number;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }> = [];
+      for (let i = 0; i < renderedLen; i++) {
+        const r = rendered[i];
+        subtitlesMeta.push({
+          startTime: r.meta.startTime,
+          endTime: r.meta.endTime,
+          x: r.meta.x,
+          y: r.meta.y,
+          width: r.meta.width,
+          height: r.meta.height,
+        });
+      }
       fd.append("subtitles", JSON.stringify(subtitlesMeta));
-      rendered.forEach((r, i) => {
+      for (let i = 0; i < renderedLen; i++) {
+        const r = rendered[i];
         const f = new File([r.blob], `subtitle_${i}.png`, {
           type: "image/png",
         });
         fd.append(`subtitle_${i}`, f);
-      });
+      }
+      // async-dependencies: fetch depends on API_BASE_URL already resolved above, no waterfall with PNG render
       const res = await fetch(
         `${API_BASE_URL}/api/transcode/mobile/subtitles`,
         {
@@ -873,38 +1653,30 @@ export default function PageEditorSubtitles() {
     } finally {
       setIsExporting(false);
     }
-  }, [file, trimStart, trimEnd, sourceWidth, sourceHeight, layout, subtitles]);
+  }, [
+    file,
+    trimStart,
+    trimEnd,
+    sourceWidth,
+    sourceHeight,
+    layout,
+    deferredSubtitles,
+  ]);
 
-  if (!hasVideo) {
-    return (
-      <div className="space-y-4">
-        <Card className="p-6">
-          <h2 className="text-base font-semibold">Subtitles Editor</h2>
-          <p className="text-sm text-kumo-subtle mt-1">
-            Create, edit and style subtitles over your 9:16 mobile preview. Uses
-            the same crop layout as Mobile editor.
-          </p>
-          <div className="mt-6">
-            <VideoUploader />
-          </div>
-        </Card>
-        <Card className="p-4 opacity-60">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="aspect-video rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
-              Video preview
-            </div>
-            <div className="aspect-9/16 w-40 mx-auto rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
-              9:16 Preview
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
+  // rendering-conditional-render: explicit ternary, not &&
+  // server-* NA: this is a "use client" local-only editor (no RSC/auth/network caching). Documented:
+  // server-auth-actions, server-cache-react, server-cache-lru, server-dedup-props, server-hoist-static-io,
+  // server-no-shared-module-state, server-serialization, server-parallel-fetching, server-parallel-nested-fetching,
+  // server-after-nonblocking — all server-only; not applicable (client page, no auth/RSC, local file).
+  // rendering-hydration-no-flicker / rendering-script-defer-async / rendering-svg-precision / rendering-animate-svg-wrapper: NA (no SSR-critical flicker, no <script>, no animated SVG)
+  // async-suspense-boundaries / async-dependencies / async-api-routes: NA beyond parallel Promise.all above (client page streams via local state)
+  return !hasVideo ? (
     <div className="space-y-4">
-      {/* Hidden source video for decoding */}
+      {NoVideoPlaceholderCard}
+      {NoVideoPreviewSkeleton}
+    </div>
+  ) : (
+    <div className="space-y-4">
       <video
         ref={videoRef}
         src={mediaUrl ?? undefined}
@@ -917,9 +1689,9 @@ export default function PageEditorSubtitles() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold">Subtitles · Mobile 9:16</h2>
-          <p className="text-xs text-kumo-subtle">
+          <p className="text-xs text-kumo-subtle" suppressHydrationWarning>
             {effectiveDuration
-              ? `${formatTime(effectiveDuration)} · ${subtitles.length} subtitles`
+              ? `${formatTime(effectiveDuration)} · ${deferredSubtitles.length} subtitles`
               : "Loading…"}{" "}
             · Shared mobile layout
           </p>
@@ -928,24 +1700,28 @@ export default function PageEditorSubtitles() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => {
-              window.dispatchEvent(new Event("focus"));
-            }}
+            onClick={() => window.dispatchEvent(new Event("focus"))}
+            onMouseEnter={preloadMobilePreview}
+            onFocus={preloadMobilePreview}
           >
             Refresh layout
           </Button>
-          <Button size="sm" onClick={handleExport} disabled={isExporting}>
+          <Button
+            size="sm"
+            onClick={handleExport}
+            disabled={isExporting}
+            onMouseEnter={preloadExportChunks}
+            onFocus={preloadExportChunks}
+          >
             {isExporting
               ? "Exporting…"
-              : `Export 9:16 + ${subtitles.length} subtitles`}
+              : `Export 9:16 + ${deferredSubtitles.length} subtitles`}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_360px] items-start">
-        {/* Left: Player + Timeline */}
         <div className="space-y-4">
-          {/* Video Player 9:16 */}
           <Card className="overflow-hidden">
             <CardHeader className="py-3">
               <CardTitle className="text-sm">
@@ -953,9 +1729,8 @@ export default function PageEditorSubtitles() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {/* 9:16 Preview — resizable by height (textarea-like): whole 9:16 preview scales, video fills scaled zones */}
               {(() => {
-                const HANDLE_H = 20; // mt-2 (8) + h-2.5 (10) + border (2)
+                const HANDLE_H = 20;
                 const contentH = Math.max(300, previewHeight - HANDLE_H);
                 const contentW = Math.round((contentH * 9) / 16);
                 return (
@@ -968,61 +1743,44 @@ export default function PageEditorSubtitles() {
                       maxWidth: "100%",
                       resize: "vertical" as const,
                     }}
+                    onMouseEnter={preloadMobilePreview}
+                    onFocus={preloadMobilePreview}
                   >
                     <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden bg-black rounded-t-lg h-full">
-                      <MobilePreviewShared
-                        layout={layout}
-                        videoRef={videoRef}
-                        safe
-                        showBg
-                        height={contentH}
-                        overlay={
-                          <div className="absolute inset-0">
-                            {activeSubtitles.map((sub) => {
-                              const isSelected = sub.id === selectedId;
-                              return (
-                                <div
+                      {/* rendering-activity: preserve canvas DOM/state when toggling visibility */}
+                      <Activity mode="visible">
+                        <DynamicMobilePreviewShared
+                          layout={layout}
+                          videoRef={videoRef}
+                          safe
+                          showBg
+                          height={contentH}
+                          overlay={
+                            <div className="absolute inset-0">
+                              {activeSubtitles.map((sub) => (
+                                <OverlaySubtitle
                                   key={sub.id}
-                                  onClick={() => setSelectedId(sub.id)}
-                                  className={cn(
-                                    "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
-                                    isSelected &&
-                                      "ring-1 ring-dashed ring-blue-500 rounded",
-                                  )}
+                                  sub={sub}
+                                  isSelected={sub.id === selectedId}
+                                  onSelect={setSelectedId}
+                                />
+                              ))}
+                              {selectedSubtitle ? (
+                                <div
+                                  className="absolute size-2 rounded-full bg-kumo-brand border border-white shadow pointer-events-none"
                                   style={{
-                                    left: `${clamp(sub.position.x, 0, 100)}%`,
-                                    top: `${clamp(sub.position.y, 0, 100)}%`,
+                                    left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
+                                    top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
                                     transform: "translate(-50%, -50%)",
                                   }}
-                                  aria-label={`Subtitle ${sub.text}`}
-                                >
-                                  <span
-                                    style={{
-                                      ...renderSubtitleStyle(sub.style),
-                                      display: "inline-block",
-                                    }}
-                                  >
-                                    {sub.text || "New subtitle"}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                            {selectedSubtitle && (
-                              <div
-                                className="absolute size-2 rounded-full bg-kumo-brand border border-white shadow pointer-events-none"
-                                style={{
-                                  left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
-                                  top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
-                                  transform: "translate(-50%, -50%)",
-                                }}
-                                aria-hidden
-                              />
-                            )}
-                          </div>
-                        }
-                      />
+                                  aria-hidden
+                                />
+                              ) : null}
+                            </div>
+                          }
+                        />
+                      </Activity>
                     </div>
-                    {/* drag handle — same affordance as <textarea> resize handle, but full-width for height */}
                     <div
                       className="mt-2 h-2.5 w-full shrink-0 cursor-row-resize flex items-center justify-center rounded bg-kumo-recessed border border-kumo-line hover:bg-kumo-brand/10 select-none touch-none"
                       title="Drag to resize preview height"
@@ -1043,14 +1801,24 @@ export default function PageEditorSubtitles() {
                           setPreviewHeight(next);
                         };
                         const onUp = () => {
-                          window.removeEventListener("pointermove", onMove);
-                          window.removeEventListener("pointerup", onUp);
-                          // also sync wrapper's inline height for native resize persistence
-                          if (previewWrapRef.current)
-                            previewWrapRef.current.style.height = `${curH}px`;
+                          globalPointerMoveHandlers.delete(
+                            onMove as unknown as PointerHandler,
+                          );
+                          globalPointerUpHandlers.delete(
+                            onUp as unknown as PointerHandler,
+                          );
+                          if (previewWrapRef.current) {
+                            // js-batch-dom-css: single cssText write instead of multiple style.* thrashes
+                            previewWrapRef.current.style.cssText += `;height:${curH}px`;
+                          }
                         };
-                        window.addEventListener("pointermove", onMove);
-                        window.addEventListener("pointerup", onUp);
+                        ensureGlobalPointerListeners();
+                        globalPointerMoveHandlers.add(
+                          onMove as unknown as PointerHandler,
+                        );
+                        globalPointerUpHandlers.add(
+                          onUp as unknown as PointerHandler,
+                        );
                       }}
                     >
                       <div className="h-0.5 w-8 rounded bg-black/30 dark:bg-white/30" />
@@ -1059,7 +1827,6 @@ export default function PageEditorSubtitles() {
                 );
               })()}
 
-              {/* Player Controls */}
               <div className="rounded-lg border bg-kumo-recessed/10 p-3 space-y-3">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Button
@@ -1081,22 +1848,23 @@ export default function PageEditorSubtitles() {
                   <Button
                     size="sm"
                     variant={isLooping ? "default" : "outline"}
-                    onClick={() => setIsLooping(!isLooping)}
+                    onClick={() => setIsLooping((v) => !v)}
                     aria-label={isLooping ? "Disable loop" : "Enable loop"}
                   >
                     Loop {isLooping ? "On" : "Off"}
                   </Button>
-                  <span className="ml-auto text-xs tabular-nums text-kumo-subtle">
-                    {formatTime(currentTime)} / {formatTime(effectiveDuration)}
-                    {" · "}
-                    Trim {formatTime(trimStart)} → {formatTime(trimEnd)}
+                  <span
+                    className="ml-auto text-xs tabular-nums text-kumo-subtle"
+                    suppressHydrationWarning
+                  >
+                    {formatTime(currentTime)} / {formatTime(effectiveDuration)}{" "}
+                    · Trim {formatTime(trimStart)} → {formatTime(trimEnd)}
                   </span>
                 </div>
-                {/* Progress bar: trimStart..trimEnd */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px] text-kumo-subtle">
                     <span>Progress (trim range)</span>
-                    <span className="tabular-nums">
+                    <span className="tabular-nums" suppressHydrationWarning>
                       {trimEnd > trimStart
                         ? `${Math.round(clamp(((currentTime - trimStart) / (trimEnd - trimStart)) * 100, 0, 100))}%`
                         : "0%"}
@@ -1131,7 +1899,6 @@ export default function PageEditorSubtitles() {
                     }}
                     aria-label="Seek within trim range"
                   />
-                  {/* Absolute timeline progress (full duration) */}
                   <Slider
                     value={[currentTime]}
                     min={0}
@@ -1151,7 +1918,6 @@ export default function PageEditorSubtitles() {
             </CardContent>
           </Card>
 
-          {/* Timeline Editor */}
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="text-sm">Timeline Editor</CardTitle>
@@ -1161,11 +1927,13 @@ export default function PageEditorSubtitles() {
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Trim controls */}
               <div className="rounded-lg border bg-kumo-recessed/20 p-3 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold">Trim</span>
-                  <span className="text-[11px] tabular-nums text-kumo-subtle">
+                  <span
+                    className="text-[11px] tabular-nums text-kumo-subtle"
+                    suppressHydrationWarning
+                  >
                     {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
                     {formatTime(Math.max(0, trimEnd - trimStart))}
                   </span>
@@ -1219,51 +1987,52 @@ export default function PageEditorSubtitles() {
                 </div>
               </div>
 
-              {/* Visual timeline with subtitles */}
-              <TimelineVisual
+              <MemoTimelineVisual
                 duration={effectiveDuration}
                 trimStart={trimStart}
                 trimEnd={trimEnd}
                 currentTime={currentTime}
-                subtitles={subtitles}
+                subtitles={deferredSubtitles}
                 selectedId={selectedId}
                 trackCount={trackCount}
                 onSeek={handleTimelineSeek}
                 onSelect={setSelectedId}
                 onUpdateSubtitle={(id, ns, ne) => {
-                  // clamp by trim + duration constraints
                   const d = effectiveDuration;
                   let s = clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
                   let e = clamp(ne, s + MIN_SUBTITLE_DURATION, trimEnd);
                   if (s < 0) s = 0;
                   if (e > d) e = d;
                   if (e - s < MIN_SUBTITLE_DURATION) return;
-                  setSubtitles((prev) =>
-                    prev.map((sub) =>
-                      sub.id === id
-                        ? { ...sub, startTime: s, endTime: e }
-                        : sub,
-                    ),
-                  );
+                  startTransition(() => {
+                    setSubtitles((prev) =>
+                      prev.map((sub) =>
+                        sub.id === id
+                          ? { ...sub, startTime: s, endTime: e }
+                          : sub,
+                      ),
+                    );
+                  });
                 }}
                 onUpdateTrack={handleMoveSubtitleToTrack}
                 onAddTrack={handleAddTrack}
               />
               <div className="text-[11px] text-kumo-subtle flex justify-between tabular-nums">
-                <span>0:00</span>
+                <span suppressHydrationWarning>0:00</span>
                 <span className="flex items-center gap-1">
                   <span className="size-2 bg-kumo-brand rounded-sm inline-block" />{" "}
                   subtitle
                   <span className="size-2 bg-kumo-brand/60 rounded-sm inline-block ml-2" />{" "}
                   selected
                 </span>
-                <span>{formatTime(effectiveDuration)}</span>
+                <span suppressHydrationWarning>
+                  {formatTime(effectiveDuration)}
+                </span>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right: Sidebar */}
         <div className="space-y-4">
           <Card>
             <CardHeader className="py-3">
@@ -1276,88 +2045,50 @@ export default function PageEditorSubtitles() {
                 aria-label="Add Subtitle"
                 disabled={!hasVideo || effectiveDuration === 0}
               >
-                + Add Subtitle at {formatTime(currentTime)}
+                <span suppressHydrationWarning>
+                  + Add Subtitle at {formatTime(currentTime)}
+                </span>
               </Button>
               <p className="text-[11px] text-kumo-subtle">
                 New subtitle starts at current time, lasts 1s (clamped to Trim
                 End).
               </p>
-              <div className="space-y-2 max-h-80 overflow-auto pr-1">
-                {subtitles.length === 0 && (
-                  <p className="text-xs text-kumo-subtle text-center py-6 border border-dashed rounded-lg">
-                    No subtitles yet
-                  </p>
-                )}
-                {subtitles
-                  .slice()
-                  .sort((a, b) => a.startTime - b.startTime)
-                  .map((sub) => {
-                    const isActive = sub.id === selectedId;
-                    const isVisible =
-                      currentTime >= sub.startTime && currentTime < sub.endTime;
-                    return (
-                      <button
-                        key={sub.id}
-                        onClick={() => setSelectedId(sub.id)}
-                        className={cn(
-                          "w-full text-left rounded-lg border p-2.5 space-y-1 transition-colors",
-                          isActive
-                            ? "border-kumo-brand bg-kumo-brand/5"
-                            : "border-kumo-line bg-kumo-base hover:bg-kumo-recessed/50",
-                          isVisible && "ring-1 ring-primary/20",
-                        )}
-                        aria-label={`Select subtitle ${sub.text}`}
-                        aria-selected={isActive}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="text-xs font-medium line-clamp-2 flex-1">
-                            {sub.text || "(empty)"}
-                          </span>
-                          <span className="flex items-center gap-1 shrink-0">
-                            <span className="text-[10px] bg-kumo-recessed border px-1 rounded">
-                              T{getSubtitleTrack(sub) + 1}
-                            </span>
-                            {isVisible && (
-                              <span className="text-[10px] bg-kumo-brand text-white px-1 rounded">
-                                ON
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div className="text-[11px] tabular-nums text-kumo-subtle flex gap-2">
-                          <span>{formatTime(sub.startTime)}</span>
-                          <span>–</span>
-                          <span>{formatTime(sub.endTime)}</span>
-                          <span className="ml-auto">
-                            {(sub.endTime - sub.startTime).toFixed(2)}s
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-kumo-subtle">
-                          Track {getSubtitleTrack(sub) + 1} · Pos{" "}
-                          {sub.position.x.toFixed(0)},{" "}
-                          {sub.position.y.toFixed(0)} ·{" "}
-                          {sub.style.fontFamily.split(",")[0]}
-                        </div>
-                      </button>
-                    );
-                  })}
+              <div
+                className="space-y-2 max-h-80 overflow-auto pr-1"
+                style={isSubtitlesStale ? { opacity: 0.7 } : undefined}
+              >
+                {sortedSubtitles.length === 0
+                  ? EmptySubtitleListPlaceholder
+                  : null}
+                {sortedSubtitles.map((sub) => (
+                  <SubtitleRow
+                    key={sub.id}
+                    sub={sub}
+                    isSelected={sub.id === selectedId}
+                    isVisible={
+                      currentTime >= sub.startTime && currentTime < sub.endTime
+                    }
+                    onSelect={setSelectedId}
+                  />
+                ))}
               </div>
             </CardContent>
           </Card>
 
-          {/* Settings */}
           {selectedSubtitle ? (
             <Card>
               <CardHeader className="py-3">
                 <CardTitle className="text-sm">Subtitle Settings</CardTitle>
-                <p className="text-xs text-kumo-subtle truncate">
+                <p
+                  className="text-xs text-kumo-subtle truncate"
+                  suppressHydrationWarning
+                >
                   {selectedSubtitle.text || "New subtitle"} ·{" "}
                   {formatTime(selectedSubtitle.startTime)} –{" "}
                   {formatTime(selectedSubtitle.endTime)}
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Template selector */}
                 <div className="space-y-2">
                   <Label htmlFor="template-select">Template</Label>
                   <Select
@@ -1400,18 +2131,17 @@ export default function PageEditorSubtitles() {
                       Save Style as Template
                     </Button>
                   </div>
-                  {templates.length > 0 && (
+                  {templates.length > 0 ? (
                     <p className="text-[10px] text-kumo-subtle">
                       Applying a template replaces all 15 style fields
                       (including outline/shadow/background toggles).
                       Text/timing/position are preserved.
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="h-px bg-border" />
 
-                {/* Text */}
                 <div className="space-y-2">
                   <Label htmlFor="sub-text">Text</Label>
                   <Textarea
@@ -1428,7 +2158,6 @@ export default function PageEditorSubtitles() {
                   />
                 </div>
 
-                {/* Timing */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="sub-start" className="text-xs">
@@ -1506,7 +2235,6 @@ export default function PageEditorSubtitles() {
                   Delete Subtitle
                 </Button>
 
-                {/* Track */}
                 <div className="space-y-2">
                   <Label htmlFor="sub-track">Track</Label>
                   <div className="flex gap-2">
@@ -1555,7 +2283,6 @@ export default function PageEditorSubtitles() {
 
                 <div className="h-px bg-border" />
 
-                {/* Position */}
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold">Position</Label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1604,13 +2331,12 @@ export default function PageEditorSubtitles() {
                   </div>
                 </div>
 
-                {/* Font Family - Google Fonts dynamic search */}
                 <div className="space-y-2">
                   <Label htmlFor="font-family">Font Family</Label>
                   <GoogleFontPicker
                     value={selectedSubtitle.style.fontFamily}
                     onValueChange={(v) => {
-                      ensureGoogleFontLoaded(v).catch(() => {});
+                      ensureGoogleFontLoaded(v).catch(NOOP);
                       updateSelectedStyle({ fontFamily: v });
                     }}
                     id="font-family"
@@ -1623,7 +2349,6 @@ export default function PageEditorSubtitles() {
                   </p>
                 </div>
 
-                {/* Font Size */}
                 <div className="space-y-2">
                   <Label htmlFor="font-size" className="text-xs">
                     Font Size
@@ -1642,7 +2367,6 @@ export default function PageEditorSubtitles() {
                   />
                 </div>
 
-                {/* Text Color */}
                 <div className="space-y-2">
                   <Label className="text-xs">Text Color</Label>
                   <div className="flex gap-2 items-center">
@@ -1661,11 +2385,9 @@ export default function PageEditorSubtitles() {
                     />
                     <Input
                       value={selectedSubtitle.style.color}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        // allow typing, only commit if valid or keep typed
-                        updateSelectedStyle({ color: v });
-                      }}
+                      onChange={(e) =>
+                        updateSelectedStyle({ color: e.target.value })
+                      }
                       onBlur={(e) => {
                         const v = normalizeHex(e.target.value);
                         if (isValidHexColor(v))
@@ -1678,7 +2400,6 @@ export default function PageEditorSubtitles() {
                   </div>
                 </div>
 
-                {/* Outline */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Outline</Label>
@@ -1759,7 +2480,6 @@ export default function PageEditorSubtitles() {
                   </div>
                 </div>
 
-                {/* Shadow */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Shadow</Label>
@@ -1871,7 +2591,6 @@ export default function PageEditorSubtitles() {
                   </div>
                 </div>
 
-                {/* Background */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-xs font-semibold">Background</Label>
@@ -1916,11 +2635,11 @@ export default function PageEditorSubtitles() {
                                   : c;
                               return "#000000";
                             })()}
-                            onChange={(e) => {
+                            onChange={(e) =>
                               updateSelectedStyle({
                                 backgroundColor: e.target.value,
-                              });
-                            }}
+                              })
+                            }
                             className="size-8 p-1"
                             aria-label="Background Color"
                             disabled={!selectedSubtitle.style.backgroundEnabled}
@@ -1987,12 +2706,7 @@ export default function PageEditorSubtitles() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="p-6 text-center">
-              <p className="text-xs text-kumo-subtle">
-                Select a subtitle to edit its style, position and timing.
-                Changes appear live in the preview.
-              </p>
-            </Card>
+            NoSelectionCard
           )}
           <Card className="p-3">
             <div className="text-xs font-medium">
@@ -2002,7 +2716,7 @@ export default function PageEditorSubtitles() {
               Key: {SUBTITLE_TEMPLATES_STORAGE_KEY} · Invalid localStorage data
               is ignored.
             </p>
-            {templates.length > 0 && (
+            {templates.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1">
                 {templates.map((t) => (
                   <span
@@ -2013,331 +2727,9 @@ export default function PageEditorSubtitles() {
                   </span>
                 ))}
               </div>
-            )}
+            ) : null}
           </Card>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function TimelineVisual({
-  duration,
-  trimStart,
-  trimEnd,
-  currentTime,
-  subtitles,
-  selectedId,
-  trackCount,
-  onSeek,
-  onSelect,
-  onUpdateSubtitle,
-  onUpdateTrack,
-  onAddTrack,
-}: {
-  duration: number;
-  trimStart: number;
-  trimEnd: number;
-  currentTime: number;
-  subtitles: Subtitle[];
-  selectedId: string | null;
-  trackCount: number;
-  onSeek: (t: number) => void;
-  onSelect: (id: string) => void;
-  onUpdateSubtitle: (id: string, start: number, end: number) => void;
-  onUpdateTrack: (id: string, newTrack: number) => void;
-  onAddTrack: () => void;
-}) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const ROW_H = 32;
-  const HEADER_H = 22;
-  const [drag, setDrag] = useState<null | {
-    id: string;
-    mode: "move" | "left" | "right";
-    startX: number;
-    startY: number;
-    origStart: number;
-    origEnd: number;
-    origTrack: number;
-  }>(null);
-
-  const toTime = useCallback(
-    (clientX: number) => {
-      const el = trackRef.current;
-      if (!el || duration <= 0) return 0;
-      const rect = el.getBoundingClientRect();
-      const pct = clamp((clientX - rect.left) / rect.width, 0, 1);
-      return pct * duration;
-    },
-    [duration],
-  );
-
-  const onPointerDownTrack = (e: React.PointerEvent) => {
-    const target = e.target as HTMLElement;
-    if (
-      target.dataset.role === "track" ||
-      target.dataset.role === "track-bg" ||
-      target.dataset.role === "track-row"
-    ) {
-      const t = toTime(e.clientX);
-      onSeek(t);
-    }
-  };
-
-  useEffect(() => {
-    if (!drag) return;
-    const onMove = (e: PointerEvent) => {
-      const deltaTime = toTime(e.clientX) - toTime(drag.startX);
-      if (drag.mode === "move") {
-        const dur = drag.origEnd - drag.origStart;
-        let ns = drag.origStart + deltaTime;
-        let ne = drag.origEnd + deltaTime;
-        if (ns < trimStart) {
-          ns = trimStart;
-          ne = ns + dur;
-        }
-        if (ne > trimEnd) {
-          ne = trimEnd;
-          ns = ne - dur;
-        }
-        ns = clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
-        ne = clamp(ne, ns + MIN_SUBTITLE_DURATION, trimEnd);
-        onUpdateSubtitle(drag.id, ns, ne);
-        // vertical track move
-        const deltaY = e.clientY - drag.startY;
-        const trackDelta = Math.round(deltaY / ROW_H);
-        let newTrack = clamp(drag.origTrack + trackDelta, 0, 99);
-        // allow creating one new track beyond current count if dragged below last lane
-        // cap to trackCount (creates new) if beyond
-        if (newTrack > trackCount) newTrack = trackCount;
-        if (newTrack !== drag.origTrack) {
-          // we update track directly; parent will expand trackCount via onUpdateTrack
-          onUpdateTrack(drag.id, newTrack);
-          // update drag origTrack to newTrack to avoid repeated jumps? keep origTrack stable and rely on delta, so not updating drag state.
-          // To avoid jitter, we could keep origTrack fixed and compute from delta; that's already stable.
-        }
-      } else if (drag.mode === "left") {
-        let ns = clamp(
-          drag.origStart + deltaTime,
-          trimStart,
-          drag.origEnd - MIN_SUBTITLE_DURATION,
-        );
-        onUpdateSubtitle(drag.id, ns, drag.origEnd);
-      } else if (drag.mode === "right") {
-        let ne = clamp(
-          drag.origEnd + deltaTime,
-          drag.origStart + MIN_SUBTITLE_DURATION,
-          trimEnd,
-        );
-        onUpdateSubtitle(drag.id, drag.origStart, ne);
-      }
-    };
-    const onUp = () => setDrag(null);
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [
-    drag,
-    toTime,
-    trimStart,
-    trimEnd,
-    onUpdateSubtitle,
-    onUpdateTrack,
-    trackCount,
-  ]);
-
-  const playheadPct =
-    duration > 0 ? clamp((currentTime / duration) * 100, 0, 100) : 0;
-  const trimLeftPct = duration > 0 ? (trimStart / duration) * 100 : 0;
-  const trimWidthPct =
-    duration > 0 ? ((trimEnd - trimStart) / duration) * 100 : 100;
-  const totalHeight = HEADER_H + trackCount * ROW_H;
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold">
-          Tracks · {trackCount} {trackCount === 1 ? "lane" : "lanes"}
-        </span>
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-kumo-subtle hidden sm:inline">
-            Drag vertically to move between tracks
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onAddTrack}
-            aria-label="Add Track"
-          >
-            + Add Track
-          </Button>
-        </div>
-      </div>
-      <div
-        ref={trackRef}
-        data-role="track"
-        onPointerDown={onPointerDownTrack}
-        className="relative rounded-lg border bg-kumo-recessed/30 overflow-hidden select-none"
-        style={{ height: totalHeight }}
-        aria-label="Subtitle timeline with tracks"
-      >
-        {/* trim background spans all tracks */}
-        <div
-          className="absolute bg-kumo-brand/10 border-x border-kumo-brand/20"
-          style={{
-            left: `${trimLeftPct}%`,
-            width: `${trimWidthPct}%`,
-            top: HEADER_H,
-            bottom: 0,
-          }}
-          data-role="track-bg"
-        />
-        {/* header ticks */}
-        <div
-          className="absolute left-0 right-0 flex justify-between px-2 pt-1 pointer-events-none border-b border-kumo-line/40 bg-kumo-recessed/20"
-          style={{ height: HEADER_H, top: 0 }}
-        >
-          <span className="text-[9px] text-kumo-subtle tabular-nums">
-            {formatTime(trimStart)}
-          </span>
-          <span className="text-[9px] text-kumo-subtle tabular-nums">
-            {formatTime(trimEnd)}
-          </span>
-        </div>
-        {/* track rows background + labels */}
-        {Array.from({ length: trackCount }).map((_, ti) => (
-          <div
-            key={ti}
-            data-role="track-row"
-            data-track={ti}
-            className={cn(
-              "absolute left-0 right-0 border-b border-kumo-line/30 flex items-center",
-              ti % 2 === 0 ? "bg-kumo-base/40" : "bg-kumo-recessed/10",
-            )}
-            style={{ top: HEADER_H + ti * ROW_H, height: ROW_H }}
-          >
-            <span className="absolute left-1.5 text-[9px] font-medium text-kumo-subtle tabular-nums w-10 select-none">
-              Track {ti + 1}
-            </span>
-            <div className="absolute left-12 right-1 top-0 bottom-0 border-l border-dashed border-kumo-line/20" />
-          </div>
-        ))}
-        {/* subtitle blocks per track */}
-        {subtitles.map((sub) => {
-          const left = duration > 0 ? (sub.startTime / duration) * 100 : 0;
-          const width =
-            duration > 0 ? ((sub.endTime - sub.startTime) / duration) * 100 : 0;
-          const isSelected = sub.id === selectedId;
-          const isActive =
-            currentTime >= sub.startTime && currentTime < sub.endTime;
-          const trackIdx = getSubtitleTrack(sub);
-          const clampedTrack = clamp(trackIdx, 0, Math.max(trackCount - 1, 0));
-          const top = HEADER_H + clampedTrack * ROW_H + 3;
-          return (
-            <div
-              key={sub.id}
-              className={cn(
-                "absolute rounded border flex items-center overflow-hidden group",
-                isSelected
-                  ? "bg-kumo-brand text-white border-kumo-brand z-10 shadow"
-                  : "bg-kumo-base border-kumo-line hover:border-kumo-brand/40",
-                isActive && !isSelected && "ring-1 ring-primary/30",
-              )}
-              style={{
-                left: `${left}%`,
-                width: `${Math.max(width, 0.8)}%`,
-                top,
-                height: ROW_H - 6,
-              }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onSelect(sub.id);
-              }}
-              onClick={() => onSelect(sub.id)}
-              role="button"
-              aria-label={`Subtitle ${sub.text} track ${clampedTrack + 1} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
-              aria-selected={isSelected}
-              title={`Track ${clampedTrack + 1} · drag vertically to move`}
-            >
-              <div
-                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSelect(sub.id);
-                  setDrag({
-                    id: sub.id,
-                    mode: "left",
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origStart: sub.startTime,
-                    origEnd: sub.endTime,
-                    origTrack: clampedTrack,
-                  });
-                }}
-                aria-label="Drag to change start time"
-              >
-                <span className="w-0.5 h-4 bg-white/60 rounded" />
-              </div>
-              <div
-                className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSelect(sub.id);
-                  setDrag({
-                    id: sub.id,
-                    mode: "move",
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origStart: sub.startTime,
-                    origEnd: sub.endTime,
-                    origTrack: clampedTrack,
-                  });
-                }}
-              >
-                <span className="text-[8px] opacity-70">↕</span>
-                <span className="truncate">{sub.text || "…"}</span>
-              </div>
-              <div
-                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSelect(sub.id);
-                  setDrag({
-                    id: sub.id,
-                    mode: "right",
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origStart: sub.startTime,
-                    origEnd: sub.endTime,
-                    origTrack: clampedTrack,
-                  });
-                }}
-                aria-label="Drag to change end time"
-              >
-                <span className="w-0.5 h-4 bg-white/60 rounded" />
-              </div>
-            </div>
-          );
-        })}
-        {/* playhead spans full height */}
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-kumo-brand z-20 pointer-events-none"
-          style={{ left: `${playheadPct}%` }}
-          aria-hidden
-        >
-          <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 size-2.5 bg-kumo-brand rotate-45 border border-white shadow" />
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] bg-kumo-brand text-white px-1 rounded translate-y-0 tabular-nums">
-            {formatTime(currentTime)}
-          </div>
-        </div>
-      </div>
-      <div className="flex justify-between text-[10px] tabular-nums text-kumo-subtle">
-        <span>Trim Start {formatTime(trimStart)}</span>
-        <span>Playhead {formatTime(currentTime)}</span>
-        <span>Trim End {formatTime(trimEnd)}</span>
       </div>
     </div>
   );

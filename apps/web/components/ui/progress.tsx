@@ -45,7 +45,10 @@ function ProgressIndicator({
   return (
     <ProgressPrimitive.Indicator
       data-slot="progress-indicator"
-      className={cn("h-full bg-kumo-brand transition-all duration-150", className)}
+      className={cn(
+        "h-full bg-kumo-brand transition-all duration-150",
+        className,
+      )}
       {...props}
     />
   );
@@ -64,10 +67,7 @@ function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
 function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
   return (
     <ProgressPrimitive.Value
-      className={cn(
-        "ml-auto text-sm text-kumo-subtle tabular-nums",
-        className,
-      )}
+      className={cn("ml-auto text-sm text-kumo-subtle tabular-nums", className)}
       data-slot="progress-value"
       {...props}
     />

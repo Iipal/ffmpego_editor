@@ -57,7 +57,8 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
     if (idx === -1) return;
     let next = idx;
     if (e.key === "ArrowRight") next = (idx + 1) % tabs.length;
-    else if (e.key === "ArrowLeft") next = (idx - 1 + tabs.length) % tabs.length;
+    else if (e.key === "ArrowLeft")
+      next = (idx - 1 + tabs.length) % tabs.length;
     else if (e.key === "Home") next = 0;
     else if (e.key === "End") next = tabs.length - 1;
     else return;
@@ -76,14 +77,14 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
       className={cn(
         "relative inline-flex items-center gap-1 p-1 rounded-lg",
         "bg-kumo-recessed border border-kumo-line",
-        "w-full sm:w-auto sm:min-w-[280px]",
-        "shadow-sm"
+        "w-full sm:w-auto sm:min-w-70",
+        "shadow-sm",
       )}
     >
       {/* sliding indicator — Kumo base surface with line ring */}
       <div
         aria-hidden
-        className="absolute top-1 bottom-1 rounded-md bg-kumo-base border border-kumo-line shadow-sm transition-all duration-[250ms] ease-[cubic-bezier(0.77,0,0.175,1)]"
+        className="absolute top-1 bottom-1 rounded-md bg-kumo-base border border-kumo-line shadow-sm transition-all duration-250 ease-[cubic-bezier(0.77,0,0.175,1)]"
         style={{
           left: indicator.left,
           width: indicator.width,
@@ -107,19 +108,19 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
             tabIndex={isActive ? 0 : -1}
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "relative z-[1] flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150",
+              "relative z-1 flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-focus focus-visible:ring-offset-2 focus-visible:ring-offset-kumo-canvas",
               "disabled:pointer-events-none disabled:opacity-50",
               isActive
                 ? "text-kumo-strong"
-                : "text-kumo-subtle hover:text-kumo-default"
+                : "text-kumo-subtle hover:text-kumo-default",
             )}
           >
             {tab.icon && (
               <span
                 className={cn(
                   "shrink-0 transition-transform duration-200",
-                  isActive ? "scale-105" : "opacity-80 group-hover:opacity-100"
+                  isActive ? "scale-105" : "opacity-80 group-hover:opacity-100",
                 )}
                 aria-hidden
               >

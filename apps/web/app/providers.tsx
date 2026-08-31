@@ -2,7 +2,11 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { VideoStoreProvider, useCreateVideoStore, usePersistTrim } from "@/store/useVideoStore";
+import {
+  VideoStoreProvider,
+  useCreateVideoStore,
+  usePersistTrim,
+} from "@/store/useVideoStore";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 

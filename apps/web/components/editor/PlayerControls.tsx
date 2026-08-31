@@ -135,7 +135,10 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
                 size="icon"
                 variant={isLoopEnabled ? "secondary" : "ghost"}
                 aria-label={isLoopEnabled ? "Disable loop" : "Enable loop"}
-                className={cn(isLoopEnabled && "bg-kumo-brand text-white border-transparent hover:bg-kumo-brand-hover")}
+                className={cn(
+                  isLoopEnabled &&
+                    "bg-kumo-brand text-white border-transparent hover:bg-kumo-brand-hover",
+                )}
                 onClick={toggleLoop}
               />
             }
