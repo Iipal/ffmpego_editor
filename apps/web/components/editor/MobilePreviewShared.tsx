@@ -215,8 +215,8 @@ export function MobilePreviewShared({
   const video = videoRef.current;
   if (!video || !video.src)
     return (
-      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-lg border border-kumo-line bg-kumo-recessed flex items-center justify-center text-xs text-kumo-subtle">
-        No preview
+      <div className="mx-auto flex aspect-9/16 w-full max-w-70 items-center justify-center rounded-xl border border-dashed border-kumo-line bg-kumo-recessed text-xs leading-4 text-kumo-subtle">
+        <span className="font-mono text-[11px] tabular-nums">Preview appears after upload</span>
       </div>
     );
 
@@ -237,8 +237,8 @@ export function MobilePreviewShared({
           {safe && (
             <div className="absolute inset-3 rounded-md border border-white/20 pointer-events-none" />
           )}
-          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
-            FULL
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-md border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm">
+            Full
           </span>
           {overlay && (
             <div className="absolute inset-0 pointer-events-none flex flex-col">
@@ -246,8 +246,8 @@ export function MobilePreviewShared({
             </div>
           )}
         </div>
-        <div className="text-[10px] text-kumo-subtle tabular-nums">
-          {OUTPUT_W} × {OUTPUT_H} · FULL 9:16
+        <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+          {OUTPUT_W} × {OUTPUT_H} · Full 9:16
         </div>
       </div>
     );
@@ -262,8 +262,8 @@ export function MobilePreviewShared({
         ref={wrapRef}
         className={
           isResizable
-            ? "relative w-full h-full overflow-hidden rounded-lg bg-black shadow-sm flex flex-col"
-            : "relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-lg bg-black shadow-sm border border-kumo-line flex flex-col"
+            ? "relative w-full h-full overflow-hidden rounded-lg bg-black shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col"
+            : "relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-lg border border-kumo-line bg-black shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col"
         }
       >
         <div
@@ -274,19 +274,19 @@ export function MobilePreviewShared({
           {safe && (
             <div className="absolute inset-2 rounded-md border border-white/20 pointer-events-none" />
           )}
-          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
-            ZONE 1
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-md border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm">
+            Zone 1
           </span>
         </div>
         <div
           onPointerDown={startDrag}
           className={
             interactiveSplit
-              ? "h-2 bg-kumo-recessed hover:bg-kumo-brand/10 border-y border-kumo-line cursor-row-resize flex items-center justify-center shrink-0 z-10"
-              : "h-2 bg-kumo-recessed border-y border-kumo-line flex items-center justify-center shrink-0"
+              ? "h-2 shrink-0 z-10 flex items-center justify-center cursor-row-resize border-y border-kumo-hairline bg-kumo-recessed hover:bg-kumo-line/60 transition-colors"
+              : "h-2 shrink-0 flex items-center justify-center border-y border-kumo-hairline bg-kumo-recessed"
           }
         >
-          <div className="h-0.5 w-8 bg-black/30 rounded" />
+          <div className="h-0.5 w-8 rounded bg-kumo-subtle/50" />
         </div>
         <div
           className="relative overflow-hidden flex items-center justify-center"
@@ -296,8 +296,8 @@ export function MobilePreviewShared({
           {safe && (
             <div className="absolute inset-2 rounded-md border border-white/20 pointer-events-none" />
           )}
-          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
-            ZONE 2
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-md border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm">
+            Zone 2
           </span>
         </div>
         {overlay && (
@@ -306,7 +306,7 @@ export function MobilePreviewShared({
           </div>
         )}
       </div>
-      <div className="text-[10px] text-kumo-subtle tabular-nums">
+      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
         {OUTPUT_W} × {OUTPUT_H} · {(splitPx * 100).toFixed(0)}% /{" "}
         {((1 - splitPx) * 100).toFixed(0)}%
       </div>

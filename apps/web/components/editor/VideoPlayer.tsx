@@ -27,81 +27,69 @@ export function VideoPlayer() {
     playbackSpeed,
     isLoopEnabled,
   } = useVideoState();
-  // Calculate the smallest distance from the crop rectangle to the video edge.
-  // This is used to determine how much padding should be applied when auto-zoom
-  // is enabled, preventing the crop window from touching the player's borders.
+
+  // --- Auto-zoom preview (only when NOT cropping) ---------------------------
+  // Compute the zoom that fits the selected crop region into the 16:9 player
+  // with a small padding. Must not be applied while CropOverlay is active:
+  // the overlay's getBoundingClientRect would be transformed and pointer
+  // deltas would be scaled, causing drift + a feedback loop (move crop ->
+  // new scale -> new bounds mid-drag).
   const cropEdgeMargin = Math.min(
     crop.x,
     crop.y,
     100 - crop.x - crop.width,
     100 - crop.y - crop.height,
   );
-
-  // Auto-zoom padding is eased based on how close the crop handles are to the
-  // edge of the crop box. The closer the crop box is to the edge, the smaller
-  // the padding becomes, but it is never less than 0.
   const cropCanvasPadding = isAutoZoomEnabled
-    ? Math.min(
-        0.16,
-        0.08 + Math.max(0, 0.08 - Math.min(cropEdgeMargin, 8) / 100),
-      )
+    ? Math.min(0.16, 0.08 + Math.max(0, 0.08 - Math.min(cropEdgeMargin, 8) / 100))
     : 0;
-
-  // Calculate a zoom factor that fits the selected crop region to the visible
-  // player area. The scale is based on the smallest crop dimension so the crop
-  // box fully fills one axis of the player.
-  const cropScale =
-    (1 - cropCanvasPadding * 2) * (100 / Math.min(crop.width, crop.height));
-
-  // Center the crop box inside the player by translating the crop center to
-  // the player center. The crop values are expressed as percentages.
+  const cropScale = (1 - cropCanvasPadding * 2) * (100 / Math.min(crop.width, crop.height));
   const cropOffsetX = 50 - (crop.x + crop.width / 2);
   const cropOffsetY = 50 - (crop.y + crop.height / 2);
 
-  const canvasTransform = isAutoZoomEnabled
-    ? `scale(${cropScale}) translate(${cropOffsetX}%, ${cropOffsetY}%)`
-    : `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
+  const autoTransform = `scale(${cropScale}) translate(${cropOffsetX}%, ${cropOffsetY}%)`;
+  const manualTransform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
 
-  // Compute the largest fitted video wrapper size while preserving the source
-  // video aspect ratio inside the fixed 16:9 player area.
+  // FIX: disable all canvas transforms while crop mode is active.
+  // Crop editing is 1:1 with the video content rect so pointer math stays
+  // drift-free. Preview zoom (auto or manual) is shown only outside crop mode.
+  const canvasTransform = isCropMode
+    ? undefined
+    : isAutoZoomEnabled
+      ? autoTransform
+      : manualTransform;
+
+  // --- Letterbox size: fit source video inside fixed 16:9 player  -----------
   const playerAspectRatio = 16 / 9;
+  const srcAspect = sourceAspectRatio > 0 ? sourceAspectRatio : playerAspectRatio;
   const canvasSize =
-    sourceAspectRatio >= playerAspectRatio
+    srcAspect >= playerAspectRatio
       ? {
           width: "100%",
-          height: `${(playerAspectRatio / sourceAspectRatio) * 100}%`,
+          height: `${(playerAspectRatio / srcAspect) * 100}%`,
         }
       : {
-          width: `${(sourceAspectRatio / playerAspectRatio) * 100}%`,
+          width: `${(srcAspect / playerAspectRatio) * 100}%`,
           height: "100%",
         };
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     video.volume = volume;
     video.muted = isMuted;
   }, [isMuted, volume]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     video.playbackRate = playbackSpeed;
     video.loop = isLoopEnabled;
   }, [playbackSpeed, isLoopEnabled]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) {
-      return;
-    }
-
+    if (!video) return;
     let animationFrame = 0;
     const syncCurrentTime = () => {
       videoStore.setState((previous) =>
@@ -116,15 +104,10 @@ export function VideoPlayer() {
       syncCurrentTime();
     };
     const stopSync = () => cancelAnimationFrame(animationFrame);
-
-    // Keep the shared video state synchronized with the actual HTMLVideoElement
-    // while playback is active. This is necessary for the timeline and controls
-    // to reflect the real playback position.
     video.addEventListener("play", startSync);
     video.addEventListener("pause", stopSync);
     video.addEventListener("ended", stopSync);
     if (!video.paused) startSync();
-
     return () => {
       stopSync();
       video.removeEventListener("play", startSync);
@@ -141,7 +124,7 @@ export function VideoPlayer() {
   }, [currentTime, trimRange]);
 
   const startCanvasPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isAutoZoomEnabled) return;
+    if (isAutoZoomEnabled || isCropMode) return;
     event.preventDefault();
     const start = {
       x: event.clientX,
@@ -165,19 +148,31 @@ export function VideoPlayer() {
     window.addEventListener("pointerup", onEnd);
   };
 
-  if (!mediaUrl) {
-    return null;
-  }
+  if (!mediaUrl) return null;
 
   return (
     <div className="space-y-3">
       <Card className="overflow-hidden p-0 rounded-lg">
         <div ref={wrapperRef} className="relative aspect-video w-full">
-          <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+          {/* Outer stage is always untransformed; only the inner canvas is
+              transformed for preview. CropOverlay lives inside the letterboxed
+              canvas but that canvas is NOT transformed while isCropMode,
+              so overlay bounds == logical crop percentages 1:1. */}
+          <div
+            className="absolute inset-0 flex items-center justify-center overflow-hidden bg-black"
+            onPointerDown={(e) => {
+              // Pan only when not cropping — background drag pans canvas.
+              if (!isCropMode) startCanvasPan(e);
+            }}
+          >
             <div
               className={cn(
-                isAutoZoomEnabled ? "transition-transform duration-300" : "",
                 "relative origin-center",
+                isCropMode
+                  ? ""
+                  : isAutoZoomEnabled
+                    ? "transition-transform duration-300"
+                    : "",
               )}
               style={{
                 ...canvasSize,
@@ -198,7 +193,6 @@ export function VideoPlayer() {
                       previous.trimRange[0] >= d;
                     let nextTrim: [number, number];
                     if (needsInit && d > 0 && Number.isFinite(d)) {
-                      // preserve existing trim if it was user-set and still fits; otherwise init
                       if (
                         previous.trimRange[1] > previous.trimRange[0] &&
                         previous.trimRange[1] <= d &&
@@ -208,7 +202,6 @@ export function VideoPlayer() {
                       } else {
                         nextTrim = [0, d] as [number, number];
                       }
-                      // clamp persisted trim when duration changed (e.g. different video)
                       if (nextTrim[1] > d)
                         nextTrim = [Math.min(nextTrim[0], d - 0.01), d] as [
                           number,
@@ -227,8 +220,7 @@ export function VideoPlayer() {
                           : d,
                       trimRange: nextTrim,
                       sourceAspectRatio:
-                        event.currentTarget.videoWidth /
-                        event.currentTarget.videoHeight,
+                        event.currentTarget.videoWidth / event.currentTarget.videoHeight,
                       sourceWidth: event.currentTarget.videoWidth,
                       sourceHeight: event.currentTarget.videoHeight,
                     };
@@ -258,7 +250,7 @@ export function VideoPlayer() {
                   }))
                 }
               />
-              {isCropMode && <CropOverlay onCanvasPanStart={startCanvasPan} />}
+              {isCropMode && <CropOverlay />}
             </div>
           </div>
         </div>

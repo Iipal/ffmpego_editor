@@ -61,7 +61,6 @@ import {
 } from "@/store/useVideoStore";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 import { UploadProgress } from "@/components/editor/UploadProgress";
-import { cn } from "@/lib/utils";
 
 export function SidebarToggle() {
   const store = useVideoStore();
@@ -73,8 +72,8 @@ export function SidebarToggle() {
       <TooltipTrigger
         render={
           <Button
-            size="icon"
-            variant="outline"
+            size="icon-xs"
+            variant="ghost"
             aria-label={label}
             onClick={() =>
               store.setState((previous) => ({
@@ -165,20 +164,47 @@ export function Sidebar() {
       return;
     }
 
-    const widthPerHeight = targetRatio / state.sourceAspectRatio;
-    const height = Math.min(
-      state.crop.height,
-      100 - state.crop.y,
-      state.crop.width / widthPerHeight,
-      (100 - state.crop.x) / widthPerHeight,
-    );
+    const srcAspect = state.sourceAspectRatio > 0 ? state.sourceAspectRatio : 16 / 9;
+    const widthPerHeight = targetRatio / srcAspect;
+    // Preserve crop center while enforcing aspect. Start from current rect
+    // and shrink the limiting dimension so the new rect fits inside bounds
+    // and stays centered where possible — avoids drift toward origin.
+    const cx = state.crop.x + state.crop.width / 2;
+    const cy = state.crop.y + state.crop.height / 2;
+    // Max size that fits inside 100x100 around center at desired ratio
+    const maxWByH = state.crop.height * widthPerHeight;
+    const maxHByW = state.crop.width / widthPerHeight;
+    let h: number;
+    let w: number;
+    if (maxWByH <= state.crop.width) {
+      h = state.crop.height;
+      w = maxWByH;
+    } else {
+      w = state.crop.width;
+      h = maxHByW;
+    }
+    // Ensure centered rect stays inside bounds; shrink if needed
+    const marginX = Math.min(cx, 100 - cx);
+    const marginY = Math.min(cy, 100 - cy);
+    const maxWInBounds = marginX * 2;
+    const maxHInBounds = marginY * 2;
+    if (w > maxWInBounds) {
+      w = maxWInBounds;
+      h = w / widthPerHeight;
+    }
+    if (h > maxHInBounds) {
+      h = maxHInBounds;
+      w = h * widthPerHeight;
+    }
+    w = Math.max(5, Math.min(w, 100));
+    h = Math.max(5, Math.min(h, 100));
+    let x = cx - w / 2;
+    let y = cy - h / 2;
+    x = Math.max(0, Math.min(x, 100 - w));
+    y = Math.max(0, Math.min(y, 100 - h));
     update({
       aspectRatio: value,
-      crop: {
-        ...state.crop,
-        width: Math.min(height * widthPerHeight, 100 - state.crop.x),
-        height,
-      },
+      crop: { x, y, width: w, height: h },
     });
   };
   const startExport = () => {
@@ -230,7 +256,7 @@ export function Sidebar() {
     });
   };
   return (
-    <aside className="enterprise-card rounded-lg space-y-4 p-4">
+    <aside className="flex flex-col gap-3">
       <Input
         ref={fileInputRef}
         className="sr-only"
@@ -238,10 +264,6 @@ export function Sidebar() {
         accept={ACCEPTED_VIDEO_INPUT_ATTR}
         onChange={(event) => selectReplacementFile(event.target.files?.[0])}
       />
-
-      <div className="flex justify-end">
-        <SidebarToggle />
-      </div>
 
       <Button
         className="w-full"

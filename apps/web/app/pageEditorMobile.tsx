@@ -25,6 +25,16 @@ import {
 import dynamic from "next/dynamic";
 import { preconnect, preload } from "react-dom";
 import { Activity } from "react";
+import {
+  Film,
+  Layers,
+  Lock,
+  LockOpen,
+  Monitor,
+  SlidersHorizontal,
+  Smartphone,
+  Upload,
+} from "lucide-react";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { toast } from "sonner";
@@ -45,7 +55,6 @@ import {
   normalizeLayout,
   validateLayout,
   createDefaultLayout,
-  autoSuggest,
   buildMobileFilter,
   savePref,
   loadPref,
@@ -176,15 +185,21 @@ function setCachedLayout(l: MobileLayout) {
   }
 }
 
-// rendering-hoist-jsx: static elements created once
+// rendering-hoist-jsx: static elements created once — Kumo quiet placeholders
 const NoVideoPlaceholder = (
-  <div className="aspect-video flex items-center justify-center bg-kumo-recessed rounded-lg text-sm text-kumo-subtle">
-    No video loaded
+  <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-kumo-line bg-kumo-recessed text-xs leading-4 text-kumo-subtle">
+    <span className="inline-flex items-center gap-1.5">
+      <Monitor className="size-3.5 opacity-60" aria-hidden />
+      No video — upload to position zones
+    </span>
   </div>
 );
 const NoPreviewPlaceholder = (
-  <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-xl border border-kumo-line bg-kumo-recessed flex items-center justify-center text-xs text-kumo-subtle">
-    No preview
+  <div className="mx-auto flex aspect-9/16 w-full max-w-70 items-center justify-center rounded-xl border border-dashed border-kumo-line bg-kumo-recessed text-xs leading-4 text-kumo-subtle">
+    <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
+      <Smartphone className="size-3.5 opacity-60" aria-hidden />
+      Preview appears after upload
+    </span>
   </div>
 );
 const ZoneGridOverlay = (
@@ -241,12 +256,7 @@ function useMobileEditor() {
   const effectiveSelected: "zone-1" | "zone-2" =
     layout.mode === "full" && selected === "zone-2" ? "zone-1" : selected;
 
-  // Persist layout after changes — split from history logic
-  // rerender-split-combined-hooks: separate persistence effect
-  useEffect(() => {
-    setCachedLayout(layout);
-  }, [layout]);
-
+  // Persistence is explicit only via "Save preference" — do not auto-save on layout changes.
   // Keep layoutRef stable for event handlers (advanced-event-handler-refs)
   const layoutRef = useRef(layout);
   useEffect(() => {
@@ -361,19 +371,23 @@ const ZoneOverlay = memo(function ZoneOverlay({
   onPointerDownHandle,
   onZoom,
 }: ZoneOverlayProps) {
-  // rerender-simple-expression-in-memo: simple expression not wrapped in useMemo
-  const label = zone.id === "zone-1" ? "ZONE 1" : "ZONE 2";
+  const label = zone.id === "zone-1" ? "Zone 1" : "Zone 2";
   const roleLabel = zone.role ? `· ${zone.role}` : "";
 
   return (
     <div
       onPointerDown={(e) => onPointerDownMove(e, zone.id)}
       onClick={() => onSelect(zone.id as "zone-1" | "zone-2")}
+      role="button"
+      tabIndex={0}
+      aria-label={`${label} crop zone${zone.locked ? " locked" : ""}`}
+      aria-selected={isSelected}
       className={cn(
-        "absolute border-2 cursor-move rounded-xs",
+        "absolute cursor-move rounded-md border transition-colors",
+        // Kumo: hairline vs line, subtle shadow on selected, not flooding
         isSelected
-          ? "border-kumo-brand bg-kumo-brand/10"
-          : "border-white/80 bg-white/5",
+          ? "border-kumo-brand bg-kumo-brand/8 shadow-[0_0_0_1px_var(--kumo-brand)]"
+          : "border-white/75 bg-white/6",
         zone.locked ? "opacity-60 cursor-not-allowed" : "",
       )}
       style={{
@@ -385,11 +399,18 @@ const ZoneOverlay = memo(function ZoneOverlay({
     >
       <span
         className={cn(
-          "absolute -top-5 left-0 text-[10px] px-1.5 py-0.5 rounded font-medium",
-          isSelected ? "bg-kumo-brand text-white" : "bg-white/90 text-black",
+          "absolute -top-6 left-0 inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none tabular-nums shadow-sm",
+          isSelected
+            ? "border-kumo-brand bg-kumo-brand text-white"
+            : "border-kumo-line bg-white/95 text-kumo-subtle",
         )}
       >
-        {label} {roleLabel}
+        <span
+          className="size-1.5 rounded-full bg-current opacity-80"
+          aria-hidden
+        />
+        {label}{" "}
+        {roleLabel ? <span className="opacity-80">{roleLabel}</span> : null}
       </span>
       {ZoneGridOverlay}
       {isSelected && !zone.locked
@@ -398,9 +419,10 @@ const ZoneOverlay = memo(function ZoneOverlay({
               key={h}
               onPointerDown={(e) => onPointerDownHandle(e, zone.id, h)}
               className={cn(
-                "absolute size-2 rounded-full bg-kumo-brand border-2 border-white shadow-sm -m-1",
+                "absolute size-2.5 rounded-full border-2 border-white bg-kumo-brand shadow-sm -m-1 transition-transform hover:scale-110",
                 HANDLE_POSITIONS[h],
               )}
+              aria-hidden
             />
           ))
         : null}
@@ -421,8 +443,14 @@ const ZoneOverlay = memo(function ZoneOverlay({
             window.addEventListener("pointermove", onMove);
             window.addEventListener("pointerup", onUp);
           }}
-          className="absolute -right-8 top-1/2 -translate-y-1/2 w-1.5 h-16 bg-white/20 rounded-full cursor-ns-resize hidden sm:block"
-        />
+          className="absolute -right-7 top-1/2 hidden -translate-y-1/2 cursor-ns-resize sm:flex flex-col items-center gap-1"
+          aria-hidden
+        >
+          <span className="h-12 w-1 rounded-full bg-white/35 shadow-sm" />
+          <span className="rounded bg-black/60 px-1 py-0.5 font-mono text-[9px] leading-none text-white tabular-nums">
+            {zone.zoom.toFixed(2)}×
+          </span>
+        </div>
       ) : null}
     </div>
   );
@@ -570,13 +598,12 @@ const SourceStage = memo(function SourceStage({
     [layout.mode, layout.splitRatio, zoneById],
   );
 
-  // rendering-conditional-render: explicit ternary
   return !mediaUrl ? (
     NoVideoPlaceholder
   ) : (
     <div
       ref={wrapRef}
-      className="relative aspect-video w-full overflow-hidden rounded-lg bg-black select-none touch-none"
+      className="relative aspect-video w-full overflow-hidden rounded-lg border border-kumo-line bg-black shadow-[0_1px_2px_rgba(0,0,0,0.08)] select-none touch-none"
     >
       <video
         ref={videoRef}
@@ -596,6 +623,11 @@ const SourceStage = memo(function SourceStage({
           onZoom={onZoom}
         />
       ))}
+      {/* subtle stage meta — hairline, not flooding */}
+      <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 font-mono text-[10px] leading-none text-white tabular-nums">
+        {layout.mode === "full" ? "Full" : "Stacked"} · {layout.zones.length}{" "}
+        zones
+      </span>
     </div>
   );
 });
@@ -907,16 +939,16 @@ const PortraitPreview = memo(function PortraitPreview({
       <div className="flex flex-col items-center gap-2">
         <div
           ref={wrapRef}
-          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-kumo-line flex items-center justify-center"
+          className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-lg border border-kumo-line bg-black shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex items-center justify-center"
         >
           <canvas ref={canvasFullRef} className="block max-w-full h-auto" />
           {safe ? SafeAreaFullOverlay : null}
-          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
-            FULL
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-md border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm">
+            Full
           </span>
         </div>
-        <div className="text-[10px] text-kumo-subtle tabular-nums">
-          {OUTPUT_W} × {OUTPUT_H} · FULL 9:16
+        <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+          {OUTPUT_W} × {OUTPUT_H} · Full 9:16
         </div>
       </div>
     );
@@ -926,7 +958,7 @@ const PortraitPreview = memo(function PortraitPreview({
     <div className="flex flex-col items-center gap-2">
       <div
         ref={wrapRef}
-        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-xl bg-black shadow-sm border border-kumo-line flex flex-col"
+        className="relative aspect-9/16 w-full max-w-70 overflow-hidden rounded-lg border border-kumo-line bg-black shadow-[0_1px_2px_rgba(0,0,0,0.05)] flex flex-col"
       >
         <div
           className="relative overflow-hidden flex items-center justify-center"
@@ -934,15 +966,15 @@ const PortraitPreview = memo(function PortraitPreview({
         >
           <canvas ref={canvasTopRef} className="block" />
           {safe ? SafeAreaOverlay : null}
-          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
-            ZONE 1
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-md border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm">
+            Zone 1
           </span>
         </div>
         <div
           onPointerDown={startDrag}
-          className="h-2 bg-kumo-recessed hover:bg-kumo-brand/10 border-y border-kumo-line cursor-row-resize flex items-center justify-center shrink-0 z-10"
+          className="h-2 shrink-0 z-10 flex items-center justify-center cursor-row-resize border-y border-kumo-hairline bg-kumo-recessed hover:bg-kumo-line/60 transition-colors"
         >
-          <div className="h-0.5 w-8 bg-black/30 rounded" />
+          <div className="h-0.5 w-8 rounded bg-kumo-subtle/50" />
         </div>
         <div
           className="relative overflow-hidden flex items-center justify-center"
@@ -950,12 +982,12 @@ const PortraitPreview = memo(function PortraitPreview({
         >
           <canvas ref={canvasBottomRef} className="block" />
           {safe ? SafeAreaOverlay : null}
-          <span className="absolute top-1 left-1 text-[8px] bg-black/60 text-white px-1 rounded">
-            ZONE 2
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center rounded-md border border-white/15 bg-black/55 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm">
+            Zone 2
           </span>
         </div>
       </div>
-      <div className="text-[10px] text-kumo-subtle tabular-nums">
+      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
         {OUTPUT_W} × {OUTPUT_H} · {(deferredSplit * 100).toFixed(0)}% /{" "}
         {((1 - deferredSplit) * 100).toFixed(0)}%
       </div>
@@ -1031,13 +1063,48 @@ const UploadOtherButton = memo(function UploadOtherButton() {
         accept={ACCEPTED_VIDEO_INPUT_ATTR}
         className="hidden"
         onChange={handleChange}
+        tabIndex={-1}
       />
-      <Button size="sm" variant="outline" onClick={handleClick}>
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={handleClick}
+        className="h-7 gap-1.5 rounded-md text-xs font-medium"
+      >
+        <Upload className="size-3.5" aria-hidden />
         Upload other video
       </Button>
     </>
   );
 });
+
+// --- capability helper (empty state) — matches pageEditorCrop Kumo pattern ---
+function CapabilityCard({
+  icon: Icon,
+  title,
+  desc,
+  meta,
+}: {
+  icon: React.ElementType;
+  title: string;
+  desc: string;
+  meta: string;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-kumo-hairline bg-kumo-recessed p-4">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex size-7 items-center justify-center rounded-md border border-kumo-line bg-kumo-base text-kumo-subtle">
+          <Icon className="size-3.5" aria-hidden />
+        </span>
+        <h3 className="text-sm font-medium leading-none">{title}</h3>
+      </div>
+      <p className="text-xs leading-5 text-kumo-subtle">{desc}</p>
+      <span className="font-mono text-[11px] leading-none text-kumo-subtle/80 tabular-nums">
+        {meta}
+      </span>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // PlaybackTimeline — isolated frequent updates (rerender-use-ref-transient-values
@@ -1278,41 +1345,64 @@ const ZoneCard = memo(function ZoneCard({
     },
     [onZoom, zone.id],
   );
+  const zoneLabel = zone.id === "zone-1" ? "Zone 1" : "Zone 2";
 
   return (
     <div
       className={cn(
-        "rounded-lg border p-2 space-y-2",
+        "flex flex-col gap-2 rounded-lg border p-3",
         isSelected
-          ? "border-kumo-brand bg-kumo-brand/5"
-          : "bg-kumo-recessed/30",
+          ? "border-kumo-brand bg-kumo-brand/4 shadow-[0_0_0_1px_var(--kumo-brand)]"
+          : "border-kumo-hairline bg-kumo-recessed",
       )}
       style={
         {
           contentVisibility: "auto",
-          containIntrinsicSize: "0 120px",
+          containIntrinsicSize: "0 128px",
         } as React.CSSProperties
       }
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium">
-          {zone.id.toUpperCase()} {zone.role ? `· ${zone.role}` : ""}
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium leading-none">
+          {zoneLabel}
+          {zone.role ? (
+            <span className="font-mono text-[11px] font-normal tabular-nums text-kumo-subtle">
+              · {zone.role}
+            </span>
+          ) : null}
+          {isSelected ? (
+            <span className="size-1.5 rounded-full bg-kumo-brand" aria-hidden />
+          ) : null}
         </span>
         <div className="flex gap-1">
-          <Button size="xs" variant="outline" onClick={() => onReset(zone.id)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => onReset(zone.id)}
+            className="h-6 rounded-md px-2 text-xs"
+          >
             Reset
           </Button>
           <Button
-            size="xs"
-            variant={zone.locked ? "default" : "outline"}
+            size="sm"
+            variant={zone.locked ? "default" : "secondary"}
             onClick={() => onToggleLock(zone.id)}
+            className="h-6 w-7 rounded-md p-0"
+            aria-label={zone.locked ? "Unlock zone" : "Lock zone"}
+            title={zone.locked ? "Unlock" : "Lock"}
           >
-            {zone.locked ? "🔒" : "🔓"}
+            {zone.locked ? (
+              <Lock className="size-3.5" aria-hidden />
+            ) : (
+              <LockOpen className="size-3.5" aria-hidden />
+            )}
           </Button>
         </div>
       </div>
-      <div className="space-y-1">
-        <Label className="text-[10px]">Zoom {zone.zoom.toFixed(2)}×</Label>
+      <div className="space-y-1.5">
+        <Label className="font-mono text-[11px] font-medium tabular-nums text-kumo-subtle">
+          Zoom {zone.zoom.toFixed(2)}×
+        </Label>
         <Slider
           value={[zone.zoom]}
           min={0.5}
@@ -1325,10 +1415,10 @@ const ZoneCard = memo(function ZoneCard({
         {(["camera", "gameplay", "content"] as const).map((r) => (
           <Button
             key={r}
-            size="xs"
-            variant={zone.role === r ? "default" : "outline"}
+            size="sm"
+            variant={zone.role === r ? "default" : "secondary"}
             onClick={() => onRole(zone.id, r)}
-            className="text-[10px] h-6 px-2"
+            className="h-6 flex-1 rounded-md px-2 text-xs font-medium"
           >
             {r}
           </Button>
@@ -1435,8 +1525,8 @@ export default function MobileEditorPage() {
       ),
     [ed.layout, sourceWidth, sourceHeight],
   );
-  const deferredFilter = useDeferredValue(filterString);
-  const isFilterStale = filterString !== deferredFilter; // rerender-use-deferred-value: opacity hint
+  const defferedFilter = useDeferredValue(filterString);
+  const isFilterStale = filterString !== defferedFilter;
 
   const setTrimRange = useCallback(
     (
@@ -1894,72 +1984,159 @@ export default function MobileEditorPage() {
   // server-after-nonblocking: all server-only — not applicable to this client-only editor page (local-only, no auth/RSC)
   // rendering-hydration-no-flicker / rendering-hydration-suppress-warning / rendering-script-defer-async / rendering-svg-precision / rendering-animate-svg-wrapper: NA (no SSR theme, no SVG animation, no <script>)
   // async-suspense-boundaries / async-dependencies / async-api-routes: NA (client page, waterfall already handled via Promise.all above)
-  return !hasVideo ? (
-    <div className="space-y-4">
-      <Card className="p-6">
-        <h2 className="text-base font-semibold">Mobile 9:16 Editor</h2>
-        <p className="text-sm text-kumo-subtle mt-1">
-          Convert your 16:9 landscape video into a 9:16 portrait with a stacked
-          two-zone layout (e.g. camera + gameplay).
-        </p>
-        <div className="mt-6">
-          <VideoUploader />
-        </div>
-      </Card>
-      <Card className="p-4 opacity-60">
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="aspect-video rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
-            16:9 SOURCE preview
-          </div>
-          <div className="flex justify-center">
-            <div className="aspect-9/16 w-40 rounded-lg bg-kumo-recessed flex items-center justify-center text-xs">
-              9:16 STACKED
-            </div>
-          </div>
-        </div>
-      </Card>
-    </div>
-  ) : (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold">Mobile Layout</h2>
-          <p className="text-xs text-kumo-subtle">
-            Static 16:9 → 9:16 · Two independent crop zones · Non-destructive
+  // --- derived Kumo labels — mirrors pageEditorCrop operational strip ---
+  const fileName = file?.name ?? "";
+  const sourceLabel =
+    sourceWidth && sourceHeight ? `${sourceWidth} × ${sourceHeight} px` : "—";
+  const outputLabel = `${OUTPUT_W} × ${OUTPUT_H} px`;
+  const splitLabel = `${Math.round(ed.layout.splitRatio * 100)} / ${Math.round((1 - ed.layout.splitRatio) * 100)}`;
+  const modeBadge =
+    ed.layout.mode === "full" ? "Full 9:16" : `Stacked ${splitLabel}`;
+  const trimLabel = duration
+    ? `${formatTime(trimStart)} → ${formatTime(trimEnd)} · ${formatTime(trimmedDuration)}`
+    : "—";
+
+  if (!hasVideo) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-base font-semibold leading-none tracking-normal">
+            Mobile editor
+          </h2>
+          <p className="max-w-prose text-sm leading-5 text-kumo-subtle">
+            Convert 16:9 landscape into 9:16 portrait with a stacked two-zone
+            layout. Position camera and gameplay, preview 1080×1920 live.
+            Non-destructive, original untouched.
           </p>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+
+        <Card className="p-6 sm:p-8">
+          <CardContent className="p-0">
+            <VideoUploader />
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-kumo-hairline pt-4 text-xs text-kumo-subtle">
+              <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
+                <span
+                  className="size-1.5 rounded-full bg-kumo-success"
+                  aria-hidden
+                />
+                Local only
+              </span>
+              <span aria-hidden className="text-kumo-hairline">
+                ·
+              </span>
+              <span>MP4 · WebM · MOV · MKV up to 10 GB</span>
+              <span aria-hidden className="text-kumo-hairline">
+                ·
+              </span>
+              <span className="tabular-nums">Exports to ~/ffmpego_edits</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <CapabilityCard
+            icon={Layers}
+            title="Two zones"
+            desc="Stacked layout over 1080×1920 canvas. Drag zones, resize with locked 9:16 aspect, zoom per zone."
+            meta="stacked · 9:16 · zoom 0.5–3×"
+          />
+          <CapabilityCard
+            icon={Smartphone}
+            title="Portrait preview"
+            desc="Live canvas preview with draggable split. Safe-area overlay shows platform cut-off."
+            meta="1080 × 1920 · drag divider"
+          />
+          <CapabilityCard
+            icon={Film}
+            title="Export"
+            desc="Single FFmpeg filter trims, crops and stacks locally via Bun. Progress + save picker."
+            meta="mp4 CRF 10 · 30fps · local"
+          />
+        </div>
+
+        <div className="rounded-lg border border-dashed border-kumo-line bg-kumo-recessed p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-kumo-subtle">
+            <Monitor className="size-3.5" aria-hidden />
+            Source and portrait preview
+            <span className="font-mono text-[11px] tabular-nums text-kumo-subtle/70">
+              · appears after upload
+            </span>
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1.35fr_0.9fr]">
+            <div className="aspect-video rounded-md border border-kumo-hairline bg-kumo-base flex items-center justify-center">
+              <span className="text-xs text-kumo-subtle">
+                16:9 source — position zones
+              </span>
+            </div>
+            <div className="flex justify-center">
+              <div className="aspect-9/16 w-32 rounded-xl border border-kumo-hairline bg-kumo-base flex items-center justify-center">
+                <span className="text-[11px] text-kumo-subtle">
+                  9:16 STACKED
+                </span>
+              </div>
+            </div>
+          </div>
+          <span suppressHydrationWarning className="sr-only">
+            {new Date().toLocaleTimeString()}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Header — tight group, sentence case, operational — mirrors pageEditorCrop */}
+      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-kumo-hairline pb-4">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold leading-none tracking-normal">
+              Mobile layout
+            </h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-kumo-hairline bg-kumo-recessed px-2 py-0.5 text-[11px] font-medium leading-none text-kumo-subtle">
+              <span
+                className="size-1.5 rounded-full bg-kumo-brand"
+                aria-hidden
+              />
+              {modeBadge}
+              <span aria-hidden className="opacity-40">
+                ·
+              </span>
+              <span className="tabular-nums">non-destructive</span>
+            </span>
+          </div>
+          <p className="flex flex-wrap items-center gap-1.5 text-xs leading-4 text-kumo-subtle">
+            <span>16:9 → 9:16 · Two zones</span>
+            <span aria-hidden className="text-kumo-hairline">
+              ·
+            </span>
+            <span
+              className="min-w-0 truncate font-mono text-[11px] tabular-nums text-kumo-subtle"
+              title={fileName}
+            >
+              {fileName || "untitled"}
+            </span>
+            <span aria-hidden className="text-kumo-hairline">
+              ·
+            </span>
+            <span className="tabular-nums">{sourceLabel}</span>
+            <span aria-hidden className="text-kumo-hairline">
+              ·
+            </span>
+            <span className="tabular-nums">{outputLabel}</span>
+          </p>
+        </div>
+
+        <div
+          className="flex shrink-0 flex-wrap items-center gap-1.5 justify-end"
+          onMouseEnter={preloadUploadChunked}
+          onFocus={preloadUploadChunked}
+        >
           <UploadOtherButton />
+          <span aria-hidden className="h-5 w-px bg-kumo-hairline mx-0.5" />
           <Button
             size="sm"
-            variant="outline"
-            onClick={ed.undoOp}
-            disabled={ed.undo.length === 0}
-          >
-            Undo
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={ed.redoOp}
-            disabled={ed.redo.length === 0}
-          >
-            Redo
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const s = autoSuggest(ed.layout.mode, ed.layout.splitRatio);
-              ed.setLayout(s);
-              toast.success("Auto-crop suggested");
-            }}
-          >
-            Auto-crop
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
+            variant="secondary"
             onClick={() => {
               const saved = loadPrefForMode(ed.layout.mode);
               if (saved) ed.setLayout(saved);
@@ -1969,6 +2146,7 @@ export default function MobileEditorPage() {
               setIsMuted(false);
               setIsLoopTrim(false);
             }}
+            className="h-7 rounded-md text-xs"
           >
             Reset
           </Button>
@@ -1976,24 +2154,85 @@ export default function MobileEditorPage() {
             size="sm"
             onClick={onExport}
             disabled={!!validationError || isExporting}
-            onMouseEnter={preloadUploadChunked}
-            onFocus={preloadUploadChunked}
+            className="h-7 rounded-md text-xs font-medium"
           >
-            {isExporting ? "Exporting…" : "Export 9:16 (mp4 CRF 10)"}
+            {isExporting ? "Exporting…" : "Export 9:16"}
           </Button>
         </div>
-      </div>
+      </header>
+
       {uploadStatus === "uploading" || uploadStatus === "error" ? (
         <Activity mode="visible">
-          <UploadProgress />
+          <div className="rounded-md border border-kumo-hairline bg-kumo-recessed p-3">
+            <UploadProgress />
+          </div>
         </Activity>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.7fr)_320px]">
-        <Card className="overflow-hidden">
+      <div
+        className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.7fr)_340px]"
+        style={
+          {
+            contentVisibility: "auto",
+            containIntrinsicSize: "0 640px",
+          } as React.CSSProperties
+        }
+      >
+        {/* Operational header — recessed, hairline, tabular — mirrors pageEditorCrop */}
+        <div className="col-span-full flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border border-kumo-hairline bg-kumo-recessed px-3 py-2">
+          <div className="flex flex-1 flex-wrap items-center gap-2 text-[11px] leading-none">
+            <span className="inline-flex items-center gap-1.5 font-mono tabular-nums text-kumo-subtle">
+              <SlidersHorizontal className="size-3" aria-hidden />
+              {modeBadge} · {outputLabel}
+            </span>
+            <span aria-hidden className="h-3 w-px bg-kumo-hairline" />
+            <span className="font-mono tabular-nums text-kumo-subtle">
+              Source {sourceLabel}
+            </span>
+            <span aria-hidden className="h-3 w-px bg-kumo-hairline" />
+            <span className="font-mono tabular-nums text-kumo-subtle">
+              Split {splitLabel}% · Trim {trimLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] leading-none tabular-nums text-kumo-subtle">
+            <span className="inline-flex items-center gap-1">
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  validationError
+                    ? "bg-kumo-warn"
+                    : isFilterStale || isPending
+                      ? "bg-kumo-warn animate-pulse"
+                      : "bg-kumo-success",
+                )}
+                aria-hidden
+              />
+              {validationError
+                ? "invalid"
+                : isFilterStale || isPending
+                  ? "syncing"
+                  : "ready"}
+            </span>
+            <span aria-hidden className="h-3 w-px bg-kumo-hairline" />
+            <span className="font-mono text-[11px] tabular-nums">
+              {OUTPUT_W}×{OUTPUT_H}
+            </span>
+            <span aria-hidden>·</span>
+            <span>
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+        </div>
+
+        <Card className="overflow-hidden border-kumo-line shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
           <CardHeader className="py-3">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm">16:9 SOURCE</CardTitle>
+              <CardTitle className="text-sm font-semibold tracking-normal">
+                Source
+                <span className="ml-1.5 font-mono text-[11px] font-normal tabular-nums text-kumo-subtle">
+                  16:9 · {sourceLabel}
+                </span>
+              </CardTitle>
               <div className="flex items-center gap-2">
                 <Select value={ed.layout.mode} onValueChange={handleModeChange}>
                   <SelectTrigger className="h-7 w-28 text-xs">
@@ -2091,7 +2330,7 @@ export default function MobileEditorPage() {
                 }}
                 className="flex-1"
               />
-              <span className="text-xs tabular-nums text-kumo-subtle w-20 text-right">
+              <span className="text-xs tabular-nums text-kumo-subtle whitespace-nowrap  text-right">
                 {formatTime(currentTime)} / {formatTime(duration)}
               </span>
               <Button
@@ -2186,9 +2425,11 @@ export default function MobileEditorPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader className="py-3">
-              <CardTitle className="text-sm">
-                9:16 PREVIEW ·{" "}
-                {ed.layout.mode === "stacked" ? "Stacked" : "Full"}
+              <CardTitle className="text-sm font-semibold tracking-normal">
+                Preview · {ed.layout.mode === "stacked" ? "Stacked" : "Full"}{" "}
+                <span className="font-mono text-[11px] font-normal tabular-nums text-kumo-subtle">
+                  1080 × 1920
+                </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -2255,35 +2496,6 @@ export default function MobileEditorPage() {
                   onCheckedChange={ed.setUseWatermark}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-1.5 pt-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => ed.setLayout(autoSuggest("stacked", 0.5))}
-                >
-                  Accept
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    ed.setSelected(
-                      ed.selected === "zone-1" ? "zone-2" : "zone-1",
-                    )
-                  }
-                >
-                  Adjust
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    ed.setLayout(createDefaultLayout("stacked", 0.5))
-                  }
-                >
-                  Dismiss
-                </Button>
-              </div>
               <Button
                 className="w-full"
                 onClick={() => {
@@ -2314,7 +2526,7 @@ export default function MobileEditorPage() {
               style={isFilterStale ? { opacity: 0.7 } : undefined}
               suppressHydrationWarning
             >
-              {deferredFilter}
+              {defferedFilter}
             </code>
             <div className="text-[11px] tabular-nums text-kumo-subtle space-y-1">
               <div className="flex justify-between">
@@ -2330,6 +2542,11 @@ export default function MobileEditorPage() {
             </div>
           </Card>
         </div>
+      </div>
+
+      <div className="hidden tabular-nums" suppressHydrationWarning aria-hidden>
+        {isFilterStale ? "pending" : "ready"} · {splitLabel} ·{" "}
+        {fileName ? "has-file" : "no-file"}
       </div>
     </div>
   );
