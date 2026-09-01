@@ -64,7 +64,6 @@ export interface VideoState {
   crop: { x: number; y: number; width: number; height: number };
   aspectRatio: "custom" | "1:1" | "16:9" | "21:9";
   isCropMode: boolean;
-  isAutoZoomEnabled: boolean;
   canvasZoom: number;
   canvasOffset: { x: number; y: number };
   exportFormat: "mp4" | "webm" | "mov";
@@ -111,7 +110,6 @@ const initialState: VideoState = {
   crop: { x: 0, y: 0, width: 100, height: 100 },
   aspectRatio: "custom",
   isCropMode: false,
-  isAutoZoomEnabled: false,
   canvasZoom: 1,
   canvasOffset: { x: 0, y: 0 },
   exportFormat: "mp4",

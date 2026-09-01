@@ -35,7 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
@@ -129,7 +128,6 @@ export function Sidebar() {
         crop: { x: 0, y: 0, width: 100, height: 100 },
         aspectRatio: "custom",
         isCropMode: false,
-        isAutoZoomEnabled: false,
         canvasZoom: 1,
         canvasOffset: { x: 0, y: 0 },
         sourceAspectRatio: 1,
@@ -439,16 +437,6 @@ export function Sidebar() {
             >
               {state.isCropMode ? "Crop mode on" : "Enable crop"}
             </Button>
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="auto-zoom">Auto-zoom Follows Crop Area</Label>
-              <Switch
-                id="auto-zoom"
-                checked={state.isAutoZoomEnabled}
-                onCheckedChange={(checked) =>
-                  update({ isAutoZoomEnabled: checked })
-                }
-              />
-            </div>
             <div className="space-y-3">
               <Label>Canvas zoom</Label>
               <Slider
@@ -464,7 +452,6 @@ export function Sidebar() {
                   })
                 }
                 aria-label="Canvas zoom"
-                disabled={state.isAutoZoomEnabled}
               />
 
               <div className="flex items-center w-full justify-between gap-2">
@@ -475,9 +462,7 @@ export function Sidebar() {
                         size="icon"
                         variant="outline"
                         aria-label="Zoom out canvas"
-                        disabled={
-                          state.isAutoZoomEnabled || state.canvasZoom <= 0.25
-                        }
+                        disabled={state.canvasZoom <= 0.25}
                         onClick={() => adjustCanvasZoom(-0.1)}
                       />
                     }
@@ -496,9 +481,7 @@ export function Sidebar() {
                         size="icon"
                         variant="outline"
                         aria-label="Zoom in canvas"
-                        disabled={
-                          state.isAutoZoomEnabled || state.canvasZoom >= 4
-                        }
+                        disabled={state.canvasZoom >= 4}
                         onClick={() => adjustCanvasZoom(0.1)}
                       />
                     }

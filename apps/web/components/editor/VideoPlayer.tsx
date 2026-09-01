@@ -18,9 +18,7 @@ export function VideoPlayer() {
     isMuted,
     currentTime,
     trimRange,
-    crop,
     isCropMode,
-    isAutoZoomEnabled,
     canvasZoom,
     canvasOffset,
     sourceAspectRatio,
@@ -28,36 +26,12 @@ export function VideoPlayer() {
     isLoopEnabled,
   } = useVideoState();
 
-  // --- Auto-zoom preview (only when NOT cropping) ---------------------------
-  // Compute the zoom that fits the selected crop region into the 16:9 player
-  // with a small padding. Must not be applied while CropOverlay is active:
-  // the overlay's getBoundingClientRect would be transformed and pointer
-  // deltas would be scaled, causing drift + a feedback loop (move crop ->
-  // new scale -> new bounds mid-drag).
-  const cropEdgeMargin = Math.min(
-    crop.x,
-    crop.y,
-    100 - crop.x - crop.width,
-    100 - crop.y - crop.height,
-  );
-  const cropCanvasPadding = isAutoZoomEnabled
-    ? Math.min(0.16, 0.08 + Math.max(0, 0.08 - Math.min(cropEdgeMargin, 8) / 100))
-    : 0;
-  const cropScale = (1 - cropCanvasPadding * 2) * (100 / Math.min(crop.width, crop.height));
-  const cropOffsetX = 50 - (crop.x + crop.width / 2);
-  const cropOffsetY = 50 - (crop.y + crop.height / 2);
-
-  const autoTransform = `scale(${cropScale}) translate(${cropOffsetX}%, ${cropOffsetY}%)`;
   const manualTransform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
 
-  // FIX: disable all canvas transforms while crop mode is active.
-  // Crop editing is 1:1 with the video content rect so pointer math stays
-  // drift-free. Preview zoom (auto or manual) is shown only outside crop mode.
-  const canvasTransform = isCropMode
-    ? undefined
-    : isAutoZoomEnabled
-      ? autoTransform
-      : manualTransform;
+  // Zoom/pan applies in and outside crop mode. CropOverlay's pointer math
+  // divides by bounds.width/height, so a scaled canvas (bounds includes scale)
+  // maps correctly to pct without extra correction.
+  const canvasTransform = manualTransform;
 
   // --- Letterbox size: fit source video inside fixed 16:9 player  -----------
   const playerAspectRatio = 16 / 9;
@@ -124,7 +98,8 @@ export function VideoPlayer() {
   }, [currentTime, trimRange]);
 
   const startCanvasPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (isAutoZoomEnabled || isCropMode) return;
+    // Pan is allowed even during crop mode — CropOverlay stops propagation on
+    // crop handles/move so panning only fires for background/empty area drags.
     event.preventDefault();
     const start = {
       x: event.clientX,
@@ -155,25 +130,16 @@ export function VideoPlayer() {
       <Card className="overflow-hidden p-0 rounded-lg">
         <div ref={wrapperRef} className="relative aspect-video w-full">
           {/* Outer stage is always untransformed; only the inner canvas is
-              transformed for preview. CropOverlay lives inside the letterboxed
-              canvas but that canvas is NOT transformed while isCropMode,
-              so overlay bounds == logical crop percentages 1:1. */}
+              transformed. CropOverlay lives inside the letterboxed canvas and
+              inherits the same zoom/pan so crop rect stays aligned with video. */}
           <div
             className="absolute inset-0 flex items-center justify-center overflow-hidden bg-black"
             onPointerDown={(e) => {
-              // Pan only when not cropping — background drag pans canvas.
-              if (!isCropMode) startCanvasPan(e);
+              startCanvasPan(e);
             }}
           >
             <div
-              className={cn(
-                "relative origin-center",
-                isCropMode
-                  ? ""
-                  : isAutoZoomEnabled
-                    ? "transition-transform duration-300"
-                    : "",
-              )}
+              className={cn("relative origin-center")}
               style={{
                 ...canvasSize,
                 transform: canvasTransform,

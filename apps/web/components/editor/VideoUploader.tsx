@@ -56,7 +56,6 @@ export function VideoUploader() {
           exportQuality: 23,
           playbackSpeed: 1,
           exportSpeed: 1,
-          isAutoZoomEnabled: false,
           canvasZoom: 1,
           canvasOffset: { x: 0, y: 0 },
           sourceAspectRatio: 1,
