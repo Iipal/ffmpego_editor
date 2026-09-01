@@ -241,11 +241,33 @@ function CropArea() {
     crop.x === 0 && crop.y === 0 && crop.width === 100 && crop.height === 100;
 
   const resetCrop = useCallback(() => {
-    store.setState((prev) => ({
-      ...prev,
-      crop: { x: 0, y: 0, width: 100, height: 100 },
-      aspectRatio: "custom" as const,
-    }));
+    try {
+      const raw = localStorage.getItem(CROP_STORAGE_KEY);
+      if (!raw) {
+        toast.error("No saved crop settings found", {
+          description: "Click Save to store the current crop first.",
+        });
+        return;
+      }
+      const parsed = JSON.parse(raw) as unknown;
+      if (!isValidPersistedCrop(parsed)) {
+        toast.error("Saved crop settings are invalid");
+        return;
+      }
+      const p = parsed as PersistedCrop & { isCropMode?: boolean };
+      store.setState((prev) => ({
+        ...prev,
+        crop: p.crop,
+        aspectRatio: p.aspectRatio,
+        isCropMode:
+          typeof p.isCropMode === "boolean" ? p.isCropMode : prev.isCropMode,
+      }));
+      toast.success("Crop restored from saved settings", {
+        description: `${p.aspectRatio} · ${formatPct(p.crop.width)} × ${formatPct(p.crop.height)}${typeof p.isCropMode === "boolean" && p.isCropMode ? " · enabled" : ""}`,
+      });
+    } catch {
+      toast.error("Failed to restore crop settings");
+    }
   }, [store]);
 
   const toggleCropMode = useCallback(() => {
@@ -341,9 +363,8 @@ function CropArea() {
             size="sm"
             variant="ghost"
             onClick={resetCrop}
-            disabled={isFullFrame}
             className="h-7 rounded-md text-xs"
-            title="Reset crop to full frame"
+            title="Restore saved crop from localStorage"
           >
             Reset
           </Button>

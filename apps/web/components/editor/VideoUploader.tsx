@@ -41,6 +41,7 @@ export function VideoUploader() {
       }
 
       const mediaUrl = URL.createObjectURL(file);
+      const defaultFilename = file.name.replace(/\.[^.]+$/, "");
       videoStore.setState((previous) => {
         if (previous.mediaUrl) {
           URL.revokeObjectURL(previous.mediaUrl);
@@ -53,6 +54,7 @@ export function VideoUploader() {
           currentTime: 0,
           duration: 0,
           isPlaying: false,
+          exportFilename: defaultFilename,
           exportQuality: 23,
           playbackSpeed: 1,
           exportSpeed: 1,

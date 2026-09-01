@@ -272,14 +272,22 @@ export function CropOverlay() {
       className="absolute inset-0 z-10 touch-none select-none"
       aria-label="Crop area. Drag to move, handles to resize."
     >
-      {/* Crop window — border + dim outside via large box-shadow (cheap, no extra elements) */}
+      {/* Kumo quiet operational treatment — mirrors ZoneOverlay in pageEditorMobile.tsx:
+          - base: rounded-md border, restrained shadow, brand tint when active
+          - badge: mono 11px, brand bg with dot, same as mobile zone label
+          - grid: 3×3 white/40, identical to ZoneGridOverlay (5455e6a244e3)
+          - handles: 2.5 size, white ring, brand fill, -m-1, scale on hover — matches HANDLE_POSITIONS */}
       <div
-        className="absolute border-2 border-kumo-brand bg-transparent cursor-move"
+        className={cn(
+          "absolute cursor-move rounded-md border bg-kumo-brand/8 shadow-[0_0_0_1px_var(--kumo-brand)] transition-colors",
+          "border-kumo-brand",
+        )}
         style={{
           left: `${crop.x}%`,
           top: `${crop.y}%`,
           width: `${crop.width}%`,
           height: `${crop.height}%`,
+          // Dim outside — large shadow, semantic near-black with alpha (keeps video readable)
           boxShadow: "0 0 0 9999px rgba(17, 24, 39, 0.45)",
         }}
         onPointerDown={(ev) => beginDrag(ev, "move")}
@@ -287,17 +295,26 @@ export function CropOverlay() {
         tabIndex={0}
         aria-label="Move crop area"
       >
-        {/* Alignment grid — 3x3, hairline, pointer-events none */}
-        <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 opacity-30">
-          <div className="border-r border-kumo-line/60" />
-          <div className="border-r border-kumo-line/60" />
+        {/* Label badge — identical metrics to ZoneOverlay (top-6, px-1.5, mono 11px) */}
+        <span
+          className="absolute -top-6 left-0 inline-flex items-center gap-1 rounded-md border border-kumo-brand bg-kumo-brand px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm"
+          aria-hidden
+        >
+          <span className="size-1.5 rounded-full bg-current opacity-80" aria-hidden />
+          Crop · {aspectRatio}
+        </span>
+
+        {/* Grid — ZoneGridOverlay exact clone, hairline white/40, pointer-events none */}
+        <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 overflow-hidden rounded-md opacity-30">
+          <div className="border-r border-b border-white/40" />
+          <div className="border-r border-b border-white/40" />
+          <div className="border-b border-white/40" />
+          <div className="border-r border-white/40" />
+          <div className="border-r border-white/40" />
           <div />
-          <div className="border-r border-t border-kumo-line/60" />
-          <div className="border-r border-t border-kumo-line/60" />
-          <div className="border-t border-kumo-line/60" />
-          <div className="border-r border-t border-kumo-line/60" />
-          <div className="border-r border-t border-kumo-line/60" />
-          <div className="border-t border-kumo-line/60" />
+          <div className="border-r border-white/40" />
+          <div className="border-r border-white/40" />
+          <div />
         </div>
 
         {HANDLES.map((h) => (
@@ -308,19 +325,16 @@ export function CropOverlay() {
             aria-label={`Resize crop ${h}`}
             onPointerDown={(ev) => beginDrag(ev, h)}
             className={cn(
-              "absolute size-3.5 -m-1 cursor-pointer rounded-full border-2 border-white bg-kumo-brand shadow-sm touch-none transition-transform hover:scale-110 active:scale-95",
-              h.includes("n")
-                ? "-top-1.5"
-                : h.includes("s")
-                  ? "-bottom-1.5"
-                  : "top-1/2 -translate-y-1/2",
-              h.includes("w")
-                ? "-left-1.5"
-                : h.includes("e")
-                  ? "-right-1.5"
-                  : "left-1/2 -translate-x-1/2",
+              "absolute size-2.5 -m-1 cursor-pointer rounded-full border-2 border-white bg-kumo-brand shadow-sm touch-none transition-transform hover:scale-110 active:scale-95",
+              h === "nw" && "top-0 left-0 cursor-nw-resize",
+              h === "ne" && "top-0 right-0 cursor-ne-resize",
+              h === "sw" && "bottom-0 left-0 cursor-sw-resize",
+              h === "se" && "bottom-0 right-0 cursor-se-resize",
+              h === "n" && "top-0 left-1/2 -translate-x-1/2 cursor-n-resize",
+              h === "s" && "bottom-0 left-1/2 -translate-x-1/2 cursor-s-resize",
+              h === "e" && "top-1/2 right-0 -translate-y-1/2 cursor-e-resize",
+              h === "w" && "top-1/2 left-0 -translate-y-1/2 cursor-w-resize",
             )}
-            // Keep handle above grid; individual handle decides its own z
             style={{ zIndex: 1 }}
           />
         ))}

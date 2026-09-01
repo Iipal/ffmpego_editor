@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   ChevronDown,
   PanelRightClose,
@@ -102,6 +102,19 @@ export function Sidebar() {
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
   const filename = state.file?.name.replace(/\.[^.]+$/, "") ?? "Untitled video";
+  const basename = state.file?.name.replace(/\.[^.]+$/, "") ?? "";
+
+  // Keep export filename in sync with uploaded file's basename.
+  // VideoUploader and the two "Upload other" handlers already set exportFilename
+  // on file change, but this effect covers any other file-set path (e.g. future
+  // uploader variants) and restores a sensible default when the stored name is
+  // empty while a file is present.
+  useEffect(() => {
+    if (!state.file || !basename) return;
+    if (!state.exportFilename) {
+      update({ exportFilename: basename });
+    }
+  }, [basename, state.exportFilename, state.file]);
   const selectReplacementFile = (file: File | undefined) => {
     if (!file || !isAcceptedVideoFile(file)) {
       if (file) toast.error("Unsupported format. Use MP4/WebM/MOV/MKV");
@@ -578,7 +591,7 @@ export function Sidebar() {
             <div className="space-y-2 pt-2">
               <Label>Filename</Label>
               <Input
-                value={state.exportFilename}
+                value={state.exportFilename || basename}
                 onChange={(event) =>
                   update({ exportFilename: event.target.value })
                 }
