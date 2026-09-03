@@ -12,6 +12,8 @@ interface TranscodeSettings {
   sourceWidth: number;
   sourceHeight: number;
   trimRange: [number, number];
+  ignoreTrim?: boolean;
+  ignoreTrimSettings?: boolean;
   crop: { x: number; y: number; width: number; height: number };
   exportFormat: "mp4" | "webm" | "mov";
   exportFps: number;
@@ -299,9 +301,48 @@ function parseMobileSettings(value: FormDataEntryValue | null):
       return null;
     if (s.watermark !== undefined && typeof s.watermark !== "boolean")
       return null;
+    if (s.ignoreTrim !== undefined && typeof s.ignoreTrim !== "boolean")
+      return null;
+    if (
+      s.ignoreTrimSettings !== undefined &&
+      typeof s.ignoreTrimSettings !== "boolean"
+    )
+      return null;
+    // Normalize alias: frontend may send either key
+    if (s.ignoreTrim === undefined && typeof s.ignoreTrimSettings === "boolean") {
+      s.ignoreTrim = s.ignoreTrimSettings;
+    }
     return s as unknown as TranscodeSettings & {
       mobileLayout: NonNullable<TranscodeSettings["mobileLayout"]>;
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Probe input duration via ffprobe (used for progress when trim is ignored
+ * and the full-length video is rendered).
+ */
+async function probeMediaDuration(inputPath: string): Promise<number | null> {
+  try {
+    const proc = Bun.spawn(
+      [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        inputPath,
+      ],
+      { stdout: "pipe", stderr: "ignore" },
+    );
+    const out = (await new Response(proc.stdout).text()).trim();
+    await proc.exited;
+    const d = Number(out);
+    return Number.isFinite(d) && d > 0 ? d : null;
   } catch {
     return null;
   }
@@ -354,12 +395,22 @@ app.post("/transcode/mobile", async (c) => {
   const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
     .replace(/(^|\s)-an(\s|$)/g, " ")
     .trim();
+  const ignoreTrim = settings.ignoreTrim === true;
+  let progressDuration = Math.max(
+    0.001,
+    settings.trimRange[1] - settings.trimRange[0],
+  );
+  if (ignoreTrim) {
+    const probed = await probeMediaDuration(temporaryPath);
+    if (probed) progressDuration = probed;
+  }
   let originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
     filename: settings.exportFilename.trim() || filename,
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     trimRange: settings.trimRange,
+    ignoreTrim,
     crop: { x: 0, y: 0, width: 100, height: 100 },
     format,
     fps: 60,
@@ -382,12 +433,7 @@ app.post("/transcode/mobile", async (c) => {
   };
   jobs.set(jobId, job);
   void (async () => {
-    await runTranscode(
-      job,
-      originalArgs,
-      temporaryPath,
-      Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]),
-    );
+    await runTranscode(job, originalArgs, temporaryPath, progressDuration);
   })();
   return c.json({
     jobId,

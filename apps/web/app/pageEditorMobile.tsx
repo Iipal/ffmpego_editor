@@ -243,6 +243,7 @@ function useMobileEditor() {
   const [selected, setSelected] = useState<"zone-1" | "zone-2">("zone-1");
   const [safe, setSafe] = useState(true);
   const [useWatermark, setUseWatermark] = useState(true);
+  const [ignoreTrim, setIgnoreTrim] = useState(false);
   // transient playback values stored in ref to avoid 60fps parent re-renders
   // rerender-use-ref-transient-values
   const currentTimeRef = useRef(0);
@@ -327,6 +328,8 @@ function useMobileEditor() {
     setSafe,
     useWatermark,
     setUseWatermark,
+    ignoreTrim,
+    setIgnoreTrim,
     undo: history.past,
     redo: history.future,
     undoOp,
@@ -1794,7 +1797,7 @@ export default function MobileEditorPage() {
       toast.error(validationError);
       return;
     }
-    if (trimRange[1] <= trimRange[0] + 0.05) {
+    if (!ed.ignoreTrim && trimRange[1] <= trimRange[0] + 0.05) {
       toast.error("Invalid trim range");
       return;
     }
@@ -1841,6 +1844,7 @@ export default function MobileEditorPage() {
         sourceWidth: sw,
         sourceHeight: sh,
         trimRange,
+        ignoreTrim: ed.ignoreTrim,
         exportFormat: "mp4",
         exportFps: 30,
         exportFilename: baseName,
@@ -1941,6 +1945,7 @@ export default function MobileEditorPage() {
     videoStore,
     ed.layout,
     ed.useWatermark,
+    ed.ignoreTrim,
   ]);
 
   const setStartToCurrent = useCallback(() => {
@@ -1992,9 +1997,13 @@ export default function MobileEditorPage() {
   const splitLabel = `${Math.round(ed.layout.splitRatio * 100)} / ${Math.round((1 - ed.layout.splitRatio) * 100)}`;
   const modeBadge =
     ed.layout.mode === "full" ? "Full 9:16" : `Stacked ${splitLabel}`;
-  const trimLabel = duration
-    ? `${formatTime(trimStart)} → ${formatTime(trimEnd)} · ${formatTime(trimmedDuration)}`
-    : "—";
+  const trimLabel = ed.ignoreTrim
+    ? duration
+      ? `Full length · ${formatTime(duration)}`
+      : "Full length"
+    : duration
+      ? `${formatTime(trimStart)} → ${formatTime(trimEnd)} · ${formatTime(trimmedDuration)}`
+      : "—";
 
   if (!hasVideo) {
     return (
@@ -2343,12 +2352,24 @@ export default function MobileEditorPage() {
               </Button>
             </div>
             {/* Trim controls */}
-            <div className="rounded-lg border bg-kumo-recessed/20 p-3 space-y-3">
+            <div
+              className={cn(
+                "rounded-lg border bg-kumo-recessed/20 p-3 space-y-3",
+                ed.ignoreTrim && "opacity-50 pointer-events-none",
+              )}
+              aria-disabled={ed.ignoreTrim}
+            >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold">Trim</span>
                 <span className="text-[11px] tabular-nums text-kumo-subtle">
-                  {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
-                  {formatTime(trimmedDuration)}
+                  {ed.ignoreTrim ? (
+                    <>Full length · {formatTime(duration)}</>
+                  ) : (
+                    <>
+                      {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
+                      {formatTime(trimmedDuration)}
+                    </>
+                  )}
                 </span>
               </div>
               <div className="space-y-1">
@@ -2496,6 +2517,13 @@ export default function MobileEditorPage() {
                   onCheckedChange={ed.setUseWatermark}
                 />
               </div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Ignore Trim Settings</Label>
+                <Switch
+                  checked={ed.ignoreTrim}
+                  onCheckedChange={ed.setIgnoreTrim}
+                />
+              </div>
               <Button
                 className="w-full"
                 onClick={() => {
@@ -2506,8 +2534,8 @@ export default function MobileEditorPage() {
                 Save preference
               </Button>
               <p className="text-[10px] leading-3 text-kumo-subtle">
-                Static zones across trimmed clip. Final render 1080×1920 · same
-                geometry as preview. Trim applied to export.
+                Static zones across {ed.ignoreTrim ? "full video" : "trimmed clip"}. Final render 1080×1920 · same
+                geometry as preview. {ed.ignoreTrim ? "Trim ignored on export." : "Trim applied to export."}
               </p>
               {isPending ? (
                 <span className="text-[10px] text-kumo-subtle">

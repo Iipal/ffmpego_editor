@@ -26,6 +26,7 @@ export interface TranscodeOptions {
   sourceWidth: number;
   sourceHeight: number;
   trimRange: [number, number];
+  ignoreTrim?: boolean;
   crop: { x: number; y: number; width: number; height: number };
   format: "mp4" | "webm" | "mov";
   outputSuffix?: string;
@@ -178,15 +179,16 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     if (!watermarkPath) watermarkPath = candidates[0];
   }
 
-  const args: string[] = [
-    "-y",
-    "-ss",
-    String(options.trimRange[0]),
-    "-to",
-    String(options.trimRange[1]),
-    "-i",
-    options.inputPath,
-  ];
+  const args: string[] = ["-y"];
+  if (!options.ignoreTrim) {
+    args.push(
+      "-ss",
+      String(options.trimRange[0]),
+      "-to",
+      String(options.trimRange[1]),
+    );
+  }
+  args.push("-i", options.inputPath);
   if (watermarkEnabled && watermarkPath) {
     args.push("-loop", "1", "-framerate", "30", "-i", watermarkPath);
   }
