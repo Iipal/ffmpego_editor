@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="ffmpego-bg" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#056DFF"/>
+      <stop offset="1" stop-color="#1447E6"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#ffmpego-bg)"/>
+  <g fill="#FAFAFA" opacity="0.9">
+    <rect x="21" y="11" width="14" height="8" rx="2.5"/>
+    <rect x="45" y="11" width="14" height="8" rx="2.5"/>
+    <rect x="69" y="11" width="14" height="8" rx="2.5"/>
+    <rect x="93" y="11" width="14" height="8" rx="2.5"/>
+    <rect x="21" y="109" width="14" height="8" rx="2.5"/>
+    <rect x="45" y="109" width="14" height="8" rx="2.5"/>
+    <rect x="69" y="109" width="14" height="8" rx="2.5"/>
+    <rect x="93" y="109" width="14" height="8" rx="2.5"/>
+  </g>
+  <path d="M48 40 L82 64 L48 88 Z" fill="#FAFAFA" stroke="#FAFAFA" stroke-width="10" stroke-linejoin="round"/>
+</svg>

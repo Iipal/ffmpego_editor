@@ -19,6 +19,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "FFmpeg Editor",
   description: "Local video editor powered by FFmpeg",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

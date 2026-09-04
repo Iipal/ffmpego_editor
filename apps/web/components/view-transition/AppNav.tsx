@@ -3,6 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useOptimistic, useTransition, ViewTransition } from "react";
+import {
+  Captions,
+  Crop,
+  LayoutGrid,
+  Scissors,
+  ShieldCheck,
+  Smartphone,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
@@ -11,103 +19,32 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: "/editor/crop",
     label: "Crop",
-    icon: (
-      <svg
-        className="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <line x1="9" y1="3" x2="9" y2="21" />
-      </svg>
-    ),
+    icon: <Crop className="w-4 h-4" />,
   },
   {
     href: "/editor/mobile",
     label: "Mobile",
-    icon: (
-      <svg
-        className="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <rect x="5" y="2" width="14" height="20" rx="2" />
-        <line x1="9" y1="7" x2="15" y2="7" />
-      </svg>
-    ),
+    icon: <Smartphone className="w-4 h-4" />,
   },
   {
     href: "/editor/mobile/subtitles",
     label: "Subtitles",
-    icon: (
-      <svg
-        className="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <rect x="2" y="4" width="20" height="16" rx="2" />
-        <line x1="6" y1="10" x2="18" y2="10" />
-        <line x1="8" y1="14" x2="16" y2="14" />
-      </svg>
-    ),
+    icon: <Captions className="w-4 h-4" />,
   },
   {
     href: "/editor/mobile/bulk",
     label: "Bulk",
-    icon: (
-      <svg
-        className="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-      </svg>
-    ),
+    icon: <LayoutGrid className="w-4 h-4" />,
   },
   {
     href: "/editor/cut",
     label: "Cut",
-    icon: (
-      <svg
-        className="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <circle cx="6" cy="6" r="3" />
-        <circle cx="6" cy="18" r="3" />
-        <line x1="8.5" y1="8" x2="20" y2="20" />
-        <line x1="8.5" y1="16" x2="20" y2="4" />
-      </svg>
-    ),
+    icon: <Scissors className="w-4 h-4" />,
   },
   {
     href: "/admin",
     label: "Admin",
-    icon: (
-      <svg
-        className="w-4 h-4"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      >
-        <path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8Z" />
-        <path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
-      </svg>
-    ),
+    icon: <ShieldCheck className="w-4 h-4" />,
   },
 ];
 
