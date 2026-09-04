@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
 import { buildFFmpegArgs, OUTPUT_DIRECTORY } from "../utils/ffmpegBuilder.js";
+import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { consumeUpload } from "./upload.js";
 
@@ -51,6 +52,11 @@ interface TranscodeJob {
 
 const app = new Hono();
 const jobs = new Map<string, TranscodeJob>();
+
+/** Absolute temp output path (os.tmpdir) — never relative, so ffmpeg's cwd can't matter. */
+function tempOutputPath(jobId: string, suffix: string, ext: string): string {
+  return path.join(os.tmpdir(), `temp_${jobId}${suffix}.${ext}`);
+}
 
 function cleanupJobFiles(job: TranscodeJob) {
   for (const p of [
@@ -309,7 +315,10 @@ function parseMobileSettings(value: FormDataEntryValue | null):
     )
       return null;
     // Normalize alias: frontend may send either key
-    if (s.ignoreTrim === undefined && typeof s.ignoreTrimSettings === "boolean") {
+    if (
+      s.ignoreTrim === undefined &&
+      typeof s.ignoreTrimSettings === "boolean"
+    ) {
       s.ignoreTrim = s.ignoreTrimSettings;
     }
     return s as unknown as TranscodeSettings & {
@@ -380,7 +389,7 @@ app.post("/transcode/mobile", async (c) => {
   const { temporaryPath, filename } = resolved;
   const format = "mp4" as const;
   const jobId = crypto.randomUUID();
-  const originalOutputPath = `./temp_${jobId}_mobile.${format}`;
+  const originalOutputPath = tempOutputPath(jobId, "_mobile", format);
   const mobileLayout = {
     mode: settings.mobileLayout.mode,
     splitRatio: settings.mobileLayout.splitRatio,
@@ -607,7 +616,7 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
     .replace(/(^|\s)-an(\s|$)/g, " ")
     .trim();
-  const originalOutputPath = `./temp_${jobId}_mobile_subtitles.${format}`;
+  const originalOutputPath = tempOutputPath(jobId, "_mobile_subtitles", format);
 
   const originalArgs = buildMobileSubtitlesArgs({
     inputPath: temporaryPath,
@@ -655,6 +664,231 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   });
 });
 
+function parseCutSettings(value: FormDataEntryValue | null): {
+  mode: "full-size" | "2-stack" | "1-stack";
+  cuts: Array<{ start: number; end: number }>;
+  sourceWidth: number;
+  sourceHeight: number;
+  exportFilename: string;
+  exportFps: number;
+  exportQuality: number;
+  exportSpeed: number;
+  customFFmpegArgs: string;
+  watermark?: boolean;
+  splitRatio?: number;
+  zones?: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    zoom: number;
+  }>;
+} | null {
+  if (typeof value !== "string") return null;
+  try {
+    const s = JSON.parse(value) as Record<string, unknown>;
+    const mode = s.mode as string;
+    if (!["full-size", "2-stack", "1-stack"].includes(mode)) return null;
+    const cuts = s.cuts as Array<{ start: number; end: number }> | undefined;
+    if (!Array.isArray(cuts) || cuts.length === 0 || cuts.length > 50)
+      return null;
+    const sorted = [...cuts].sort((a, b) => a.start - b.start);
+    for (const cut of sorted) {
+      if (
+        typeof cut.start !== "number" ||
+        typeof cut.end !== "number" ||
+        !Number.isFinite(cut.start) ||
+        !Number.isFinite(cut.end) ||
+        cut.start < 0 ||
+        cut.end <= cut.start + 0.049
+      )
+        return null;
+    }
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].start < sorted[i - 1].end - 0.001) return null;
+    }
+    const sourceWidth = s.sourceWidth as number;
+    const sourceHeight = s.sourceHeight as number;
+    if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight))
+      return null;
+    const exportFps = (s.exportFps as number) ?? 30;
+    const exportQuality = (s.exportQuality as number) ?? 18;
+    const exportSpeed = (s.exportSpeed as number) ?? 1;
+    if (
+      !Number.isFinite(exportFps) ||
+      !Number.isFinite(exportQuality) ||
+      !Number.isFinite(exportSpeed)
+    )
+      return null;
+    const exportFilename =
+      typeof s.exportFilename === "string" ? s.exportFilename : "";
+    const customFFmpegArgs =
+      typeof s.customFFmpegArgs === "string" ? s.customFFmpegArgs : "";
+    if (s.watermark !== undefined && typeof s.watermark !== "boolean")
+      return null;
+    let splitRatio: number | undefined;
+    if (mode === "2-stack") {
+      const z = s.zones as unknown;
+      if (!Array.isArray(z) || z.length !== 2) return null;
+      for (const zone of z) {
+        const zz = zone as Record<string, unknown>;
+        if (
+          typeof zz.x !== "number" ||
+          typeof zz.y !== "number" ||
+          typeof zz.width !== "number" ||
+          typeof zz.height !== "number"
+        )
+          return null;
+        // Accept 0-1 normalized or 0-100 percent
+        const scale =
+          (zz.width as number) > 1 || (zz.height as number) > 1 ? 100 : 1;
+        const nx = (zz.x as number) / scale;
+        const ny = (zz.y as number) / scale;
+        const nw = (zz.width as number) / scale;
+        const nh = (zz.height as number) / scale;
+        if (
+          nx < 0 ||
+          ny < 0 ||
+          nx + nw > 1.001 ||
+          ny + nh > 1.001 ||
+          nw < 0.02 ||
+          nh < 0.02
+        )
+          return null;
+      }
+      splitRatio = s.splitRatio as number;
+      if (
+        typeof splitRatio !== "number" ||
+        splitRatio < 0.2 ||
+        splitRatio > 0.8
+      )
+        return null;
+    } else if (mode === "1-stack") {
+      const z = s.zones as unknown;
+      if (!Array.isArray(z) || z.length !== 1) return null;
+      const zz = (z as Array<Record<string, unknown>>)[0];
+      if (
+        typeof zz.x !== "number" ||
+        typeof zz.y !== "number" ||
+        typeof zz.width !== "number" ||
+        typeof zz.height !== "number"
+      )
+        return null;
+      const scale =
+        (zz.width as number) > 1 || (zz.height as number) > 1 ? 100 : 1;
+      const nx = (zz.x as number) / scale;
+      const ny = (zz.y as number) / scale;
+      const nw = (zz.width as number) / scale;
+      const nh = (zz.height as number) / scale;
+      if (
+        nx < 0 ||
+        ny < 0 ||
+        nx + nw > 1.001 ||
+        ny + nh > 1.001 ||
+        nw < 0.02 ||
+        nh < 0.02
+      )
+        return null;
+    }
+    return {
+      mode: mode as "full-size" | "2-stack" | "1-stack",
+      cuts: sorted,
+      sourceWidth,
+      sourceHeight,
+      exportFilename,
+      exportFps,
+      exportQuality,
+      exportSpeed,
+      customFFmpegArgs,
+      watermark:
+        typeof s.watermark === "boolean" ? (s.watermark as boolean) : undefined,
+      splitRatio,
+      zones: (s.zones as never) ?? undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+app.post("/transcode/cut", async (c) => {
+  let form: FormData;
+  try {
+    form = await c.req.formData();
+  } catch (e) {
+    console.error("[transcode/cut] formData parse failed:", e);
+    return c.json({ error: "Invalid multipart body" }, 400);
+  }
+  const settings = parseCutSettings(form.get("settings"));
+  if (!settings) {
+    return c.json(
+      {
+        error:
+          "A video file and valid cut settings are required (mode + non-overlapping cuts + zones for stack modes).",
+      },
+      400,
+    );
+  }
+  const resolved = await resolveInputFile(
+    c as unknown as {
+      req: {
+        header: (n: string) => string | undefined;
+        query: (n: string) => string | undefined;
+      };
+    },
+    form,
+  );
+  if (!resolved)
+    return c.json({ error: "A video file or uploadId is required." }, 400);
+  const { temporaryPath, filename } = resolved;
+  const jobId = crypto.randomUUID();
+  const originalOutputPath = tempOutputPath(jobId, "_cut", "mp4");
+  const totalDuration = Math.max(0.001, totalCutDuration(settings.cuts));
+  const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
+    .replace(/(^|\s)-an(\s|$)/g, " ")
+    .trim();
+  const cutArgs = buildCutFFmpegArgs({
+    inputPath: temporaryPath,
+    filename: settings.exportFilename.trim() || filename,
+    sourceWidth: settings.sourceWidth,
+    sourceHeight: settings.sourceHeight,
+    cuts: settings.cuts,
+    mode: settings.mode,
+    zones: (settings.zones as never) ?? null,
+    splitRatio: settings.splitRatio,
+    format: "mp4",
+    fps: settings.exportFps,
+    crf: settings.exportQuality,
+    speed: settings.exportSpeed,
+    customArgs: sanitizedCustomArgs,
+    outputPath: originalOutputPath,
+    watermark: !!settings.watermark,
+  });
+  console.log("CUT ARGS", cutArgs);
+  const job: TranscodeJob = {
+    jobId,
+    status: "processing",
+    progress: 0,
+    outputPath: originalOutputPath,
+    alternateOutputPath: undefined,
+    temporaryInputPath: temporaryPath,
+    createdAt: Date.now(),
+  };
+  jobs.set(jobId, job);
+  void (async () => {
+    await runTranscode(job, cutArgs, temporaryPath, totalDuration);
+  })();
+  const dims =
+    settings.mode === "full-size"
+      ? { width: settings.sourceWidth, height: settings.sourceHeight }
+      : { width: 1080, height: 1920 };
+  return c.json({
+    jobId,
+    progressUrl: `/api/transcode/progress/${jobId}`,
+    output: { ...dims, cuts: settings.cuts.length, duration: totalDuration },
+  });
+});
+
 /**
  * POST /transcode
  *
@@ -695,8 +929,8 @@ app.post("/transcode", async (c) => {
   const format = settings.exportFormat;
   const jobId = crypto.randomUUID();
 
-  // Generate temp output paths: ./temp_${jobId}.${format}
-  const originalOutputPath = `./temp_${jobId}.${format}`;
+  // Generate temp output paths in os.tmpdir()
+  const originalOutputPath = tempOutputPath(jobId, "", format);
   let alternateOutputPath: string | undefined;
 
   const mobileLayout = settings.mobileLayout
@@ -752,7 +986,7 @@ app.post("/transcode", async (c) => {
 
     if (settings.exportSpeed !== 1) {
       const suffix = `_${settings.exportSpeed.toFixed(1)}`;
-      alternateOutputPath = `./temp_${jobId}${suffix}.${format}`;
+      alternateOutputPath = tempOutputPath(jobId, suffix, format);
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
         filename: settings.exportFilename.trim() || filename,
@@ -848,17 +1082,20 @@ app.delete("/transcode/jobs", async (c) => {
         }
       }
     } catch {}
-    // cleanup /tmp job inputs - if clearing all, sweep all matching temps
+    // cleanup /tmp job inputs + temp outputs - if clearing all, sweep all matching temps
     try {
       const tmpFiles = await readdir(os.tmpdir());
       for (const f of tmpFiles) {
-        if (
+        const isJobInput =
           /^[0-9a-f-]{36}-/.test(f) &&
           (f.endsWith(".mp4") ||
             f.endsWith(".png") ||
             f.endsWith(".webm") ||
-            f.endsWith(".mov"))
-        ) {
+            f.endsWith(".mov"));
+        const isTempOutput =
+          f.startsWith("temp_") &&
+          (f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mov"));
+        if (isJobInput || isTempOutput) {
           const full = path.join(os.tmpdir(), f);
           const matchId = f.slice(0, 36);
           if (ids.includes(matchId) || !filter || filter === "all") {
@@ -923,53 +1160,50 @@ app.get("/transcode/download/:jobId", async (c) => {
   }
 
   // Return the primary output file.
-  let filePath = job.outputPath;
-  try {
-    const file = Bun.file(filePath);
-    if (!(await file.exists())) {
-      return c.json({ error: "Output file not found." }, 404);
-    }
-    const isMobile = filePath.includes("_mobile.");
-    return new Response(file.stream(), {
-      headers: {
-        "Content-Type": isMobile ? "video/mp4" : "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${job.outputPath.split("/").pop()}"`,
-        "Cache-Control": "no-store",
-      },
-    });
-  } finally {
-    // Delete the output file after serving so the user must re-download if needed.
-    try {
-      Bun.file(filePath).delete();
-    } catch {
-      // Ignore cleanup errors.
-    }
-    // Also clean up alternate output and temporary input.
-    if (job.alternateOutputPath) {
-      try {
-        Bun.file(job.alternateOutputPath).delete();
-      } catch {
-        // Ignore.
-      }
-    }
-    if (job.temporaryInputPath) {
-      try {
-        Bun.file(job.temporaryInputPath).delete();
-      } catch {
-        // Ignore.
-      }
-    }
-    if (job.subtitlePaths) {
-      for (const p of job.subtitlePaths) {
-        try {
-          Bun.file(p).delete();
-        } catch {
-          // Ignore.
-        }
-      }
-    }
-    jobs.delete(c.req.param("jobId"));
+  // NOTE: read the file into memory BEFORE cleanup. The previous code
+  // returned `new Response(file.stream())` with deletion in `finally`,
+  // which deleted the file before Bun finished streaming it → ENOENT.
+  const filePath = job.outputPath;
+  const file = Bun.file(filePath);
+  if (!(await file.exists())) {
+    return c.json({ error: "Output file not found." }, 404);
   }
+  let bytes: ArrayBuffer;
+  try {
+    bytes = await file.arrayBuffer();
+  } catch (e) {
+    console.error("[transcode/download] failed reading output file:", e);
+    return c.json({ error: "Output file could not be read." }, 500);
+  }
+
+  // Cleanup AFTER the bytes are safely in memory, then respond.
+  const cleanupPaths = [
+    job.outputPath,
+    job.alternateOutputPath,
+    job.temporaryInputPath,
+    ...(job.subtitlePaths ?? []),
+  ].filter(Boolean) as string[];
+  for (const p of cleanupPaths) {
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      try {
+        await Bun.file(p).delete();
+      } catch {
+        // Ignore cleanup errors.
+      }
+    }
+  }
+  jobs.delete(c.req.param("jobId"));
+
+  const isVideo = /\.(mp4|webm|mov)$/i.test(filePath);
+  return new Response(bytes, {
+    headers: {
+      "Content-Type": isVideo ? "video/mp4" : "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${filePath.split("/").pop()}"`,
+      "Cache-Control": "no-store",
+    },
+  });
 });
 
 /**

@@ -76,6 +76,24 @@ const NAV_ITEMS: NavItem[] = [
     ),
   },
   {
+    href: "/editor/cut",
+    label: "Cut",
+    icon: (
+      <svg
+        className="w-4 h-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
+        <circle cx="6" cy="6" r="3" />
+        <circle cx="6" cy="18" r="3" />
+        <line x1="8.5" y1="8" x2="20" y2="20" />
+        <line x1="8.5" y1="16" x2="20" y2="4" />
+      </svg>
+    ),
+  },
+  {
     href: "/admin",
     label: "Admin",
     icon: (
@@ -93,13 +111,14 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-// Navigation order for directional slides: crop (0) -> mobile (1) -> subtitles (2) -> bulk (3) -> admin (4)
+// Navigation order for directional slides: crop (0) -> mobile (1) -> subtitles (2) -> bulk (3) -> cut (4) -> admin (5)
 const ORDER: Record<string, number> = {
   "/editor/crop": 0,
   "/editor/mobile": 1,
   "/editor/mobile/subtitles": 2,
   "/editor/mobile/bulk": 3,
-  "/admin": 4,
+  "/editor/cut": 4,
+  "/admin": 5,
 };
 
 function navType(from: string, to: string): "nav-forward" | "nav-back" {
