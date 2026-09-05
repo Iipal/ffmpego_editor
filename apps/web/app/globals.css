@@ -196,7 +196,7 @@
 :root {
   --duration-exit: 150ms;
   --duration-enter: 210ms;
-  --duration-move: 400ms;
+  --duration-move: 200ms;
 }
 @keyframes fade {
   from {
