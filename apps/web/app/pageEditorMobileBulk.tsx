@@ -1,7 +1,9 @@
 "use client";
 
+import { startTransition, useEffect, useState } from "react";
 import { BulkArea } from "@/components/editor/bulk/BulkArea";
 import { BulkEmptyState } from "@/components/editor/bulk/BulkEmptyState";
+import { BulkExpandedView } from "@/components/editor/bulk/BulkExpandedView";
 import { BulkHeader } from "@/components/editor/bulk/BulkHeader";
 import { BulkItemCard } from "@/components/editor/bulk/BulkItemCard";
 import { BulkSettingsPanel } from "@/components/editor/bulk/BulkSettingsPanel";
@@ -41,6 +43,25 @@ export default function MobileBulkEditorPage() {
     useWatermark,
     patchItem,
   });
+
+  // Expanded cell — Card-fill-size view above the grid with shared
+  // VideoControls for individual playback. Toggled via ViewTransition.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const expandedItem = items.find((it) => it.id === expandedId) ?? null;
+
+  // Drop the expanded view if its item disappears (e.g. folder re-pick).
+  useEffect(() => {
+    if (expandedId && !expandedItem) setExpandedId(null);
+  }, [expandedId, expandedItem]);
+
+  const handleExpand = (id: string) => {
+    startTransition(() => {
+      setExpandedId((prev) => (prev === id ? null : id));
+    });
+  };
+  const handleCollapse = () => {
+    startTransition(() => setExpandedId(null));
+  };
 
   // -- empty state ------------------------------------------------------------
 
@@ -98,6 +119,19 @@ export default function MobileBulkEditorPage() {
         onOutput={() => void pickOutputFolder()}
       />
 
+      {expandedItem ? (
+        <BulkExpandedView
+          key={expandedItem.id}
+          item={expandedItem}
+          stackedLayout={stackedLayout}
+          useWatermark={useWatermark}
+          isExporting={isExporting}
+          onClose={handleCollapse}
+          onPatch={patchItem}
+          onMeta={handleMeta}
+        />
+      ) : null}
+
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {items.map((it) => (
@@ -107,6 +141,8 @@ export default function MobileBulkEditorPage() {
               stackedLayout={stackedLayout}
               useWatermark={useWatermark}
               isExporting={isExporting}
+              expanded={it.id === expandedId}
+              onExpand={handleExpand}
               onPatch={patchItem}
               onMeta={handleMeta}
             />

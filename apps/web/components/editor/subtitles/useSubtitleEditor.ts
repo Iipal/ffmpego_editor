@@ -9,6 +9,7 @@ import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
 import { NOOP, initAppOnce } from "./heavy-modules";
 import { getSubtitleTrack } from "./subtitle-helpers";
+import { useTrimRange } from "@/components/editor/shared/useTrimRange";
 import { useSubtitleExport } from "./useSubtitleExport";
 import { useSubtitleMutations } from "./useSubtitleMutations";
 import { useSubtitleTemplates } from "./useSubtitleTemplates";
@@ -157,35 +158,6 @@ export function useSubtitleEditor() {
     }
   }, [deferredSubtitles]);
 
-  // init/clamp global trim when duration available — narrow deps primitives only (rerender-dependencies)
-  useEffect(() => {
-    if (effectiveDuration <= 0) return;
-    if (trimEnd === 0) {
-      videoStore.setState((prev) => {
-        const cur =
-          (prev as unknown as { trimRange?: [number, number] }).trimRange ??
-          ([0, 0] as [number, number]);
-        if (cur[1] === 0)
-          return {
-            ...prev,
-            trimRange: [0, effectiveDuration] as [number, number],
-          };
-        return prev;
-      });
-    } else if (trimEnd > effectiveDuration) {
-      videoStore.setState((prev) => {
-        const cur =
-          (prev as unknown as { trimRange?: [number, number] }).trimRange ??
-          ([0, 0] as [number, number]);
-        const ns = Math.min(cur[0], Math.max(0, effectiveDuration - 1));
-        return {
-          ...prev,
-          trimRange: [ns, effectiveDuration] as [number, number],
-        };
-      });
-    }
-  }, [effectiveDuration, trimEnd, videoStore]);
-
   // js-index-maps: O(1) subtitle lookup via Map (1M ops → 2K ops) — split from filtering (rerender-split-combined-hooks)
   const subtitleById = useMemo(
     () =>
@@ -224,19 +196,10 @@ export function useSubtitleEditor() {
     setSubtitles,
   });
 
-  const handleTrimChange = useCallback(
-    (newStart: number, newEnd: number) => {
-      const d = effectiveDuration || 30;
-      let s = clamp(newStart, 0, d - MIN_SUBTITLE_DURATION);
-      let e = clamp(newEnd, 0, d);
-      if (e - s < MIN_SUBTITLE_DURATION) return;
-      if (s < 0) s = 0;
-      if (e > d) e = d;
-      if (s >= e) return;
-      videoStore.setState((prev) => ({
-        ...prev,
-        trimRange: [s, e] as [number, number],
-      }));
+  // Shared trim-range state: store tuple, init/clamp on duration, clamped
+  // commits. Retime side-effect runs on every committed range change.
+  const retimeSubtitlesToTrim = useCallback(
+    (s: number, e: number) => {
       setSubtitles((prev) =>
         prev.map((sub) => {
           let ns = sub.startTime;
@@ -259,8 +222,16 @@ export function useSubtitleEditor() {
         }),
       );
     },
-    [effectiveDuration, videoStore, setSubtitles],
+    [setSubtitles],
   );
+
+  const { handleTrimChange } = useTrimRange({
+    duration: effectiveDuration,
+    minGap: MIN_SUBTITLE_DURATION,
+    initClampMargin: 1,
+    overshoot: "clamp",
+    onTrimChange: retimeSubtitlesToTrim,
+  });
 
   const { isExporting, handleExport } = useSubtitleExport({
     file,

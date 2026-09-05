@@ -14,7 +14,7 @@ import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerContr
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { SourceStage } from "./SourceStage";
 import { ZoneCard } from "./ZoneCard";
-import { TrimControls } from "./TrimControls";
+import { TrimControls } from "@/components/editor/shared/TrimControls";
 import type { ZoneId } from "./types";
 
 type SourcePanelProps = {
@@ -163,12 +163,14 @@ export function SourcePanel(props: SourcePanelProps) {
           trimmedDuration={trimmedDuration}
           duration={duration}
           currentTime={currentTime}
-          ignoreTrim={ignoreTrim}
-          isLoopTrim={isLoopTrim}
-          setIsLoopTrim={setIsLoopTrim}
+          disabled={ignoreTrim}
           onSetTrimRange={onSetTrimRange}
+          showSetToCurrentButtons
           onSetStartToCurrent={onSetStartToCurrent}
           onSetEndToCurrent={onSetEndToCurrent}
+          showLoopSwitch
+          isLoopTrim={isLoopTrim}
+          onLoopTrimChange={setIsLoopTrim}
         />
         <div className="grid grid-cols-2 gap-2">
           {layout.zones.map((z) => (

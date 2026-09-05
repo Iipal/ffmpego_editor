@@ -183,7 +183,7 @@ export const BulkArea = memo(function BulkArea({
             Export
           </div>
           <div className="mt-0.5 font-mono text-[11px] leading-4 tabular-nums text-kumo-subtle">
-            mp4 · 30fps · CRF 10 · full length
+            mp4 · 60fps · CRF 10 · full length
           </div>
           <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
             trim ignored · {useWatermark ? "watermark" : "no watermark"}

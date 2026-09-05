@@ -1,12 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import { formatTime } from "@/lib/format-time";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { ArrowLeft, ArrowRight, SkipBack, SkipForward } from "lucide-react";
 import type { RefObject } from "react";
-import { cn } from "@/lib/utils";
+import { TrimSlider } from "@/components/editor/shared/TrimSlider";
+import { useTrimRange } from "@/components/editor/shared/useTrimRange";
 
 interface TimelineProps {
   playerRef: RefObject<HTMLVideoElement | null>;
@@ -14,28 +14,31 @@ interface TimelineProps {
 
 export function Timeline({ playerRef }: TimelineProps) {
   const videoStore = useVideoStore();
-  const { currentTime, duration, trimRange } = useVideoState();
-  const playheadPosition = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const { currentTime, duration } = useVideoState();
   const boundedCurrentTime = Math.min(Math.max(currentTime, 0), duration);
 
+  // Shared trim-range state: store tuple, init/clamp on duration, raw commits
+  // (minGap 0 — zero-length selections allowed, as before).
+  const {
+    trimRange,
+    trimStart,
+    trimEnd,
+    setTrimRange,
+    setStartToCurrentTime,
+    setEndToCurrentTime,
+  } = useTrimRange({
+    duration,
+    minGap: 0,
+    initClampMargin: 0.01,
+    overshoot: "clamp",
+  });
+
   const setTrimStartToCurrent = () => {
-    videoStore.setState((previous) => ({
-      ...previous,
-      trimRange: [
-        Math.min(boundedCurrentTime, previous.trimRange[1]),
-        previous.trimRange[1],
-      ],
-    }));
+    setStartToCurrentTime(boundedCurrentTime);
   };
 
   const setTrimEndToCurrent = () => {
-    videoStore.setState((previous) => ({
-      ...previous,
-      trimRange: [
-        previous.trimRange[0],
-        Math.max(boundedCurrentTime, previous.trimRange[0]),
-      ],
-    }));
+    setEndToCurrentTime(boundedCurrentTime);
   };
 
   const setPlayerToStart = () => {
@@ -64,27 +67,19 @@ export function Timeline({ playerRef }: TimelineProps) {
 
   return (
     <section className="enterprise-card rounded-lg p-4">
-      <div className="relative py-4">
-        <div
-          className="absolute top-0 z-10 h-full w-0.5 bg-kumo-brand"
-          style={{ left: `${playheadPosition}%` }}
-        />
-        <Slider
-          className="relative z-20"
-          value={trimRange}
-          min={0}
-          max={Math.max(duration, 0.01)}
-          step={0.01}
-          onValueChange={(value) => {
-            const range = Array.isArray(value) ? value : [value, duration];
-            videoStore.setState((previous) => ({
-              ...previous,
-              trimRange: [range[0] ?? 0, range[1] ?? duration],
-            }));
-          }}
-          aria-label="Trim range"
-        />
-      </div>
+      <TrimSlider
+        trimStart={trimStart}
+        trimEnd={trimEnd}
+        duration={duration}
+        sliderMax={Math.max(duration, 0.01)}
+        step={0.01}
+        minGap={0}
+        currentTime={currentTime}
+        playheadVariant="line"
+        sliderClassName="relative z-20"
+        wrapperClassName="relative py-4"
+        onSetTrimRange={setTrimRange}
+      />
       <div className="flex justify-between text-xs tabular-nums text-kumo-subtle">
         <span>{formatTime(trimRange[0])}</span>
         <span>{formatTime(trimRange[1] - trimRange[0])}</span>

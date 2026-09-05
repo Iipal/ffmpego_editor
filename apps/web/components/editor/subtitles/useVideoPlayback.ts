@@ -91,19 +91,6 @@ export function useVideoPlayback({
       const d = v.duration;
       if (Number.isFinite(d)) {
         setDuration(d);
-        videoStore.setState((prev) => {
-          const cur =
-            (prev as unknown as { trimRange?: [number, number] }).trimRange ??
-            ([0, 0] as [number, number]);
-          if (cur[1] === 0)
-            return { ...prev, trimRange: [0, d] as [number, number] };
-          if (cur[1] > d)
-            return {
-              ...prev,
-              trimRange: [Math.min(cur[0], d - 0.2), d] as [number, number],
-            };
-          return prev;
-        });
       }
     };
     const onTimeUpdate = () => {

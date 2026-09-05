@@ -12,7 +12,6 @@ import {
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { formatTime } from "@/lib/format-time";
 import {
-  clamp,
   createDefaultLayout,
   loadPrefForMode,
   validateLayout,
@@ -21,6 +20,10 @@ import {
 } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
+import {
+  TRIM_MIN_GAP_DEFAULT,
+  useTrimRange,
+} from "@/components/editor/shared/useTrimRange";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
 import { cachedBuildMobileFilter, ensureAppInitOnce, NOOP } from "./mobile-helpers";
 
@@ -66,12 +69,21 @@ export function useMobilePageState() {
 
   const hasVideo = !!mediaUrl && !!file;
   const duration = ed.duration || srcDuration || 0;
-  const trimStart = trimRange[0];
-  const trimEnd = trimRange[1];
-  const trimmedDuration = useMemo(
-    () => Math.max(0, trimEnd - trimStart),
-    [trimStart, trimEnd],
-  );
+
+  // Shared trim-range state: store tuple, init/clamp on duration, clamped
+  // commits, set-start/end-to-time helpers.
+  const {
+    trimStart,
+    trimEnd,
+    trimmedDuration,
+    setTrimRange,
+    setStartToCurrentTime,
+    setEndToCurrentTime,
+  } = useTrimRange({
+    duration,
+    minGap: TRIM_MIN_GAP_DEFAULT,
+    overshoot: "reset",
+  });
 
   const validationError = useMemo(() => {
     if (ed.layout.zones.length === 0) return "No zones";
@@ -93,46 +105,6 @@ export function useMobilePageState() {
 
   const actions = useMobileLayoutActions(ed, startTransition);
 
-  const setTrimRange = useCallback(
-    (
-      updater:
-        | [number, number]
-        | ((prev: [number, number]) => [number, number]),
-    ) => {
-      startTransition(() => {
-        videoStore.setState((prev) => ({
-          ...prev,
-          trimRange:
-            typeof updater === "function"
-              ? (updater as (p: [number, number]) => [number, number])(
-                  prev.trimRange,
-                )
-              : updater,
-        }));
-      });
-    },
-    [videoStore, startTransition],
-  );
-
-  useEffect(() => {
-    if (duration <= 0) return;
-    if (trimRange[1] === 0) {
-      videoStore.setState((prev) =>
-        prev.trimRange[1] === 0
-          ? { ...prev, trimRange: [0, duration] as [number, number] }
-          : prev,
-      );
-    } else if (trimRange[1] > duration) {
-      videoStore.setState((prev) => ({
-        ...prev,
-        trimRange: [Math.min(prev.trimRange[0], duration - 0.2), duration] as [
-          number,
-          number,
-        ],
-      }));
-    }
-  }, [duration, trimRange, videoStore]);
-
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -140,14 +112,6 @@ export function useMobilePageState() {
       const d = v.duration;
       if (Number.isFinite(d)) {
         ed.setDuration(d);
-        videoStore.setState((prev) => {
-          if (prev.trimRange[1] === 0 || prev.trimRange[1] > d)
-            return {
-              ...prev,
-              trimRange: [0, d] as [number, number],
-            } as typeof prev;
-          return prev;
-        });
       }
     };
     v.addEventListener("loadedmetadata", onMeta);
@@ -172,21 +136,14 @@ export function useMobilePageState() {
 
   const setStartToCurrent = useCallback(() => {
     const t = videoRef.current?.currentTime ?? currentTime;
-    setTrimRange(([s, e]) => {
-      const ns = clamp(t, 0, e - 0.2);
-      if (videoRef.current && isLoopTrim) videoRef.current.currentTime = ns;
-      return [ns, e];
-    });
-  }, [currentTime, isLoopTrim, setTrimRange]);
+    const ns = setStartToCurrentTime(t);
+    if (videoRef.current && isLoopTrim) videoRef.current.currentTime = ns;
+  }, [currentTime, isLoopTrim, setStartToCurrentTime]);
 
   const setEndToCurrent = useCallback(() => {
     const t = videoRef.current?.currentTime ?? currentTime;
-    setTrimRange(([s]) => {
-      const dur = duration || 30;
-      const ne = clamp(t, s + 0.2, dur);
-      return [s, ne];
-    });
-  }, [currentTime, duration, setTrimRange]);
+    setEndToCurrentTime(t);
+  }, [currentTime, setEndToCurrentTime]);
 
   const fileName = file?.name ?? "";
   const sourceLabel =

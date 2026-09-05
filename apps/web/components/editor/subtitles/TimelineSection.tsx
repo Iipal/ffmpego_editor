@@ -1,12 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Slider } from "@/components/ui/slider";
 import { formatTime } from "@/lib/format-time";
 import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
+import { TrimControls } from "@/components/editor/shared/TrimControls";
 import { MemoTimelineVisual } from "./TimelineVisual";
 
 export type TimelineSectionProps = {
@@ -50,64 +48,16 @@ export function TimelineSection({
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="rounded-lg border bg-kumo-recessed/20 p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold">Trim</span>
-            <span
-              className="text-[11px] tabular-nums text-kumo-subtle"
-              suppressHydrationWarning
-            >
-              {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
-              {formatTime(Math.max(0, trimEnd - trimStart))}
-            </span>
-          </div>
-          <Slider
-            value={[trimStart, trimEnd]}
-            min={0}
-            max={Math.max(effectiveDuration, 0.01)}
-            step={0.05}
-            onValueChange={(v) => {
-              const arr = Array.isArray(v)
-                ? (v as number[])
-                : [v as number, effectiveDuration];
-              const [ns, ne] = arr as [number, number];
-              if (ne - ns >= MIN_SUBTITLE_DURATION) onTrimChange(ns, ne);
-            }}
-            aria-label="Trim range"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="trim-start" className="text-[11px]">
-                Trim Start
-              </Label>
-              <Input
-                id="trim-start"
-                type="number"
-                step="0.1"
-                value={trimStart.toFixed(2)}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (Number.isFinite(v)) onTrimChange(v, trimEnd);
-                }}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="trim-end" className="text-[11px]">
-                Trim End
-              </Label>
-              <Input
-                id="trim-end"
-                type="number"
-                step="0.1"
-                value={trimEnd.toFixed(2)}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (Number.isFinite(v)) onTrimChange(trimStart, v);
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <TrimControls
+          trimStart={trimStart}
+          trimEnd={trimEnd}
+          duration={effectiveDuration}
+          sliderMax={Math.max(effectiveDuration, 0.01)}
+          minGap={MIN_SUBTITLE_DURATION}
+          onSetTrimRange={([s, e]) => onTrimChange(s, e)}
+          showReadout={false}
+          showNumericInputs
+        />
 
         <MemoTimelineVisual
           duration={effectiveDuration}
