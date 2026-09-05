@@ -47,11 +47,23 @@ export function isAcceptedVideoFile(file: File): boolean {
 export function isFileTooLarge(file: File): boolean {
   return file.size > MAX_UPLOAD_BYTES;
 }
-
 export function formatFileSize(bytes: number): string {
   if (bytes >= MAX_UPLOAD_BYTES) return `${(bytes / (1024*1024*1024)).toFixed(2)} GB`;
   if (bytes >= 1024*1024*1024) return `${(bytes / (1024*1024*1024)).toFixed(2)} GB`;
   if (bytes >= 1024*1024) return `${(bytes / (1024*1024)).toFixed(1)} MB`;
   if (bytes >= 1024) return `${(bytes/1024).toFixed(1)} KB`;
   return `${bytes} B`;
+}
+
+// Strip the last extension: "clip.mp4" -> "clip". Falls back to input when empty.
+export function stripExtension(name: string): string {
+  return name.replace(/\.[^.]+$/, "") || name;
+}
+
+// Sanitize for safe filenames: anything outside [a-zA-Z0-9._-] becomes "_".
+// (Single canonical copy; was duplicated in admin + mobile helpers.)
+export const FILENAME_SANITIZE_RE = /[^a-zA-Z0-9._-]/g;
+
+export function sanitizeFilename(name: string): string {
+  return name.replace(FILENAME_SANITIZE_RE, "_");
 }

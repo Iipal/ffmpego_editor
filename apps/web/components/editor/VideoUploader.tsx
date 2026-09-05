@@ -16,6 +16,7 @@ import {
   isFileTooLarge,
   formatFileSize,
   MAX_UPLOAD_BYTES,
+  stripExtension,
 } from "@/lib/video-file";
 import { toast } from "sonner";
 
@@ -41,7 +42,7 @@ export function VideoUploader() {
       }
 
       const mediaUrl = URL.createObjectURL(file);
-      const defaultFilename = file.name.replace(/\.[^.]+$/, "");
+      const defaultFilename = stripExtension(file.name);
       videoStore.setState((previous) => {
         if (previous.mediaUrl) {
           URL.revokeObjectURL(previous.mediaUrl);

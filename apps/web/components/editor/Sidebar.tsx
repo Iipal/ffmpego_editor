@@ -52,6 +52,7 @@ import {
   isFileTooLarge,
   formatFileSize,
   MAX_UPLOAD_BYTES,
+  stripExtension,
 } from "@/lib/video-file";
 import {
   useVideoState,
@@ -101,8 +102,8 @@ export function Sidebar() {
     store.setState((previous) => ({ ...previous, ...value }));
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
-  const filename = state.file?.name.replace(/\.[^.]+$/, "") ?? "Untitled video";
-  const basename = state.file?.name.replace(/\.[^.]+$/, "") ?? "";
+  const filename = state.file ? stripExtension(state.file.name) : "Untitled video";
+  const basename = state.file ? stripExtension(state.file.name) : "";
 
   // Keep export filename in sync with uploaded file's basename.
   // VideoUploader and the two "Upload other" handlers already set exportFilename
@@ -127,7 +128,7 @@ export function Sidebar() {
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
-    const defaultFilename = file.name.replace(/\.[^.]+$/, "");
+    const defaultFilename = stripExtension(file.name);
     store.setState((previous) => {
       if (previous.mediaUrl) URL.revokeObjectURL(previous.mediaUrl);
       return {
