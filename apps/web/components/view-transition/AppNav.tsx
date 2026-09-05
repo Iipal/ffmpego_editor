@@ -48,6 +48,10 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+const NAV_ITEMS_SORTED = [...NAV_ITEMS].sort(
+  (a, b) => b.href.length - a.href.length,
+);
+
 // Navigation order for directional slides: crop (0) -> mobile (1) -> subtitles (2) -> bulk (3) -> cut (4) -> admin (5)
 const ORDER: Record<string, number> = {
   "/editor/crop": 0,
@@ -67,10 +71,9 @@ function navType(from: string, to: string): "nav-forward" | "nav-back" {
 export function AppNav() {
   const pathname = usePathname();
   const active =
-    [...NAV_ITEMS]
-      .sort((a, b) => b.href.length - a.href.length)
-      .find((i) => pathname === i.href || pathname.startsWith(i.href + "/"))
-      ?.href ?? "/editor/crop";
+    NAV_ITEMS_SORTED.find(
+      (i) => pathname === i.href || pathname.startsWith(i.href + "/"),
+    )?.href ?? "/editor/crop";
   const [optimisticActive, setOptimisticActive] = useOptimistic(active);
   const [, startTransition] = useTransition();
 
