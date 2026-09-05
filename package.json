@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "private": true,
-  "packageManager": "bun@1.4.0",
+  "packageManager": "bun@1.4.1",
   "devDependencies": {
     "@types/bun": "latest",
     "turbo": "^2.10.12"
@@ -16,9 +16,9 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@cloudflare/kumo": "2.12.0",
+    "@cloudflare/kumo": "2.13.1",
     "@phosphor-icons/react": "^2.1.10",
-    "framer-motion": "^13.1.1",
+    "framer-motion": "^13.2.0",
     "react-rnd": "^10.5.3"
   }
 }
