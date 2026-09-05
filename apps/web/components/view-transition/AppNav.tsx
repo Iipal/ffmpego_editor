@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
-const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = [
   {
     href: "/editor/crop",
     label: "Crop",
@@ -68,7 +68,13 @@ function navType(from: string, to: string): "nav-forward" | "nav-back" {
   return b > a ? "nav-forward" : "nav-back";
 }
 
-export function AppNav() {
+export function AppNav({
+  orientation = "horizontal",
+  collapsed = false,
+}: {
+  orientation?: "horizontal" | "vertical";
+  collapsed?: boolean;
+}) {
   const pathname = usePathname();
   const active =
     NAV_ITEMS_SORTED.find(
@@ -81,9 +87,13 @@ export function AppNav() {
     <nav
       role="tablist"
       aria-label="Editor mode"
+      aria-orientation={orientation}
       className={cn(
         "relative inline-flex items-center gap-1 p-1 rounded-lg",
-        "bg-kumo-recessed border border-kumo-line w-full sm:w-auto shadow-sm",
+        "bg-kumo-recessed border border-kumo-line shadow-sm",
+        orientation === "vertical"
+          ? "flex-col items-stretch w-full"
+          : "w-full sm:w-auto",
       )}
     >
       {NAV_ITEMS.map((item) => {
@@ -105,15 +115,18 @@ export function AppNav() {
               startTransition(() => setOptimisticActive(item.href))
             }
             className={cn(
-              "relative z-1 flex flex-1 sm:flex-none items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors",
+              "relative z-1 flex flex-1 sm:flex-none items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-kumo-focus",
+              orientation === "vertical" && "w-full sm:flex-1",
+              collapsed && "justify-center px-2",
               isOptimistic
                 ? "text-kumo-strong"
                 : "text-kumo-subtle hover:text-kumo-default",
             )}
+            title={collapsed ? item.label : undefined}
           >
             {item.icon}
-            <span>{item.label}</span>
+            {collapsed ? null : <span>{item.label}</span>}
             {isActive ? (
               <ViewTransition
                 name="tab-indicator"

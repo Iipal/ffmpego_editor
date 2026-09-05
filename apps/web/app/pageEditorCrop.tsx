@@ -197,13 +197,35 @@ function isValidPersistedCrop(v: unknown): v is PersistedCrop {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;
   const c = o.crop as Record<string, unknown> | undefined;
-  if (!c || typeof c.x !== "number" || typeof c.y !== "number" || typeof c.width !== "number" || typeof c.height !== "number")
+  if (
+    !c ||
+    typeof c.x !== "number" ||
+    typeof c.y !== "number" ||
+    typeof c.width !== "number" ||
+    typeof c.height !== "number"
+  )
     return false;
-  if (![c.x, c.y, c.width, c.height].every((n) => Number.isFinite(n as number))) return false;
-  if (c.x < 0 || c.y < 0 || c.width < 5 || c.height < 5 || c.x + c.width > 100.01 || c.y + c.height > 100.01) return false;
-  if (o.aspectRatio !== "custom" && o.aspectRatio !== "1:1" && o.aspectRatio !== "16:9" && o.aspectRatio !== "21:9") return false;
+  if (![c.x, c.y, c.width, c.height].every((n) => Number.isFinite(n as number)))
+    return false;
+  if (
+    c.x < 0 ||
+    c.y < 0 ||
+    c.width < 5 ||
+    c.height < 5 ||
+    c.x + c.width > 100.01 ||
+    c.y + c.height > 100.01
+  )
+    return false;
+  if (
+    o.aspectRatio !== "custom" &&
+    o.aspectRatio !== "1:1" &&
+    o.aspectRatio !== "16:9" &&
+    o.aspectRatio !== "21:9"
+  )
+    return false;
   // isCropMode is new — allow missing for backward compat with old saves, but if present must be boolean
-  if (o.isCropMode !== undefined && typeof o.isCropMode !== "boolean") return false;
+  if (o.isCropMode !== undefined && typeof o.isCropMode !== "boolean")
+    return false;
   return true;
 }
 
@@ -285,13 +307,19 @@ function CropArea() {
       store.setState((prev) => {
         // Don't clobber an active edit session; only restore if still at defaults.
         const isDefault =
-          prev.crop.x === 0 && prev.crop.y === 0 && prev.crop.width === 100 && prev.crop.height === 100 && prev.aspectRatio === "custom" && prev.isCropMode === false;
+          prev.crop.x === 0 &&
+          prev.crop.y === 0 &&
+          prev.crop.width === 100 &&
+          prev.crop.height === 100 &&
+          prev.aspectRatio === "custom" &&
+          prev.isCropMode === false;
         if (!isDefault) return prev;
         return {
           ...prev,
           crop: p.crop,
           aspectRatio: p.aspectRatio,
-          isCropMode: typeof p.isCropMode === "boolean" ? p.isCropMode : prev.isCropMode,
+          isCropMode:
+            typeof p.isCropMode === "boolean" ? p.isCropMode : prev.isCropMode,
         };
       });
     } catch {}
@@ -379,6 +407,8 @@ function CropArea() {
             <Save className="size-3.5" aria-hidden />
             Save
           </Button>
+
+          <SidebarToggle />
         </div>
       </div>
 
@@ -482,7 +512,7 @@ const PageEditorCrop: React.FC = () => {
 
   if (!hasVideo) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-base font-semibold leading-none tracking-normal">
             Crop editor
@@ -556,7 +586,7 @@ const PageEditorCrop: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {/* Header — tight group, sentence case */}
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-kumo-hairline pb-4">
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -623,10 +653,6 @@ const PageEditorCrop: React.FC = () => {
         {/* Crop area — fresh implementation replaces the old isCropStale/cropStats strip */}
         <div className="col-span-full">
           <CropArea />
-        </div>
-
-        <div className="flex items-center justify-end col-span-full -mt-1">
-          <SidebarToggle />
         </div>
 
         {/* Main column — player */}

@@ -337,15 +337,18 @@
   animation: var(--duration-enter) ease-out var(--duration-exit) both scale-up;
 }
 
-/* Persistent isolation - site header stays fixed */
-::view-transition-group(site-header) {
+/* Persistent isolation - site header / sidebar stays fixed */
+::view-transition-group(site-header),
+::view-transition-group(site-sidebar) {
   animation: none;
   z-index: 100;
 }
-::view-transition-old(site-header) {
+::view-transition-old(site-header),
+::view-transition-old(site-sidebar) {
   display: none;
 }
-::view-transition-new(site-header) {
+::view-transition-new(site-header),
+::view-transition-new(site-sidebar) {
   animation: none;
 }
 ::view-transition-group(toaster) {

@@ -7,7 +7,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
-import { Film, FolderInput, FolderOutput, LayoutGrid, RefreshCw, SlidersHorizontal } from "lucide-react";
+import {
+  Film,
+  FolderInput,
+  FolderOutput,
+  LayoutGrid,
+  RefreshCw,
+  SlidersHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format-time";
@@ -62,7 +69,10 @@ interface FsFileHandle {
   createWritable: () => Promise<FsWritable>;
 }
 interface FsDirHandle {
-  getFileHandle: (name: string, opts?: { create?: boolean }) => Promise<FsFileHandle>;
+  getFileHandle: (
+    name: string,
+    opts?: { create?: boolean },
+  ) => Promise<FsFileHandle>;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,7 +136,11 @@ const CellPreview = memo(function CellPreview({
       h: number;
     }> = [
       { canvas: topRef.current, zone: layout.zones[0], h: totalH * split },
-      { canvas: bottomRef.current, zone: layout.zones[1], h: totalH * (1 - split) },
+      {
+        canvas: bottomRef.current,
+        zone: layout.zones[1],
+        h: totalH * (1 - split),
+      },
     ];
     const vw = video.videoWidth;
     const vh = video.videoHeight;
@@ -437,8 +451,8 @@ const BulkArea = memo(function BulkArea({
               {layout.zones.map((z) => (
                 <div key={z.id}>
                   {z.id === "zone-1" ? "Z1" : "Z2"} {z.x.toFixed(1)},
-                  {z.y.toFixed(1)} · {z.width.toFixed(1)}×{z.height.toFixed(1)} ·{" "}
-                  {z.zoom.toFixed(2)}×
+                  {z.y.toFixed(1)} · {z.width.toFixed(1)}×{z.height.toFixed(1)}{" "}
+                  · {z.zoom.toFixed(2)}×
                 </div>
               ))}
             </div>
@@ -494,8 +508,9 @@ export default function MobileBulkEditorPage() {
   const [layout, setLayout] = useState<MobileLayout>(() => loadStackedLayout());
   const [useWatermark, setUseWatermark] = useState(true);
   const [inputFolderName, setInputFolderName] = useState<string | null>(null);
-  const [outputDirHandle, setOutputDirHandle] =
-    useState<FsDirHandle | null>(null);
+  const [outputDirHandle, setOutputDirHandle] = useState<FsDirHandle | null>(
+    null,
+  );
   const [outputDirName, setOutputDirName] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -518,10 +533,14 @@ export default function MobileBulkEditorPage() {
   }, []);
 
   const stackedLayout = layout.mode === "full" ? null : layout;
-  const layoutError = stackedLayout ? validateLayout(stackedLayout) : "Open the Mobile editor and save a stacked 2-zone layout, then press Sync zones.";
+  const layoutError = stackedLayout
+    ? validateLayout(stackedLayout)
+    : "Open the Mobile editor and save a stacked 2-zone layout, then press Sync zones.";
 
   const patchItem = useCallback((id: string, patch: Partial<BulkItem>) => {
-    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+    setItems((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, ...patch } : it)),
+    );
   }, []);
 
   const handleMeta = useCallback(
@@ -540,7 +559,8 @@ export default function MobileBulkEditorPage() {
     // webkitRelativePath is "<folder>/<file>" for root files vs
     // "<folder>/<sub>/.../<file>" for nested ones.
     const rootFiles = list.filter((f) => {
-      const rel = (f as File & { webkitRelativePath?: string }).webkitRelativePath;
+      const rel = (f as File & { webkitRelativePath?: string })
+        .webkitRelativePath;
       if (!rel) return true;
       return rel.split("/").length === 2;
     });
@@ -587,10 +607,14 @@ export default function MobileBulkEditorPage() {
 
   const pickOutputFolder = useCallback(async () => {
     const w = window as unknown as {
-      showDirectoryPicker?: (opts?: { mode?: string }) => Promise<FsDirHandle & { name?: string }>;
+      showDirectoryPicker?: (opts?: {
+        mode?: string;
+      }) => Promise<FsDirHandle & { name?: string }>;
     };
     if (!w.showDirectoryPicker) {
-      toast.error("Output folder picker not supported — files will download normally");
+      toast.error(
+        "Output folder picker not supported — files will download normally",
+      );
       return;
     }
     try {
@@ -688,7 +712,10 @@ export default function MobileBulkEditorPage() {
             } | null;
             throw new Error(payload?.error ?? `Export failed: ${res.status}`);
           }
-          const j = (await res.json()) as { jobId: string; progressUrl: string };
+          const j = (await res.json()) as {
+            jobId: string;
+            progressUrl: string;
+          };
           jobId = j.jobId;
           progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
         } else {
@@ -733,7 +760,9 @@ export default function MobileBulkEditorPage() {
           };
         });
         patchItem(id, { status: "saving", progress: 97 });
-        const dl = await fetch(`${API_BASE_URL}/api/transcode/download/${jobId}`);
+        const dl = await fetch(
+          `${API_BASE_URL}/api/transcode/download/${jobId}`,
+        );
         if (!dl.ok) {
           const payload = (await dl.json().catch(() => null)) as {
             error?: string;
@@ -771,9 +800,20 @@ export default function MobileBulkEditorPage() {
       }
     }
     setIsExporting(false);
-    if (failed === 0) toast.success(`Bulk export done — ${done} file${done === 1 ? "" : "s"}`);
-    else toast.error(`Bulk export finished with ${failed} failure${failed === 1 ? "" : "s"} (${done} ok)`);
-  }, [isExporting, stackedLayout, layoutError, outputDirHandle, useWatermark, patchItem]);
+    if (failed === 0)
+      toast.success(`Bulk export done — ${done} file${done === 1 ? "" : "s"}`);
+    else
+      toast.error(
+        `Bulk export finished with ${failed} failure${failed === 1 ? "" : "s"} (${done} ok)`,
+      );
+  }, [
+    isExporting,
+    stackedLayout,
+    layoutError,
+    outputDirHandle,
+    useWatermark,
+    patchItem,
+  ]);
 
   // -- derived ---------------------------------------------------------------
 
@@ -788,7 +828,7 @@ export default function MobileBulkEditorPage() {
 
   if (items.length === 0) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-base font-semibold leading-none tracking-normal">
             Mobile bulk export
@@ -822,17 +862,25 @@ export default function MobileBulkEditorPage() {
               <span className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Select input folder</span>
                 <span className="text-xs text-kumo-subtle">
-                  Only MP4 · WebM · MOV · MKV in the folder root — sub-folders ignored
+                  Only MP4 · WebM · MOV · MKV in the folder root — sub-folders
+                  ignored
                 </span>
               </span>
             </button>
             <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-kumo-hairline pt-4 text-xs text-kumo-subtle">
               <span className="inline-flex items-center gap-1.5 font-mono text-[11px] tabular-nums">
-                <span className="size-1.5 rounded-full bg-kumo-success" aria-hidden />
+                <span
+                  className="size-1.5 rounded-full bg-kumo-success"
+                  aria-hidden
+                />
                 Local only
               </span>
-              <span aria-hidden className="text-kumo-hairline">·</span>
-              <span className="tabular-nums">Full length · ignore trim · 1080×1920</span>
+              <span aria-hidden className="text-kumo-hairline">
+                ·
+              </span>
+              <span className="tabular-nums">
+                Full length · ignore trim · 1080×1920
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -843,7 +891,7 @@ export default function MobileBulkEditorPage() {
   // -- main -------------------------------------------------------------------
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       <input
         ref={folderInputRef}
         type="file"
@@ -862,9 +910,14 @@ export default function MobileBulkEditorPage() {
               Mobile bulk export
             </h2>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-kumo-hairline bg-kumo-recessed px-2 py-0.5 text-[11px] font-medium leading-none text-kumo-subtle">
-              <span className="size-1.5 rounded-full bg-kumo-brand" aria-hidden />
+              <span
+                className="size-1.5 rounded-full bg-kumo-brand"
+                aria-hidden
+              />
               Stacked {splitLabel}
-              <span aria-hidden className="opacity-40">·</span>
+              <span aria-hidden className="opacity-40">
+                ·
+              </span>
               <span className="tabular-nums">
                 {completedCount}/{items.length} done
               </span>
@@ -875,25 +928,44 @@ export default function MobileBulkEditorPage() {
               {inputFolderName ?? "Input folder"} · {items.length} video
               {items.length === 1 ? "" : "s"} · {selectedCount} selected
             </span>
-            <span aria-hidden className="text-kumo-hairline">·</span>
+            <span aria-hidden className="text-kumo-hairline">
+              ·
+            </span>
             <span className="tabular-nums">Full length · 1080 × 1920</span>
             {failedCount > 0 ? (
               <>
-                <span aria-hidden className="text-kumo-hairline">·</span>
+                <span aria-hidden className="text-kumo-hairline">
+                  ·
+                </span>
                 <span className="text-kumo-warn">{failedCount} failed</span>
               </>
             ) : null}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 justify-end">
-          <Button size="sm" variant="secondary" onClick={() => setAllSelected(true)} className="h-7 rounded-md text-xs">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setAllSelected(true)}
+            className="h-7 rounded-md text-xs"
+          >
             Select all
           </Button>
-          <Button size="sm" variant="secondary" onClick={() => setAllSelected(false)} className="h-7 rounded-md text-xs">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => setAllSelected(false)}
+            className="h-7 rounded-md text-xs"
+          >
             Select none
           </Button>
           <span aria-hidden className="h-5 w-px bg-kumo-hairline mx-0.5" />
-          <Button size="sm" onClick={onBulkExport} disabled={isExporting || selectedCount === 0} className="h-7 rounded-md text-xs font-medium">
+          <Button
+            size="sm"
+            onClick={onBulkExport}
+            disabled={isExporting || selectedCount === 0}
+            className="h-7 rounded-md text-xs font-medium"
+          >
             {isExporting ? "Exporting…" : `Bulk Export (${selectedCount})`}
           </Button>
         </div>
@@ -931,7 +1003,10 @@ export default function MobileBulkEditorPage() {
                     className="mt-0.5"
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="truncate font-mono text-[11px] font-medium tabular-nums" title={it.name}>
+                    <span
+                      className="truncate font-mono text-[11px] font-medium tabular-nums"
+                      title={it.name}
+                    >
                       {it.baseName}
                     </span>
                     <span className="font-mono text-[11px] tabular-nums text-kumo-subtle">
@@ -950,13 +1025,21 @@ export default function MobileBulkEditorPage() {
                 ) : null}
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5 text-[11px] leading-none tabular-nums text-kumo-subtle">
-                    <span className={cn("size-1.5 rounded-full", statusColor(it.status))} aria-hidden />
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        statusColor(it.status),
+                      )}
+                      aria-hidden
+                    />
                     {STATUS_LABEL[it.status]}
                     {it.status === "uploading" || it.status === "processing" ? (
                       <span className="ml-auto">{it.progress}%</span>
                     ) : null}
                   </div>
-                  {it.status === "uploading" || it.status === "processing" || it.status === "saving" ? (
+                  {it.status === "uploading" ||
+                  it.status === "processing" ||
+                  it.status === "saving" ? (
                     <Progress value={it.progress} />
                   ) : null}
                   {it.error ? (
@@ -985,7 +1068,13 @@ export default function MobileBulkEditorPage() {
                     {inputFolderName ?? "—"} · {items.length} files
                   </span>
                 </div>
-                <Button size="sm" variant="secondary" onClick={pickInputFolder} disabled={isExporting} className="h-7 shrink-0 rounded-md text-xs">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={pickInputFolder}
+                  disabled={isExporting}
+                  className="h-7 shrink-0 rounded-md text-xs"
+                >
                   <FolderInput className="size-3.5" aria-hidden />
                   Change
                 </Button>
@@ -997,23 +1086,41 @@ export default function MobileBulkEditorPage() {
                     {outputDirName ?? "Downloads (fallback)"}
                   </span>
                 </div>
-                <Button size="sm" variant="secondary" onClick={pickOutputFolder} disabled={isExporting} className="h-7 shrink-0 rounded-md text-xs">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={pickOutputFolder}
+                  disabled={isExporting}
+                  className="h-7 shrink-0 rounded-md text-xs"
+                >
                   <FolderOutput className="size-3.5" aria-hidden />
                   Change
                 </Button>
               </div>
               <div className="flex items-center justify-between">
                 <Label className="text-xs">Use watermark</Label>
-                <Switch checked={useWatermark} onCheckedChange={setUseWatermark} disabled={isExporting} />
+                <Switch
+                  checked={useWatermark}
+                  onCheckedChange={setUseWatermark}
+                  disabled={isExporting}
+                />
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex flex-col gap-0.5">
-                  <Label className="text-xs">Zones · Stacked {splitLabel}%</Label>
+                  <Label className="text-xs">
+                    Zones · Stacked {splitLabel}%
+                  </Label>
                   <span className="font-mono text-[11px] tabular-nums text-kumo-subtle">
                     from Mobile editor
                   </span>
                 </div>
-                <Button size="sm" variant="secondary" onClick={syncLayout} disabled={isExporting} className="h-7 shrink-0 rounded-md text-xs">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={syncLayout}
+                  disabled={isExporting}
+                  className="h-7 shrink-0 rounded-md text-xs"
+                >
                   <RefreshCw className="size-3.5" aria-hidden />
                   Sync zones
                 </Button>
@@ -1021,7 +1128,11 @@ export default function MobileBulkEditorPage() {
               {layoutError ? (
                 <p className="text-xs text-kumo-warn">{layoutError}</p>
               ) : null}
-              <Button className="w-full" onClick={onBulkExport} disabled={isExporting || selectedCount === 0 || !!layoutError}>
+              <Button
+                className="w-full"
+                onClick={onBulkExport}
+                disabled={isExporting || selectedCount === 0 || !!layoutError}
+              >
                 <Film className="size-3.5" aria-hidden />
                 {isExporting ? "Exporting…" : `Bulk Export (${selectedCount})`}
               </Button>

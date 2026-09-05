@@ -1519,9 +1519,7 @@ function MobileArea({
                 />
                 <span
                   className={
-                    validationError
-                      ? "text-kumo-warn"
-                      : "text-kumo-subtle"
+                    validationError ? "text-kumo-warn" : "text-kumo-subtle"
                   }
                 >
                   {status}
@@ -1596,9 +1594,9 @@ function MobileArea({
                   key={z.id}
                   className={isSel ? "text-kumo-brand" : "text-kumo-subtle"}
                 >
-                  {tag} {z.x.toFixed(1)},{z.y.toFixed(1)} ·{" "}
-                  {z.width.toFixed(1)}×{z.height.toFixed(1)} · {z.zoom.toFixed(2)}
-                  ×{z.role ? ` · ${z.role}` : ""}
+                  {tag} {z.x.toFixed(1)},{z.y.toFixed(1)} · {z.width.toFixed(1)}
+                  ×{z.height.toFixed(1)} · {z.zoom.toFixed(2)}×
+                  {z.role ? ` · ${z.role}` : ""}
                   {z.locked ? " · locked" : ""}
                 </div>
               );
@@ -1644,7 +1642,9 @@ function MobileArea({
       <div className="flex items-center gap-1.5 border-t border-kumo-hairline px-3 py-2 text-[11px] leading-none text-kumo-subtle">
         <SlidersHorizontal className="size-3 shrink-0" aria-hidden />
         {layout.mode === "full" ? (
-          <span>Full mode renders Zone 1 only · switch to Stacked for two zones</span>
+          <span>
+            Full mode renders Zone 1 only · switch to Stacked for two zones
+          </span>
         ) : (
           <span>
             Drag zones on the source stage · drag the preview divider to split ·
@@ -2232,7 +2232,7 @@ export default function MobileEditorPage() {
 
   if (!hasVideo) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-base font-semibold leading-none tracking-normal">
             Mobile editor
@@ -2319,7 +2319,7 @@ export default function MobileEditorPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {/* Header — tight group, sentence case, operational — mirrors pageEditorCrop */}
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-kumo-hairline pb-4">
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -2738,8 +2738,12 @@ export default function MobileEditorPage() {
                 Save preference
               </Button>
               <p className="text-[10px] leading-3 text-kumo-subtle">
-                Static zones across {ed.ignoreTrim ? "full video" : "trimmed clip"}. Final render 1080×1920 · same
-                geometry as preview. {ed.ignoreTrim ? "Trim ignored on export." : "Trim applied to export."}
+                Static zones across{" "}
+                {ed.ignoreTrim ? "full video" : "trimmed clip"}. Final render
+                1080×1920 · same geometry as preview.{" "}
+                {ed.ignoreTrim
+                  ? "Trim ignored on export."
+                  : "Trim applied to export."}
               </p>
               {isPending ? (
                 <span className="text-[10px] text-kumo-subtle">

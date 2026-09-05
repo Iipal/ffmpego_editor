@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { Providers } from "./providers";
 import "./globals.css";
-import { AppHeader } from "@/components/view-transition/AppHeader";
+import { AppSidebar } from "@/components/view-transition/AppSidebar";
 import { Toaster } from "@/components/ui/sonner";
 
 const inter = Inter({
@@ -35,14 +35,16 @@ export default function RootLayout({
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
       data-theme="kumo"
     >
-      <body className="min-h-full flex flex-col antialiased bg-background text-foreground">
+      <body className="min-h-full antialiased bg-background text-foreground">
         <Providers>
-          <main className="min-h-screen bg-kumo-canvas px-4 py-8 sm:px-8">
-            <div className="mx-auto flex w-full max-w-400 flex-col gap-6">
-              <AppHeader />
-              {children}
-            </div>
-          </main>
+          <div className="flex min-h-screen items-stretch bg-kumo-canvas">
+            <AppSidebar />
+            <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
+              <div className="mx-auto flex w-full max-w-400 flex-col gap-6">
+                {children}
+              </div>
+            </main>
+          </div>
           <div
             style={{ viewTransitionName: "toaster" } as React.CSSProperties}
             className="pointer-events-none fixed inset-0"

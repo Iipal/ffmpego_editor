@@ -1864,12 +1864,12 @@ export default function PageEditorSubtitles() {
   // rendering-hydration-no-flicker / rendering-script-defer-async / rendering-svg-precision / rendering-animate-svg-wrapper: NA (no SSR-critical flicker, no <script>, no animated SVG)
   // async-suspense-boundaries / async-dependencies / async-api-routes: NA beyond parallel Promise.all above (client page streams via local state)
   return !hasVideo ? (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {NoVideoPlaceholderCard}
       {NoVideoPreviewSkeleton}
     </div>
   ) : (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <video
         ref={videoRef}
         src={mediaUrl ?? undefined}
@@ -1929,7 +1929,7 @@ export default function PageEditorSubtitles() {
             ? `${sourceWidth} × ${sourceHeight} px`
             : "—"
         }
-        exportName={`${((file?.name ?? "").replace(/\.[^.]+$/, "") || "video")}_mobile_subtitles_1080x1920.mp4`}
+        exportName={`${(file?.name ?? "").replace(/\.[^.]+$/, "") || "video"}_mobile_subtitles_1080x1920.mp4`}
         canDelete={!!selectedId}
         onAdd={handleAddSubtitle}
         onDelete={handleDeleteSubtitle}
