@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
 import { clamp } from "@/lib/mobile-layout";
 import { useVideoStore } from "@/store/useVideoStore";
+import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
 import type { Cut } from "./types";
 
 type VideoStore = ReturnType<typeof useVideoStore>;
@@ -24,38 +25,34 @@ export function useCutPlayback({
   sorted: Cut[];
   seekTo: (t: number) => void;
 }) {
-  const [currentTime, setCurrentTime] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [playAll, setPlayAll] = useState(false);
-  const [volume, setVolume] = useState(1);
 
-  // Keep video element in sync: time updates, play-all-cuts preview jumping
+  // Refs so the shared hook's stable tick handler always sees latest cuts.
+  const playAllRef = useRef(playAll);
+  const sortedRef = useRef(sorted);
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onTime = () => {
-      setCurrentTime(v.currentTime);
-      if (playAll && sorted.length > 0) {
-        const idx = sorted.findIndex(
-          (c) =>
-            v.currentTime >= c.start - 0.05 && v.currentTime < c.end - 0.02,
-        );
-        if (idx === -1) {
-          const next = sorted.find((c) => c.start > v.currentTime + 0.02);
-          if (next) v.currentTime = next.start;
-          else {
-            setPlayAll(false);
-            v.pause();
-          }
+    playAllRef.current = playAll;
+    sortedRef.current = sorted;
+  }, [playAll, sorted]);
+
+  const player = useVideoPlayer(videoRef, {
+    onTime: (v) => {
+      if (!playAllRef.current || sortedRef.current.length === 0) return;
+      const cuts = sortedRef.current;
+      const idx = cuts.findIndex(
+        (c) =>
+          v.currentTime >= c.start - 0.05 && v.currentTime < c.end - 0.02,
+      );
+      if (idx === -1) {
+        const next = cuts.find((c) => c.start > v.currentTime + 0.02);
+        if (next) v.currentTime = next.start;
+        else {
+          setPlayAll(false);
+          v.pause();
         }
       }
-    };
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => {
-      setIsPlaying(false);
-      setPlayAll(false);
-    };
-    const onMeta = () => {
+    },
+    onMetadata: (v) => {
       const d = v.duration;
       if (Number.isFinite(d)) {
         videoStore.setState((prev) =>
@@ -64,31 +61,16 @@ export function useCutPlayback({
             : prev,
         );
       }
-    };
-    v.addEventListener("timeupdate", onTime);
-    v.addEventListener("seeked", onTime);
-    v.addEventListener("play", onPlay);
-    v.addEventListener("pause", onPause);
-    v.addEventListener("loadedmetadata", onMeta);
-    return () => {
-      v.removeEventListener("timeupdate", onTime);
-      v.removeEventListener("seeked", onTime);
-      v.removeEventListener("play", onPlay);
-      v.removeEventListener("pause", onPause);
-      v.removeEventListener("loadedmetadata", onMeta);
-    };
-  }, [mediaUrl, playAll, sorted, videoStore, videoRef]);
+    },
+  });
 
+  // Pausing (including play-all finishing) exits play-all mode.
+  const { isPlaying } = player;
   useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = volume;
-  }, [volume, videoRef]);
+    if (!isPlaying) setPlayAll(false);
+  }, [isPlaying]);
 
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (isPlaying) v.pause();
-    else v.play().catch(() => {});
-  }, [isPlaying, videoRef]);
+  const togglePlay = player.togglePlay;
 
   const playCut = useCallback(
     (cut: Cut) => {
@@ -100,21 +82,28 @@ export function useCutPlayback({
   );
 
   const playAllCuts = useCallback(() => {
-    if (sorted.length === 0) {
+    if (sortedRef.current.length === 0) {
       toast.error("Add at least one cut first");
       return;
     }
     setPlayAll(true);
-    seekTo(sorted[0].start + 0.01);
+    seekTo(sortedRef.current[0].start + 0.01);
     videoRef.current?.play().catch(() => {});
-  }, [sorted, seekTo, videoRef]);
+  }, [seekTo, videoRef]);
+
+  void mediaUrl;
+  void duration;
 
   return {
-    currentTime,
-    isPlaying,
+    currentTime: player.currentTime,
+    isPlaying: player.isPlaying,
     playAll,
-    volume,
-    setVolume,
+    volume: player.volume,
+    setVolume: player.setVolume,
+    muted: player.muted,
+    toggleMute: player.toggleMute,
+    loop: player.loop,
+    toggleLoop: player.toggleLoop,
     togglePlay,
     playCut,
     playAllCuts,

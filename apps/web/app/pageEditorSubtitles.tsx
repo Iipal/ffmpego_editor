@@ -116,6 +116,10 @@ export default function PageEditorSubtitles() {
             trimEnd={e.trimEnd}
             isPlaying={e.isPlaying}
             isLooping={e.isLooping}
+            volume={e.volume}
+            muted={e.muted}
+            onVolumeChange={e.setVolume}
+            onToggleMute={e.toggleMute}
             onToggleLoop={e.toggleLoop}
             onPlayFromTrimStart={e.playFromTrimStart}
             onTogglePlayback={e.togglePlayback}

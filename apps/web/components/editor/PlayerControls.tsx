@@ -1,31 +1,23 @@
 "use client";
 
 import type { RefObject } from "react";
-import {
-  Maximize,
-  Pause,
-  Play,
-  Repeat,
-  SkipBack,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Maximize } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { formatTime } from "@/lib/format-time";
+import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
-import { cn } from "@/lib/utils";
 
 interface PlayerControlsProps {
   playerRef: RefObject<HTMLVideoElement | null>;
   wrapperRef: RefObject<HTMLDivElement | null>;
 }
 
+// Store-backed adapter over the shared transport bar. Used by the main
+// VideoPlayer (and crop, which renders it lazily).
 export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   const videoStore = useVideoStore();
   const {
@@ -86,117 +78,37 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
 
   return (
     <div className="border-t border-kumo-line bg-kumo-base px-4 py-3 rounded-b-lg">
-      <Slider
-        className="mb-3"
-        value={[currentTime]}
-        min={0}
-        max={Math.max(duration, 0.01)}
-        step={0.01}
-        onValueChange={(value) =>
-          setTime(Array.isArray(value) ? (value[0] ?? 0) : value)
+      <VideoPlayerControls
+        isPlaying={isPlaying}
+        currentTime={currentTime}
+        duration={duration}
+        onTogglePlay={togglePlayback}
+        onSeek={setTime}
+        volume={volume}
+        onVolumeChange={setVolume}
+        muted={isMuted}
+        onToggleMute={toggleMute}
+        loop={isLoopEnabled}
+        onToggleLoop={toggleLoop}
+        onPlayFromStart={playFromTrimStart}
+        extraActions={
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Fullscreen"
+                  onClick={() => wrapperRef.current?.requestFullscreen()}
+                />
+              }
+            >
+              <Maximize />
+            </TooltipTrigger>
+            <TooltipContent>Fullscreen</TooltipContent>
+          </Tooltip>
         }
-        aria-label="Seek video"
       />
-      <div className="flex items-center gap-3">
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label="Play from trim start"
-                onClick={playFromTrimStart}
-              />
-            }
-          >
-            <SkipBack />
-          </TooltipTrigger>
-          <TooltipContent>Play from trim start</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={isPlaying ? "Pause" : "Play"}
-                onClick={togglePlayback}
-              />
-            }
-          >
-            {isPlaying ? <Pause /> : <Play />}
-          </TooltipTrigger>
-          <TooltipContent>{isPlaying ? "Pause" : "Play"}</TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon"
-                variant={isLoopEnabled ? "secondary" : "ghost"}
-                aria-label={isLoopEnabled ? "Disable loop" : "Enable loop"}
-                className={cn(
-                  isLoopEnabled &&
-                    "bg-kumo-brand text-white border-transparent hover:bg-kumo-brand-hover",
-                )}
-                onClick={toggleLoop}
-              />
-            }
-          >
-            <Repeat />
-          </TooltipTrigger>
-          <TooltipContent>
-            {isLoopEnabled ? "Loop enabled" : "Loop disabled"}
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label={isMuted ? "Unmute" : "Mute"}
-                onClick={toggleMute}
-              />
-            }
-          >
-            {isMuted ? <VolumeX /> : <Volume2 />}
-          </TooltipTrigger>
-          <TooltipContent>{isMuted ? "Unmute" : "Mute"}</TooltipContent>
-        </Tooltip>
-
-        <Slider
-          className="max-w-18 w-full"
-          value={[isMuted ? 0 : volume]}
-          min={0}
-          max={1}
-          step={0.001}
-          onValueChange={(value) =>
-            setVolume(Array.isArray(value) ? (value[0] ?? 0) : value)
-          }
-          aria-label="Volume"
-        />
-
-        <output className="ml-auto text-xs tabular-nums text-kumo-subtle">
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </output>
-
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label="Fullscreen"
-                onClick={() => wrapperRef.current?.requestFullscreen()}
-              />
-            }
-          >
-            <Maximize />
-          </TooltipTrigger>
-          <TooltipContent>Fullscreen</TooltipContent>
-        </Tooltip>
-      </div>
     </div>
   );
 }

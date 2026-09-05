@@ -110,7 +110,7 @@ export default function MobileEditorPage() {
           onRole={s.handleRoleChange}
           onSeekTo={s.seekTo}
           onTogglePlay={s.togglePlay}
-          isPlaying={s.playback.isPlayingLocal}
+          isPlaying={s.isPlaying}
           onSeekStart={s.handleSeekStart}
           isLoopTrim={s.isLoopTrim}
           setIsLoopTrim={s.setIsLoopTrim}

@@ -36,6 +36,8 @@ export function useVideoPlayback({
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  const [volume, setVolumeState] = useState(1);
+  const [muted, setMuted] = useState(false);
   const [previewHeight, setPreviewHeight] = useState(560);
   const previewWrapRef = useRef<HTMLDivElement>(null);
 
@@ -208,6 +210,22 @@ export function useVideoPlayback({
     else v.pause();
   }, [isPlaying]);
 
+  // shared transport: keep element volume/muted in sync
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.volume = volume;
+    v.muted = muted;
+  }, [volume, muted]);
+
+  const setVolume = useCallback((v: number) => {
+    const next = clamp(v, 0, 1);
+    setVolumeState(next);
+    if (next > 0) setMuted(false);
+  }, []);
+
+  const toggleMute = useCallback(() => setMuted((m) => !m), []);
+
   // rerender-derived-state: derived staleness hint (no effect)
   void currentTimeTick;
 
@@ -281,6 +299,8 @@ export function useVideoPlayback({
     effectiveDuration,
     isPlaying,
     isLooping,
+    volume,
+    muted,
     currentTime,
     currentTimeRef,
     trimStartRef,
@@ -288,6 +308,8 @@ export function useVideoPlayback({
     playFromTrimStart,
     togglePlayback,
     toggleLoop,
+    setVolume,
+    toggleMute,
     handleProgressSeek,
     handleTimelineSeek,
   };

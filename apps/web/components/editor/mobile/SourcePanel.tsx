@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -11,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatTime } from "@/lib/format-time";
+import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { SourceStage } from "./SourceStage";
 import { ZoneCard } from "./ZoneCard";
@@ -141,71 +141,22 @@ export function SourcePanel(props: SourcePanelProps) {
           volume={volume}
           isMuted={isMuted}
         />
-        <div className="flex items-center gap-2">
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={onSeekStart}
-            aria-label="Play from trim start"
-            title={`Seek to trim start ${formatTime(trimStart)}`}
-            disabled={!duration}
-          >
-            ⏮
-          </Button>
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={onTogglePlay}
-            aria-label={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? "⏸" : "▶"}
-          </Button>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={() => setIsMuted(!isMuted)}
-              aria-label={isMuted ? "Unmute" : "Mute"}
-              className="size-7"
-            >
-              {isMuted ? "🔇" : volume > 0.5 ? "🔊" : "🔉"}
-            </Button>
-            <Slider
-              value={[isMuted ? 0 : volume * 100]}
-              min={0}
-              max={100}
-              step={1}
-              onValueChange={(v) => {
-                const val = Array.isArray(v) ? (v[0] as number) : (v as number);
-                setVolume(val / 100);
-                if (val > 0) setIsMuted(false);
-              }}
-              className="w-20"
-            />
-          </div>
-          <Slider
-            value={[currentTime]}
-            min={0}
-            max={duration || 30}
-            step={0.01}
-            onValueChange={(v) => {
-              const t = Array.isArray(v) ? v[0] : v;
-              onSeekTo(t as number);
-            }}
-            className="flex-1"
-          />
-          <span className="text-xs tabular-nums text-kumo-subtle whitespace-nowrap  text-right">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
-          <Button
-            size="xs"
-            variant={isLoopTrim ? "default" : "outline"}
-            onClick={() => setIsLoopTrim(!isLoopTrim)}
-            title="Loop trimmed segment"
-          >
-            Loop {isLoopTrim ? "On" : "Off"}
-          </Button>
-        </div>
+        <VideoPlayerControls
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          onTogglePlay={onTogglePlay}
+          onSeek={onSeekTo}
+          volume={volume}
+          onVolumeChange={(v) => setVolume(v)}
+          muted={isMuted}
+          onToggleMute={() => setIsMuted(!isMuted)}
+          loop={isLoopTrim}
+          onToggleLoop={() => setIsLoopTrim(!isLoopTrim)}
+          onPlayFromStart={onSeekStart}
+          playFromStartLabel={`Seek to trim start ${formatTime(trimStart)}`}
+          playFromStartDisabled={!duration}
+        />
         <TrimControls
           trimStart={trimStart}
           trimEnd={trimEnd}

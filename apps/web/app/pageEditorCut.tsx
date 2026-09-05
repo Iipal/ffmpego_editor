@@ -77,6 +77,12 @@ export default function CutEditorPage() {
     togglePlay,
     playCut,
     playAllCuts,
+    volume,
+    setVolume,
+    muted,
+    toggleMute,
+    loop,
+    toggleLoop,
   } = useCutPlayback({
     videoRef,
     mediaUrl,
@@ -162,6 +168,12 @@ export default function CutEditorPage() {
             currentTime={currentTime}
             duration={duration}
             onSeek={seekTo}
+            volume={volume}
+            onVolumeChange={setVolume}
+            muted={muted}
+            onToggleMute={toggleMute}
+            loop={loop}
+            onToggleLoop={toggleLoop}
           >
             <CutTimeline
               cutsCount={cuts.length}

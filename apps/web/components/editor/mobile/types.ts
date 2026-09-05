@@ -42,14 +42,6 @@ export type PortraitPreviewProps = {
   useWatermark: boolean;
 };
 
-export type PlaybackTimelineProps = {
-  videoRef: React.RefObject<HTMLVideoElement | null>;
-  duration: number;
-  trimRange: [number, number];
-  isLoopTrim: boolean;
-  onTimeUpdate?: (t: number) => void;
-};
-
 export type ZoneCardProps = {
   zone: CropZone;
   isSelected: boolean;

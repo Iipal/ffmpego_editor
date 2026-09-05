@@ -3,7 +3,6 @@
 import type { ReactNode, RefObject } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
   Select,
   SelectContent,
@@ -12,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MobilePreviewShared } from "@/components/editor/MobilePreviewShared";
-import { formatTime } from "@/lib/format-time";
+import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { cn } from "@/lib/utils";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import type { CutMode } from "./types";
@@ -31,6 +30,12 @@ export function CutPreview({
   currentTime,
   duration,
   onSeek,
+  volume,
+  onVolumeChange,
+  muted,
+  onToggleMute,
+  loop,
+  onToggleLoop,
   children,
 }: {
   mode: CutMode;
@@ -46,6 +51,12 @@ export function CutPreview({
   currentTime: number;
   duration: number;
   onSeek: (t: number) => void;
+  volume: number;
+  onVolumeChange: (v: number) => void;
+  muted: boolean;
+  onToggleMute: () => void;
+  loop: boolean;
+  onToggleLoop: () => void;
   children: ReactNode;
 }) {
   return (
@@ -93,38 +104,29 @@ export function CutPreview({
           </div>
         ) : null}
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="icon-sm"
-            variant="outline"
-            onClick={onTogglePlay}
-            aria-label={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? "⏸" : "▶"}
-          </Button>
-          <Button
-            size="xs"
-            variant="outline"
-            onClick={onPlayAllCuts}
-            disabled={playAllDisabled}
-          >
-            Play cuts
-          </Button>
-          <Slider
-            value={[currentTime]}
-            min={0}
-            max={duration || 30}
-            step={0.01}
-            onValueChange={(v) => {
-              const t = Array.isArray(v) ? v[0] : v;
-              onSeek(t as number);
-            }}
-            className="flex-1"
-          />
-          <span className="whitespace-nowrap text-xs tabular-nums text-kumo-subtle">
-            {formatTime(currentTime)} / {formatTime(duration)}
-          </span>
-        </div>
+        <VideoPlayerControls
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          onTogglePlay={onTogglePlay}
+          onSeek={onSeek}
+          volume={volume}
+          onVolumeChange={onVolumeChange}
+          muted={muted}
+          onToggleMute={onToggleMute}
+          loop={loop}
+          onToggleLoop={onToggleLoop}
+          extraActions={
+            <Button
+              size="xs"
+              variant="outline"
+              onClick={onPlayAllCuts}
+              disabled={playAllDisabled}
+            >
+              Play cuts
+            </Button>
+          }
+        />
 
         {children}
       </CardContent>

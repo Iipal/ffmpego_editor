@@ -20,7 +20,7 @@ import {
   OUTPUT_W,
 } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
-import { usePlaybackSync } from "./PlaybackTimeline";
+import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
 import { cachedBuildMobileFilter, ensureAppInitOnce, NOOP } from "./mobile-helpers";
 
@@ -45,17 +45,24 @@ export function useMobilePageState() {
   const ed = useMobileEditor();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPending, startTransition] = useTransition();
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(false);
   const [isLoopTrim, setIsLoopTrim] = useState(false);
 
-  const playback = usePlaybackSync(
-    videoRef,
-    ed.duration || srcDuration || 0,
-    trimRange,
-    isLoopTrim,
-  );
-  const currentTime = playback.timeRef.current;
+  // Shared transport state: play/pause/seek/volume/mute + trim-loop window.
+  // currentTime snapshot is throttled to 10 Hz (same cadence as before);
+  // handlers read the live video element directly.
+  const {
+    togglePlay,
+    seekTo,
+    isPlaying,
+    volume,
+    setVolume,
+    muted,
+    setMuted,
+    currentTime,
+  } = useVideoPlayer(videoRef, {
+    loopRange: isLoopTrim ? trimRange : null,
+    throttleMs: 100,
+  });
 
   const hasVideo = !!mediaUrl && !!file;
   const duration = ed.duration || srcDuration || 0;
@@ -147,25 +154,21 @@ export function useMobilePageState() {
     return () => v.removeEventListener("loadedmetadata", onMeta);
   }, [mediaUrl, videoStore, ed]);
 
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.volume = volume;
-    v.muted = isMuted;
-  }, [volume, isMuted]);
+  const handleSeekStart = useCallback(() => {
+    if (!duration) return;
+    seekTo(trimStart);
+    if (!isPlaying) videoRef.current?.play().catch(NOOP);
+  }, [duration, trimStart, seekTo, isPlaying]);
 
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (playback.isPlayingLocal) v.pause();
-    else v.play().catch(NOOP);
-  }, [playback.isPlayingLocal]);
-
-  const seekTo = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.currentTime = t;
-  }, []);
+  const handleResetAll = useCallback(() => {
+    const saved = loadPrefForMode(ed.layout.mode);
+    if (saved) ed.setLayout(saved);
+    else ed.setLayout(createDefaultLayout(ed.layout.mode, 0.5));
+    if (duration > 0) setTrimRange([0, duration]);
+    setVolume(1);
+    setMuted(false);
+    setIsLoopTrim(false);
+  }, [ed, duration, setTrimRange, setVolume, setMuted]);
 
   const setStartToCurrent = useCallback(() => {
     const t = videoRef.current?.currentTime ?? currentTime;
@@ -184,22 +187,6 @@ export function useMobilePageState() {
       return [s, ne];
     });
   }, [currentTime, duration, setTrimRange]);
-
-  const handleSeekStart = useCallback(() => {
-    if (!duration) return;
-    seekTo(trimStart);
-    if (!playback.isPlayingLocal) videoRef.current?.play().catch(NOOP);
-  }, [duration, trimStart, seekTo, playback.isPlayingLocal]);
-
-  const handleResetAll = useCallback(() => {
-    const saved = loadPrefForMode(ed.layout.mode);
-    if (saved) ed.setLayout(saved);
-    else ed.setLayout(createDefaultLayout(ed.layout.mode, 0.5));
-    if (duration > 0) setTrimRange([0, duration]);
-    setVolume(1);
-    setIsMuted(false);
-    setIsLoopTrim(false);
-  }, [ed, duration, setTrimRange]);
 
   const fileName = file?.name ?? "";
   const sourceLabel =
@@ -242,11 +229,11 @@ export function useMobilePageState() {
     isPending,
     volume,
     setVolume,
-    isMuted,
-    setIsMuted,
+    isMuted: muted,
+    setIsMuted: setMuted,
     isLoopTrim,
     setIsLoopTrim,
-    playback,
+    isPlaying,
     currentTime,
     sourceLabel,
     outputLabel,

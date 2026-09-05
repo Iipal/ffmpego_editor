@@ -2,9 +2,9 @@
 
 import { Activity } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
+import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { clamp } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { formatTime } from "@/lib/format-time";
@@ -38,6 +38,10 @@ export type PreviewPaneProps = {
   trimEnd: number;
   isPlaying: boolean;
   isLooping: boolean;
+  volume: number;
+  muted: boolean;
+  onVolumeChange: (v: number) => void;
+  onToggleMute: () => void;
   onToggleLoop: () => void;
   onPlayFromTrimStart: () => void;
   onTogglePlayback: () => void;
@@ -61,6 +65,10 @@ export function PreviewPane({
   trimEnd,
   isPlaying,
   isLooping,
+  volume,
+  muted,
+  onVolumeChange,
+  onToggleMute,
   onToggleLoop,
   onPlayFromTrimStart,
   onTogglePlayback,
@@ -172,87 +180,63 @@ export function PreviewPane({
         })()}
 
         <div className="rounded-lg border bg-kumo-recessed/10 p-3 space-y-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onPlayFromTrimStart}
-              aria-label="Play from trim start"
-            >
-              ⏮ From Trim Start
-            </Button>
-            <Button
-              size="sm"
-              variant={isPlaying ? "secondary" : "default"}
-              onClick={onTogglePlayback}
-              aria-label={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? "⏸ Pause" : "▶ Play"}
-            </Button>
-            <Button
-              size="sm"
-              variant={isLooping ? "default" : "outline"}
-              onClick={onToggleLoop}
-              aria-label={isLooping ? "Disable loop" : "Enable loop"}
-            >
-              Loop {isLooping ? "On" : "Off"}
-            </Button>
-            <span
-              className="ml-auto text-xs tabular-nums text-kumo-subtle"
-              suppressHydrationWarning
-            >
-              {formatTime(currentTime)} / {formatTime(effectiveDuration)} · Trim{" "}
-              {formatTime(trimStart)} → {formatTime(trimEnd)}
-            </span>
-          </div>
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[11px] text-kumo-subtle">
-              <span>Progress (trim range)</span>
-              <span className="tabular-nums" suppressHydrationWarning>
-                {trimEnd > trimStart
-                  ? `${Math.round(clamp(((currentTime - trimStart) / (trimEnd - trimStart)) * 100, 0, 100))}%`
-                  : "0%"}
-              </span>
-            </div>
-            <Slider
-              value={[
-                clamp(
-                  trimEnd > trimStart
-                    ? clamp(
-                        ((currentTime - trimStart) / (trimEnd - trimStart)) *
-                          100,
-                        0,
-                        100,
-                      )
-                    : 0,
-                  0,
-                  100,
-                ),
-              ]}
-              min={0}
-              max={100}
-              step={0.1}
-              onValueChange={(v) => {
-                const pct = Array.isArray(v) ? (v[0] as number) : (v as number);
-                if (trimEnd <= trimStart) return;
-                const t = percentToTime(pct, trimStart, trimEnd);
-                onProgressSeek(t);
-              }}
-              aria-label="Seek within trim range"
-            />
-            <Slider
-              value={[currentTime]}
-              min={0}
-              max={Math.max(effectiveDuration, 0.01)}
-              step={0.01}
-              onValueChange={(v) => {
-                const t = Array.isArray(v) ? (v[0] as number) : (v as number);
-                onTimelineSeek(t);
-              }}
-              aria-label="Seek video"
-              className="opacity-60"
-            />
-          </div>
+          <VideoPlayerControls
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            duration={effectiveDuration}
+            onTogglePlay={onTogglePlayback}
+            onSeek={onTimelineSeek}
+            volume={volume}
+            onVolumeChange={onVolumeChange}
+            muted={muted}
+            onToggleMute={onToggleMute}
+            loop={isLooping}
+            onToggleLoop={onToggleLoop}
+            onPlayFromStart={onPlayFromTrimStart}
+            playFromStartLabel="Play from trim start"
+            timeLabel={`${formatTime(currentTime)} / ${formatTime(effectiveDuration)} · Trim ${formatTime(trimStart)} → ${formatTime(trimEnd)}`}
+            extraContent={
+              <div className="space-y-1 pt-3">
+                <div className="flex items-center justify-between text-[11px] text-kumo-subtle">
+                  <span>Progress (trim range)</span>
+                  <span className="tabular-nums" suppressHydrationWarning>
+                    {trimEnd > trimStart
+                      ? `${Math.round(clamp(((currentTime - trimStart) / (trimEnd - trimStart)) * 100, 0, 100))}%`
+                      : "0%"}
+                  </span>
+                </div>
+                <Slider
+                  value={[
+                    clamp(
+                      trimEnd > trimStart
+                        ? clamp(
+                            ((currentTime - trimStart) /
+                              (trimEnd - trimStart)) *
+                              100,
+                            0,
+                            100,
+                          )
+                        : 0,
+                      0,
+                      100,
+                    ),
+                  ]}
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  onValueChange={(v) => {
+                    const pct = Array.isArray(v)
+                      ? (v[0] as number)
+                      : (v as number);
+                    if (trimEnd <= trimStart) return;
+                    const t = percentToTime(pct, trimStart, trimEnd);
+                    onProgressSeek(t);
+                  }}
+                  aria-label="Seek within trim range"
+                />
+              </div>
+            }
+          />
         </div>
       </CardContent>
     </Card>
