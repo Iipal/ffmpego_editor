@@ -1,9 +1,6 @@
 import type { CSSProperties } from "react";
 import { clamp } from "@/lib/mobile-layout";
-import type {
-  Subtitle,
-  SubtitleStyle,
-} from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
 
 // js-hoist-regexp: hoisted RegExp (avoid per-render creation, no /g mutable state)
 const HEX_VALID_RE = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/;

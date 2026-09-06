@@ -95,7 +95,11 @@ export function GoogleFontPicker({
 
   // rerender-simple-expression-in-memo: cheap trim+slice — derive during render
   const _pt = previewText?.trim() ?? "";
-  const previewTrimmed = !_pt ? "" : _pt.length > 40 ? _pt.slice(0, 40) + "…" : _pt;
+  const previewTrimmed = !_pt
+    ? ""
+    : _pt.length > 40
+      ? _pt.slice(0, 40) + "…"
+      : _pt;
 
   const filteredFonts = useMemo(() => {
     if (loading) return [] as string[];

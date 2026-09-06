@@ -71,8 +71,8 @@ export const FilterBar = memo(function FilterBar({
       </div>
       {isError ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
-          {(error as Error).message} — check API at {API_BASE_URL} is running
-          & CORS allowed.
+          {(error as Error).message} — check API at {API_BASE_URL} is running &
+          CORS allowed.
           <Button
             variant="outline"
             size="xs"

@@ -413,7 +413,7 @@ export function BulkExpandedView({
           />
 
           {item.error ? (
-            <p className="text-[11px] leading-4 text-kumo-warn break-words">
+            <p className="text-[11px] leading-4 text-kumo-warn wrap-break-word">
               {item.error}
             </p>
           ) : null}

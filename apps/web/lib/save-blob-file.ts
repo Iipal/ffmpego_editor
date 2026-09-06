@@ -11,8 +11,9 @@ export async function saveBlobFile(
   filename: string,
   types?: SavePickerTypes,
 ): Promise<string> {
-  const mimeTypes =
-    types ?? [{ description: "MP4 video", accept: { "video/mp4": [".mp4"] } }];
+  const mimeTypes = types ?? [
+    { description: "MP4 video", accept: { "video/mp4": [".mp4"] } },
+  ];
   if ("showSaveFilePicker" in window) {
     try {
       const handle = await (

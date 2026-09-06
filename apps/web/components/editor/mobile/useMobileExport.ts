@@ -53,7 +53,8 @@ export function useMobileExport(args: ExportArgs) {
     void sanitizedBase;
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
-    const outName = stripExtension(file.name) + "_mobile_1080x1920.mp4";    const baseName = outName.replace(/\.mp4$/, "");
+    const outName = stripExtension(file.name) + "_mobile_1080x1920.mp4";
+    const baseName = outName.replace(/\.mp4$/, "");
     toast.info("FFmpeg filter ready", {
       description: filterString.slice(0, 120) + "…",
     });

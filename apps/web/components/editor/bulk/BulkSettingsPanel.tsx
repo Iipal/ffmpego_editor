@@ -4,12 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Film,
-  FolderInput,
-  FolderOutput,
-  RefreshCw,
-} from "lucide-react";
+import { Film, FolderInput, FolderOutput, RefreshCw } from "lucide-react";
 
 export type BulkSettingsPanelProps = {
   inputFolderName: string | null;
@@ -96,9 +91,7 @@ export function BulkSettingsPanel({
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col gap-0.5">
-            <Label className="text-xs">
-              Zones · Stacked {splitLabel}%
-            </Label>
+            <Label className="text-xs">Zones · Stacked {splitLabel}%</Label>
             <span className="font-mono text-[11px] tabular-nums text-kumo-subtle">
               from Mobile editor
             </span>
@@ -126,8 +119,8 @@ export function BulkSettingsPanel({
           {isExporting ? "Exporting…" : `Bulk Export (${selectedCount})`}
         </Button>
         <p className="text-[10px] leading-3 text-kumo-subtle">
-          Files render one by one, full length (trim ignored), 1080×1920.
-          Each finished file saves to the output folder automatically.
+          Files render one by one, full length (trim ignored), 1080×1920. Each
+          finished file saves to the output folder automatically.
         </p>
       </CardContent>
     </Card>

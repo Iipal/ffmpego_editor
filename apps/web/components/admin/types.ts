@@ -14,7 +14,12 @@ export interface JobsResponse {
   jobs: JobEntry[];
 }
 
-export const FILTER_OPTIONS = ["all", "processing", "completed", "failed"] as const;
+export const FILTER_OPTIONS = [
+  "all",
+  "processing",
+  "completed",
+  "failed",
+] as const;
 export type Filter = (typeof FILTER_OPTIONS)[number];
 export const FILTER_SET = new Set<string>(FILTER_OPTIONS); // js-set-map-lookups
 

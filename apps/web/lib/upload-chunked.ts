@@ -25,21 +25,35 @@ export async function uploadFileChunked(
   file: File,
   opts: ChunkedUploadOptions = {},
 ): Promise<ChunkedUploadResult> {
-  const chunkSize = Math.min(Math.max(1 * 1024 * 1024, opts.chunkSize ?? DEFAULT_CHUNK), 64 * 1024 * 1024);
+  const chunkSize = Math.min(
+    Math.max(1 * 1024 * 1024, opts.chunkSize ?? DEFAULT_CHUNK),
+    64 * 1024 * 1024,
+  );
   const maxRetries = opts.maxRetries ?? MAX_RETRIES;
 
   // 1) init
   const initRes = await fetch(`${API_BASE_URL}/api/upload/init`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ filename: file.name, totalSize: file.size, chunkSize }),
+    body: JSON.stringify({
+      filename: file.name,
+      totalSize: file.size,
+      chunkSize,
+    }),
     signal: opts.signal,
   });
   if (!initRes.ok) {
-    const err = await initRes.json().catch(() => null) as { error?: string } | null;
+    const err = (await initRes.json().catch(() => null)) as {
+      error?: string;
+    } | null;
     throw new Error(err?.error ?? `Upload init failed: ${initRes.status}`);
   }
-  const init = (await initRes.json()) as { uploadId: string; chunkSize: number; totalSize: number; temporaryPath: string };
+  const init = (await initRes.json()) as {
+    uploadId: string;
+    chunkSize: number;
+    totalSize: number;
+    temporaryPath: string;
+  };
   const { uploadId } = init;
   const effectiveChunk = init.chunkSize ?? chunkSize;
   const totalChunks = Math.ceil(file.size / effectiveChunk);
@@ -70,7 +84,9 @@ export async function uploadFileChunked(
           },
         );
         if (!res.ok) {
-          const e = (await res.json().catch(() => null)) as { error?: string } | null;
+          const e = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
           throw new Error(e?.error ?? `Chunk ${i} failed: ${res.status}`);
         }
         sent += buf.byteLength;
@@ -86,13 +102,20 @@ export async function uploadFileChunked(
   }
 
   // 3) complete
-  const completeRes = await fetch(`${API_BASE_URL}/api/upload/complete/${uploadId}`, {
-    method: "POST",
-    signal: opts.signal,
-  });
+  const completeRes = await fetch(
+    `${API_BASE_URL}/api/upload/complete/${uploadId}`,
+    {
+      method: "POST",
+      signal: opts.signal,
+    },
+  );
   if (!completeRes.ok) {
-    const e = (await completeRes.json().catch(() => null)) as { error?: string } | null;
-    throw new Error(e?.error ?? `Upload complete failed: ${completeRes.status}`);
+    const e = (await completeRes.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(
+      e?.error ?? `Upload complete failed: ${completeRes.status}`,
+    );
   }
   const complete = (await completeRes.json()) as ChunkedUploadResult;
   return complete;
@@ -103,14 +126,18 @@ export async function uploadFileChunked(
 export function uploadFormWithProgress<T>(
   endpoint: string,
   form: FormData,
-  opts: { onUploadProgress?: (loaded: number, total: number) => void; signal?: AbortSignal } = {},
+  opts: {
+    onUploadProgress?: (loaded: number, total: number) => void;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const url = `${API_BASE_URL}${endpoint}`;
 
     if (opts.signal) {
-      if (opts.signal.aborted) return reject(new DOMException("Aborted", "AbortError"));
+      if (opts.signal.aborted)
+        return reject(new DOMException("Aborted", "AbortError"));
       opts.signal.addEventListener("abort", () => xhr.abort(), { once: true });
     }
 
@@ -127,7 +154,9 @@ export function uploadFormWithProgress<T>(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(xhr.response as T);
       } else {
-        const err = (xhr.response as { error?: string } | null)?.error ?? `API error: ${xhr.status}`;
+        const err =
+          (xhr.response as { error?: string } | null)?.error ??
+          `API error: ${xhr.status}`;
         reject(new Error(err));
       }
     };

@@ -3,10 +3,7 @@
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { clamp } from "@/lib/mobile-layout";
-import {
-  TRIM_MIN_GAP_DEFAULT,
-  TRIM_SLIDER_MAX_FALLBACK,
-} from "./useTrimRange";
+import { TRIM_MIN_GAP_DEFAULT, TRIM_SLIDER_MAX_FALLBACK } from "./useTrimRange";
 
 export type TrimSliderProps = {
   trimStart: number;
@@ -73,8 +70,7 @@ export function TrimSlider({
         <div
           className={cn(
             "pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 flex flex-col items-center",
-            (currentTime < trimStart - 0.02 ||
-              currentTime > trimEnd + 0.02) &&
+            (currentTime < trimStart - 0.02 || currentTime > trimEnd + 0.02) &&
               "opacity-40",
           )}
           style={{

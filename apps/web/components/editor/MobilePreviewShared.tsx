@@ -216,7 +216,9 @@ export function MobilePreviewShared({
   if (!video || !video.src)
     return (
       <div className="mx-auto flex aspect-9/16 w-full max-w-70 items-center justify-center rounded-xl border border-dashed border-kumo-line bg-kumo-recessed text-xs leading-4 text-kumo-subtle">
-        <span className="font-mono text-[11px] tabular-nums">Preview appears after upload</span>
+        <span className="font-mono text-[11px] tabular-nums">
+          Preview appears after upload
+        </span>
       </div>
     );
 

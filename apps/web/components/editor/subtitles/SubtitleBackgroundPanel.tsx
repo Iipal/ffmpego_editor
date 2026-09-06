@@ -4,10 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import type {
-  Subtitle,
-  SubtitleStyle,
-} from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
 
 export type SubtitleBackgroundPanelProps = {
   selected: Subtitle;
@@ -37,8 +34,7 @@ export function SubtitleBackgroundPanel({
       </div>
       <div
         className={cn(
-          !selected.style.backgroundEnabled &&
-            "opacity-50 pointer-events-none",
+          !selected.style.backgroundEnabled && "opacity-50 pointer-events-none",
         )}
       >
         <div className="space-y-2">

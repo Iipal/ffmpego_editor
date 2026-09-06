@@ -1,7 +1,8 @@
 import type { SubtitleTemplate } from "./subtitleTypes";
 
 // client-localstorage-schema: versioned key so future schema changes can migrate
-export const SUBTITLE_TEMPLATES_STORAGE_KEY = "video-editor:subtitle-templates:v1";
+export const SUBTITLE_TEMPLATES_STORAGE_KEY =
+  "video-editor:subtitle-templates:v1";
 const LEGACY_SUBTITLE_TEMPLATES_KEY = "video-editor:subtitle-templates";
 
 export interface SubtitleTemplateStorage {

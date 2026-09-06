@@ -33,10 +33,7 @@ export function EditorHeader({
             Mobile layout
           </h2>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-kumo-hairline bg-kumo-recessed px-2 py-0.5 text-[11px] font-medium leading-none text-kumo-subtle">
-            <span
-              className="size-1.5 rounded-full bg-kumo-brand"
-              aria-hidden
-            />
+            <span className="size-1.5 rounded-full bg-kumo-brand" aria-hidden />
             {modeBadge}
             <span aria-hidden className="opacity-40">
               ·

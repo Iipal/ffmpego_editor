@@ -22,7 +22,12 @@ import { FilterBar } from "@/components/admin/FilterBar";
 import { JobsArea } from "@/components/admin/JobsArea";
 import { JobsList } from "@/components/admin/JobsList";
 import { TipsHoisted } from "@/components/admin/placeholders";
-import { didInitApp, ensurePreconnect, markAppInit, preloadHeavyCard } from "@/components/admin/heavy";
+import {
+  didInitApp,
+  ensurePreconnect,
+  markAppInit,
+  preloadHeavyCard,
+} from "@/components/admin/heavy";
 import { useAdminJobs } from "@/components/admin/useAdminJobs";
 
 export default function PageAdmin() {

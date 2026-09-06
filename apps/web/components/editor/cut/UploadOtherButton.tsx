@@ -19,7 +19,5 @@ const cutReset: VideoReset = () => ({
 });
 
 export const UploadOtherButton = memo(function UploadOtherButton() {
-  return (
-    <SharedUploadOtherButton reset={cutReset} clearInputAfterPick />
-  );
+  return <SharedUploadOtherButton reset={cutReset} clearInputAfterPick />;
 });

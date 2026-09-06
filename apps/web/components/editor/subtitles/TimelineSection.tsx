@@ -81,9 +81,7 @@ export function TimelineSection({
             <span className="size-2 bg-kumo-brand/60 rounded-sm inline-block ml-2" />{" "}
             selected
           </span>
-          <span suppressHydrationWarning>
-            {formatTime(effectiveDuration)}
-          </span>
+          <span suppressHydrationWarning>{formatTime(effectiveDuration)}</span>
         </div>
       </CardContent>
     </Card>

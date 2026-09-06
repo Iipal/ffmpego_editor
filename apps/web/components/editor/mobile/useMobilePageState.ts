@@ -25,7 +25,11 @@ import {
   useTrimRange,
 } from "@/components/editor/shared/useTrimRange";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
-import { cachedBuildMobileFilter, ensureAppInitOnce, NOOP } from "./mobile-helpers";
+import {
+  cachedBuildMobileFilter,
+  ensureAppInitOnce,
+  NOOP,
+} from "./mobile-helpers";
 
 export function useMobilePageState() {
   useEffect(() => {
@@ -37,13 +41,17 @@ export function useMobilePageState() {
     mediaUrl: string | null;
     uploadStatus: string;
   };
-  const { duration: srcDuration, sourceWidth, sourceHeight, trimRange } =
-    useVideoState() as unknown as {
-      duration: number;
-      sourceWidth: number;
-      sourceHeight: number;
-      trimRange: [number, number];
-    };
+  const {
+    duration: srcDuration,
+    sourceWidth,
+    sourceHeight,
+    trimRange,
+  } = useVideoState() as unknown as {
+    duration: number;
+    sourceWidth: number;
+    sourceHeight: number;
+    trimRange: [number, number];
+  };
   const videoStore = useVideoStore();
   const ed = useMobileEditor();
   const videoRef = useRef<HTMLVideoElement>(null);

@@ -35,7 +35,8 @@ export function VideoPlayer() {
 
   // --- Letterbox size: fit source video inside fixed 16:9 player  -----------
   const playerAspectRatio = 16 / 9;
-  const srcAspect = sourceAspectRatio > 0 ? sourceAspectRatio : playerAspectRatio;
+  const srcAspect =
+    sourceAspectRatio > 0 ? sourceAspectRatio : playerAspectRatio;
   const canvasSize =
     srcAspect >= playerAspectRatio
       ? {
@@ -161,7 +162,8 @@ export function VideoPlayer() {
                           ? previous.duration
                           : d,
                       sourceAspectRatio:
-                        event.currentTarget.videoWidth / event.currentTarget.videoHeight,
+                        event.currentTarget.videoWidth /
+                        event.currentTarget.videoHeight,
                       sourceWidth: event.currentTarget.videoWidth,
                       sourceHeight: event.currentTarget.videoHeight,
                     };

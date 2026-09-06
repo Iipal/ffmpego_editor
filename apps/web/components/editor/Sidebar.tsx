@@ -102,7 +102,9 @@ export function Sidebar() {
     store.setState((previous) => ({ ...previous, ...value }));
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
-  const filename = state.file ? stripExtension(state.file.name) : "Untitled video";
+  const filename = state.file
+    ? stripExtension(state.file.name)
+    : "Untitled video";
   const basename = state.file ? stripExtension(state.file.name) : "";
 
   // Keep export filename in sync with uploaded file's basename.
@@ -176,7 +178,8 @@ export function Sidebar() {
       return;
     }
 
-    const srcAspect = state.sourceAspectRatio > 0 ? state.sourceAspectRatio : 16 / 9;
+    const srcAspect =
+      state.sourceAspectRatio > 0 ? state.sourceAspectRatio : 16 / 9;
     const widthPerHeight = targetRatio / srcAspect;
     // Preserve crop center while enforcing aspect. Start from current rect
     // and shrink the limiting dimension so the new rect fits inside bounds

@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  EmptyStateShell,
-  UploaderCard,
-} from "../shared/EmptyState";
+import { EmptyStateShell, UploaderCard } from "../shared/EmptyState";
 
 export function CutEmptyState() {
   return (

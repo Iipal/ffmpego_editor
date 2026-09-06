@@ -11,8 +11,14 @@ import { CutList } from "@/components/editor/cut/CutList";
 import { CutSettingsSidebar } from "@/components/editor/cut/CutSettingsSidebar";
 import { useCutList } from "@/components/editor/cut/useCutList";
 import { useCutLayouts } from "@/components/editor/cut/useCutLayouts";
-import { useCutPlayback, useSeekTo } from "@/components/editor/cut/useCutPlayback";
-import { useCutExport, useExportName } from "@/components/editor/cut/useCutExport";
+import {
+  useCutPlayback,
+  useSeekTo,
+} from "@/components/editor/cut/useCutPlayback";
+import {
+  useCutExport,
+  useExportName,
+} from "@/components/editor/cut/useCutExport";
 import type { Cut } from "@/components/editor/cut/types";
 import { stripExtension } from "@/lib/video-file";
 
@@ -218,9 +224,7 @@ export default function CutEditorPage() {
             onSyncFromMobile={syncFromMobile}
             exportName={exportName}
             onExportNameChange={setExportName}
-            exportPlaceholder={
-              file ? stripExtension(file.name) : "cut"
-            }
+            exportPlaceholder={file ? stripExtension(file.name) : "cut"}
             cutsCount={cuts.length}
             overlapCount={overlapIds.size}
             isExporting={isExporting}

@@ -1,7 +1,4 @@
-import {
-  createDefaultLayout,
-  loadPrefForMode,
-} from "@/lib/mobile-layout";
+import { createDefaultLayout, loadPrefForMode } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import type { BulkStatus } from "./types";
 

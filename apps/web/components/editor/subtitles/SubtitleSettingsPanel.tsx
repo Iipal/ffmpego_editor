@@ -48,7 +48,10 @@ export function SubtitleSettingsPanel({
               templates={templates}
               {...basics}
             />
-            <SubtitleFontPanel selected={selected} onUpdateStyle={onUpdateStyle} />
+            <SubtitleFontPanel
+              selected={selected}
+              onUpdateStyle={onUpdateStyle}
+            />
             <SubtitleOutlinePanel
               selected={selected}
               onUpdateStyle={onUpdateStyle}

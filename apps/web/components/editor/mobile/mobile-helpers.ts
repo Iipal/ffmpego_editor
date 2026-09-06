@@ -1,9 +1,5 @@
 import { preconnect, preload } from "react-dom";
-import {
-  buildMobileFilter,
-  savePref,
-  loadPref,
-} from "@/lib/mobile-layout";
+import { buildMobileFilter, savePref, loadPref } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 
 export { NOOP } from "@/lib/utils";

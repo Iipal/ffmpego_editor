@@ -2,10 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import {
-  createDefaultLayout,
-  loadPrefForMode,
-} from "@/lib/mobile-layout";
+import { createDefaultLayout, loadPrefForMode } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import type { CutMode } from "./types";
 

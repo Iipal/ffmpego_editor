@@ -55,9 +55,7 @@ export function BulkItemCard({
         <div className="flex items-start gap-2">
           <Checkbox
             checked={it.selected}
-            onCheckedChange={(v) =>
-              onPatch(it.id, { selected: v === true })
-            }
+            onCheckedChange={(v) => onPatch(it.id, { selected: v === true })}
             disabled={isExporting}
             aria-label={`Include ${it.name} in bulk export`}
             className="mt-0.5"
@@ -80,7 +78,9 @@ export function BulkItemCard({
             // Expanded item keeps its preview un-named so the
             // `bulk-cell-<id>` name lives only on BulkExpandedView
             // during the morph (duplicate names break the transition).
-            <div className="flex flex-col items-center opacity-60">{preview}</div>
+            <div className="flex flex-col items-center opacity-60">
+              {preview}
+            </div>
           ) : (
             <ViewTransition
               name={`bulk-cell-${it.id}`}
@@ -103,10 +103,7 @@ export function BulkItemCard({
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-[11px] leading-none tabular-nums text-kumo-subtle">
             <span
-              className={cn(
-                "size-1.5 rounded-full",
-                statusColor(it.status),
-              )}
+              className={cn("size-1.5 rounded-full", statusColor(it.status))}
               aria-hidden
             />
             {STATUS_LABEL[it.status]}
@@ -120,7 +117,7 @@ export function BulkItemCard({
             <Progress value={it.progress} />
           ) : null}
           {it.error ? (
-            <p className="text-[11px] leading-4 text-kumo-warn break-words">
+            <p className="text-[11px] leading-4 text-kumo-warn wrap-break-word">
               {it.error}
             </p>
           ) : null}

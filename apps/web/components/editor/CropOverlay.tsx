@@ -300,7 +300,10 @@ export function CropOverlay() {
           className="absolute -top-6 left-0 inline-flex items-center gap-1 rounded-md border border-kumo-brand bg-kumo-brand px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-white tabular-nums shadow-sm"
           aria-hidden
         >
-          <span className="size-1.5 rounded-full bg-current opacity-80" aria-hidden />
+          <span
+            className="size-1.5 rounded-full bg-current opacity-80"
+            aria-hidden
+          />
           Crop · {aspectRatio}
         </span>
 

@@ -103,11 +103,7 @@ export function TrimControls({
       </div>
       {showSetToCurrentButtons ? (
         <div className="grid grid-cols-2 gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onSetStartToCurrent}
-          >
+          <Button size="sm" variant="outline" onClick={onSetStartToCurrent}>
             Set Start to {formatTime(currentTime ?? trimStart)}
           </Button>
           <Button size="sm" variant="outline" onClick={onSetEndToCurrent}>
@@ -152,10 +148,7 @@ export function TrimControls({
       {showLoopSwitch ? (
         <div className="flex items-center justify-between">
           <Label className="text-xs">Loop trimmed</Label>
-          <Switch
-            checked={isLoopTrim}
-            onCheckedChange={onLoopTrimChange}
-          />
+          <Switch checked={isLoopTrim} onCheckedChange={onLoopTrimChange} />
         </div>
       ) : null}
     </div>

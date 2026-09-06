@@ -1,14 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  Pause,
-  Play,
-  Repeat,
-  SkipBack,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { Pause, Play, Repeat, SkipBack, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import {

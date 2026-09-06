@@ -83,7 +83,10 @@ export function CutSettingsSidebar({
       <CardContent className="space-y-3">
         <div className="space-y-1.5">
           <Label className="text-xs">Mode</Label>
-          <Select value={mode} onValueChange={(v) => onModeChange(v as CutMode)}>
+          <Select
+            value={mode}
+            onValueChange={(v) => onModeChange(v as CutMode)}
+          >
             <SelectTrigger className="h-8 text-xs">
               <SelectValue />
             </SelectTrigger>

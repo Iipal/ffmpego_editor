@@ -69,7 +69,10 @@ export function CutPreview({
               {modeBadge}
             </span>
           </CardTitle>
-          <Select value={mode} onValueChange={(v) => onModeChange(v as CutMode)}>
+          <Select
+            value={mode}
+            onValueChange={(v) => onModeChange(v as CutMode)}
+          >
             <SelectTrigger className="h-7 w-40 text-xs">
               <SelectValue />
             </SelectTrigger>

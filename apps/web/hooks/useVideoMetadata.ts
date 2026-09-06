@@ -41,14 +41,17 @@ export function useVideoMetadataMutation() {
     mutationFn: async (file: File) => {
       if (shouldUseChunked(file)) {
         const { uploadId } = await uploadFileChunked(file, {
-          onProgress: (sent, total) => setUploadProgress(videoStore, sent, total),
+          onProgress: (sent, total) =>
+            setUploadProgress(videoStore, sent, total),
         });
         const res = await fetch(`${API_BASE_URL}/api/metadata`, {
           method: "POST",
           headers: { "x-upload-id": uploadId },
         });
         if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as { error?: string } | null;
+          const err = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
           throw new Error(err?.error ?? `Metadata failed: ${res.status}`);
         }
         return (await res.json()) as VideoMetadata;
@@ -56,7 +59,8 @@ export function useVideoMetadataMutation() {
       const form = new FormData();
       form.append("file", file);
       return uploadFormWithProgress<VideoMetadata>("/api/metadata", form, {
-        onUploadProgress: (sent, total) => setUploadProgress(videoStore, sent, total),
+        onUploadProgress: (sent, total) =>
+          setUploadProgress(videoStore, sent, total),
       });
     },
     onSuccess: (metadata, file) => {
@@ -118,14 +122,17 @@ export function useExtendedVideoMetadataMutation() {
     mutationFn: async (file: File) => {
       if (shouldUseChunked(file)) {
         const { uploadId } = await uploadFileChunked(file, {
-          onProgress: (sent, total) => setUploadProgress(videoStore, sent, total),
+          onProgress: (sent, total) =>
+            setUploadProgress(videoStore, sent, total),
         });
         const res = await fetch(
           `${API_BASE_URL}/api/metadata?includeFrames=false&includePackets=false`,
           { method: "POST", headers: { "x-upload-id": uploadId } },
         );
         if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as { error?: string } | null;
+          const err = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
           throw new Error(err?.error ?? `Metadata failed: ${res.status}`);
         }
         return (await res.json()) as VideoMetadata;
@@ -135,7 +142,10 @@ export function useExtendedVideoMetadataMutation() {
       return uploadFormWithProgress<VideoMetadata>(
         "/api/metadata?includeFrames=false&includePackets=false",
         form,
-        { onUploadProgress: (sent, total) => setUploadProgress(videoStore, sent, total) },
+        {
+          onUploadProgress: (sent, total) =>
+            setUploadProgress(videoStore, sent, total),
+        },
       );
     },
     onSuccess: (metadata, file) => {

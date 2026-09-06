@@ -59,9 +59,9 @@ export function useTrimRange({
     if (duration <= 0) return;
     if (trimEnd === 0) {
       videoStore.setState((prev) => {
-        const cur = (
-          prev as unknown as { trimRange?: TrimRangeTuple }
-        ).trimRange ?? ([0, 0] as TrimRangeTuple);
+        const cur =
+          (prev as unknown as { trimRange?: TrimRangeTuple }).trimRange ??
+          ([0, 0] as TrimRangeTuple);
         if (cur[1] === 0)
           return {
             ...prev,
@@ -77,9 +77,9 @@ export function useTrimRange({
         }));
       } else {
         videoStore.setState((prev) => {
-          const cur = (
-            prev as unknown as { trimRange?: TrimRangeTuple }
-          ).trimRange ?? ([0, 0] as TrimRangeTuple);
+          const cur =
+            (prev as unknown as { trimRange?: TrimRangeTuple }).trimRange ??
+            ([0, 0] as TrimRangeTuple);
           const ns = Math.min(cur[0], Math.max(0, duration - initClampMargin));
           return {
             ...prev,

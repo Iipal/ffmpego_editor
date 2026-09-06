@@ -37,7 +37,10 @@ function googleFontHref(family: string): string {
 
 export function ensureGoogleFontLoaded(family: string): Promise<void> {
   if (typeof document === "undefined") return Promise.resolve();
-  const clean = family.split(",")[0].trim().replace(/^["']|["']$/g, "");
+  const clean = family
+    .split(",")[0]
+    .trim()
+    .replace(/^["']|["']$/g, "");
   if (!clean || isSystemFont(family)) return Promise.resolve();
   if (loadedFonts.has(clean)) return Promise.resolve();
   const existing = loadingFonts.get(clean);
@@ -45,7 +48,9 @@ export function ensureGoogleFontLoaded(family: string): Promise<void> {
 
   const p = (async () => {
     const href = googleFontHref(clean);
-    let link = document.querySelector(`link[data-google-font="${clean}"]`) as HTMLLinkElement | null;
+    let link = document.querySelector(
+      `link[data-google-font="${clean}"]`,
+    ) as HTMLLinkElement | null;
     if (!link) {
       link = document.createElement("link");
       link.rel = "stylesheet";
@@ -91,7 +96,8 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
   try {
     const r = await fetch(FONTSOURCE_API, { cache: "force-cache" });
     if (r.ok) {
-      const data: Array<{ family: string; subsets?: string[]; type?: string }> = await r.json();
+      const data: Array<{ family: string; subsets?: string[]; type?: string }> =
+        await r.json();
       // js-combine-iterations: single pass filters google-only + non-empty + dedups
       const uniq = new Map<string, GoogleFontMeta>();
       for (const f of data) {
@@ -101,9 +107,12 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
           uniq.set(f.family, { family: f.family, subsets: f.subsets ?? [] });
       }
       if (uniq.size > 100) {
-        cachedMeta = Array.from(uniq.values()).sort((a, b) => a.family.localeCompare(b.family));
+        cachedMeta = Array.from(uniq.values()).sort((a, b) =>
+          a.family.localeCompare(b.family),
+        );
         cachedFamilies = cachedMeta.map((m) => m.family);
-        for (const m of cachedMeta) familyToSubsets.set(m.family.toLowerCase(), m.subsets);
+        for (const m of cachedMeta)
+          familyToSubsets.set(m.family.toLowerCase(), m.subsets);
         return cachedMeta;
       }
     }
@@ -111,7 +120,8 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
   try {
     const r2 = await fetch(GWFH_API, { cache: "force-cache" });
     if (r2.ok) {
-      const data2: Array<{ family: string; subsets?: string[] }> = await r2.json();
+      const data2: Array<{ family: string; subsets?: string[] }> =
+        await r2.json();
       // js-combine-iterations: single pass filters empty + dedups
       const uniq2 = new Map<string, GoogleFontMeta>();
       for (const f of data2) {
@@ -120,9 +130,12 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
           uniq2.set(f.family, { family: f.family, subsets: f.subsets ?? [] });
       }
       if (uniq2.size > 100) {
-        cachedMeta = Array.from(uniq2.values()).sort((a, b) => a.family.localeCompare(b.family));
+        cachedMeta = Array.from(uniq2.values()).sort((a, b) =>
+          a.family.localeCompare(b.family),
+        );
         cachedFamilies = cachedMeta.map((m) => m.family);
-        for (const m of cachedMeta) familyToSubsets.set(m.family.toLowerCase(), m.subsets);
+        for (const m of cachedMeta)
+          familyToSubsets.set(m.family.toLowerCase(), m.subsets);
         return cachedMeta;
       }
     }
@@ -150,13 +163,24 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
     "Bebas Neue",
   ];
   // fallback subsets: most support latin + cyrillic for common ones, but mark conservatively
-  const cyrillicFallback = new Set(["Inter", "Roboto", "Open Sans", "Montserrat", "Noto Sans", "PT Sans", "Arvo", "Ubuntu", "Rubik"]);
+  const cyrillicFallback = new Set([
+    "Inter",
+    "Roboto",
+    "Open Sans",
+    "Montserrat",
+    "Noto Sans",
+    "PT Sans",
+    "Arvo",
+    "Ubuntu",
+    "Rubik",
+  ]);
   cachedMeta = fallbackFamilies.map((f) => ({
     family: f,
     subsets: cyrillicFallback.has(f) ? ["latin", "cyrillic"] : ["latin"],
   }));
   cachedFamilies = fallbackFamilies.slice().sort((a, b) => a.localeCompare(b));
-  for (const m of cachedMeta) familyToSubsets.set(m.family.toLowerCase(), m.subsets);
+  for (const m of cachedMeta)
+    familyToSubsets.set(m.family.toLowerCase(), m.subsets);
   return cachedMeta;
 }
 
@@ -181,7 +205,10 @@ export function isCyrillicSupported(family: string): boolean {
 }
 
 function displayFamily(family: string): string {
-  return family.split(",")[0].trim().replace(/^["']|["']$/g, "");
+  return family
+    .split(",")[0]
+    .trim()
+    .replace(/^["']|["']$/g, "");
 }
 
 export function fontFamilyToCss(family: string): string {

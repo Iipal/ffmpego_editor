@@ -13,10 +13,7 @@ import {
 } from "@/components/ui/select";
 import { clamp } from "@/lib/mobile-layout";
 import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
-import type {
-  Subtitle,
-  SubtitleTemplate,
-} from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle, SubtitleTemplate } from "@/lib/subtitles/subtitleTypes";
 import { getSubtitleTrack } from "./subtitle-helpers";
 
 export type SubtitleBasicsPanelProps = {

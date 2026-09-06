@@ -40,8 +40,7 @@ export function useCutPlayback({
       if (!playAllRef.current || sortedRef.current.length === 0) return;
       const cuts = sortedRef.current;
       const idx = cuts.findIndex(
-        (c) =>
-          v.currentTime >= c.start - 0.05 && v.currentTime < c.end - 0.02,
+        (c) => v.currentTime >= c.start - 0.05 && v.currentTime < c.end - 0.02,
       );
       if (idx === -1) {
         const next = cuts.find((c) => c.start > v.currentTime + 0.02);

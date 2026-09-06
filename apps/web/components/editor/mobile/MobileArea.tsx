@@ -1,5 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { Redo2, Save, SlidersHorizontal, Smartphone, Undo2 } from "lucide-react";
+import {
+  Redo2,
+  Save,
+  SlidersHorizontal,
+  Smartphone,
+  Undo2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OUTPUT_H, OUTPUT_W } from "@/lib/mobile-layout";
 import type { MobileAreaProps } from "./types";

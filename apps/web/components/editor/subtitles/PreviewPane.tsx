@@ -170,7 +170,9 @@ export function PreviewPane({
                   globalPointerMoveHandlers.add(
                     onMove as unknown as PointerHandler,
                   );
-                  globalPointerUpHandlers.add(onUp as unknown as PointerHandler);
+                  globalPointerUpHandlers.add(
+                    onUp as unknown as PointerHandler,
+                  );
                 }}
               >
                 <div className="h-0.5 w-8 rounded bg-black/30 dark:bg-white/30" />

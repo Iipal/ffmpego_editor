@@ -29,7 +29,7 @@ export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
 
 export function getFileExtension(name: string): string {
   const parts = name.split(".");
-  return parts.length > 1 ? (parts.pop()!.toLowerCase() ) : "";
+  return parts.length > 1 ? parts.pop()!.toLowerCase() : "";
 }
 
 export function isAcceptedVideoFile(file: File): boolean {
@@ -40,7 +40,8 @@ export function isAcceptedVideoFile(file: File): boolean {
   const ext = getFileExtension(file.name);
   if (ext && ACCEPTED_VIDEO_EXTENSIONS.has(ext)) return true;
   // Some browsers report video/x-matroska with charset suffix
-  if (file.type.startsWith("video/") && file.type.includes("matroska")) return true;
+  if (file.type.startsWith("video/") && file.type.includes("matroska"))
+    return true;
   return false;
 }
 
@@ -48,10 +49,12 @@ export function isFileTooLarge(file: File): boolean {
   return file.size > MAX_UPLOAD_BYTES;
 }
 export function formatFileSize(bytes: number): string {
-  if (bytes >= MAX_UPLOAD_BYTES) return `${(bytes / (1024*1024*1024)).toFixed(2)} GB`;
-  if (bytes >= 1024*1024*1024) return `${(bytes / (1024*1024*1024)).toFixed(2)} GB`;
-  if (bytes >= 1024*1024) return `${(bytes / (1024*1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${(bytes/1024).toFixed(1)} KB`;
+  if (bytes >= MAX_UPLOAD_BYTES)
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  if (bytes >= 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${bytes} B`;
 }
 

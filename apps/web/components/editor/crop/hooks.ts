@@ -4,7 +4,12 @@ import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
 import { useVideoState, useVideoStore } from "@/store/useVideoStore";
 import { CROP_STORAGE_KEY, formatPct, isValidPersistedCrop } from "./helpers";
-import type { CropAspect, CropPixelReadout, CropRect, PersistedCrop } from "./types";
+import type {
+  CropAspect,
+  CropPixelReadout,
+  CropRect,
+  PersistedCrop,
+} from "./types";
 
 export interface CropControls {
   crop: CropRect;

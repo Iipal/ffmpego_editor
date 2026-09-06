@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FILTER_SET, type Filter, type JobEntry } from "./types";
 import { fetchJobs, getCachedFilter, setCachedFilter } from "./helpers";
@@ -178,7 +186,15 @@ export function useAdminJobs() {
     if (maxProgress === -Infinity) maxProgress = 0;
     if (minAge === Infinity) minAge = 0;
     if (maxAge === -Infinity) maxAge = 0;
-    return { filtered, pendingCount, completedCount, failedCount, maxProgress, minAge, maxAge };
+    return {
+      filtered,
+      pendingCount,
+      completedCount,
+      failedCount,
+      maxProgress,
+      minAge,
+      maxAge,
+    };
   }, [jobs, sortedJobs, deferredFilter]);
 
   // rerender-split-combined-hooks: narrow consumers to avoid recomputing when unrelated derived changes

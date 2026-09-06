@@ -6,9 +6,7 @@ import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-client";
 import { JOB_ID_RE } from "./helpers";
 
-export function useAdminMutations(
-  invalidateRef: RefObject<() => void>,
-) {
+export function useAdminMutations(invalidateRef: RefObject<() => void>) {
   const queryClient = useQueryClient();
 
   // async-parallel: independent invalidations could be Promise.all; here single but pattern shown

@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  createDefaultLayout,
-  normalizeLayout,
-} from "@/lib/mobile-layout";
+import { createDefaultLayout, normalizeLayout } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { DEFAULT_SPLIT, getCachedLayout } from "./mobile-helpers";
 import type { EditorHistory, ZoneId } from "./types";

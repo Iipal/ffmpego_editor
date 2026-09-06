@@ -161,7 +161,9 @@ export function useSubtitleEditor() {
   // js-index-maps: O(1) subtitle lookup via Map (1M ops → 2K ops) — split from filtering (rerender-split-combined-hooks)
   const subtitleById = useMemo(
     () =>
-      new Map<string, Subtitle>(deferredSubtitles.map((s) => [s.id, s] as const)),
+      new Map<string, Subtitle>(
+        deferredSubtitles.map((s) => [s.id, s] as const),
+      ),
     [deferredSubtitles],
   );
   const selectedSubtitle = useMemo(

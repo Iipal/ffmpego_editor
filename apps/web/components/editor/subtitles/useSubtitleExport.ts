@@ -45,8 +45,7 @@ export function useSubtitleExport({
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
     const baseName =
-      (stripExtension(file.name) || "video") +
-      "_mobile_subtitles_1080x1920";
+      (stripExtension(file.name) || "video") + "_mobile_subtitles_1080x1920";
     const outName = baseName + ".mp4";
     setIsExporting(true);
     toast.loading(
@@ -179,15 +178,7 @@ export function useSubtitleExport({
     } finally {
       setIsExporting(false);
     }
-  }, [
-    file,
-    trimStart,
-    trimEnd,
-    sourceWidth,
-    sourceHeight,
-    layout,
-    subtitles,
-  ]);
+  }, [file, trimStart, trimEnd, sourceWidth, sourceHeight, layout, subtitles]);
 
   return { isExporting, handleExport };
 }

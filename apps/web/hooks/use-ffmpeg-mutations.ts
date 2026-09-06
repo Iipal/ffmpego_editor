@@ -6,7 +6,11 @@ import {
   type TranscodeProgress,
   type TranscodeResponse,
 } from "@/lib/api-client";
-import { useVideoStore, useVideoState, type VideoState } from "@/store/useVideoStore";
+import {
+  useVideoStore,
+  useVideoState,
+  type VideoState,
+} from "@/store/useVideoStore";
 import {
   shouldUseChunked,
   uploadFileChunked,
@@ -58,7 +62,13 @@ async function downloadAndSaveFile(jobId: string, filename: string) {
     try {
       const handle = await (
         window as unknown as {
-          showSaveFilePicker: (options: { suggestedName?: string; types?: Array<{ description?: string; accept: Record<string, string[]> }> }) => Promise<FileSystemFileHandle>;
+          showSaveFilePicker: (options: {
+            suggestedName?: string;
+            types?: Array<{
+              description?: string;
+              accept: Record<string, string[]>;
+            }>;
+          }) => Promise<FileSystemFileHandle>;
         }
       ).showSaveFilePicker({
         suggestedName: filename,
@@ -143,7 +153,9 @@ export function useTranscodeMutation() {
           body: form,
         });
         if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as { error?: string } | null;
+          const err = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
           throw new Error(err?.error ?? `Transcode failed: ${res.status}`);
         }
         response = (await res.json()) as TranscodeResponse;

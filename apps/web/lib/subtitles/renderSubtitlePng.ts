@@ -10,7 +10,11 @@ export interface RenderedSubtitlePng {
 
 const MAX_WIDTH = Math.round(1080 * 0.9); // 972
 
-function wrapLine(line: string, ctx: CanvasRenderingContext2D, maxW: number): string[] {
+function wrapLine(
+  line: string,
+  ctx: CanvasRenderingContext2D,
+  maxW: number,
+): string[] {
   if (!line) return [""];
   if (ctx.measureText(line).width <= maxW) return [line];
   const words = line.split(" ");
@@ -44,7 +48,9 @@ function wrapLine(line: string, ctx: CanvasRenderingContext2D, maxW: number): st
   return out.length ? out : [""];
 }
 
-export async function renderSubtitlePng(subtitle: Subtitle): Promise<RenderedSubtitlePng> {
+export async function renderSubtitlePng(
+  subtitle: Subtitle,
+): Promise<RenderedSubtitlePng> {
   const { text, style } = subtitle;
   const fontSize = Math.max(1, style.fontSize);
   const lineHeight = fontSize * 1.2;
@@ -109,7 +115,10 @@ export async function renderSubtitlePng(subtitle: Subtitle): Promise<RenderedSub
   if (style.backgroundEnabled) {
     ctx.fillStyle = style.backgroundColor;
     const r = style.backgroundBorderRadius;
-    const x = 0, y = 0, w = canvas.width, h = canvas.height;
+    const x = 0,
+      y = 0,
+      w = canvas.width,
+      h = canvas.height;
     // Rounded rect
     if (typeof ctx.roundRect === "function") {
       ctx.beginPath();
@@ -190,14 +199,31 @@ export async function renderSubtitlePng(subtitle: Subtitle): Promise<RenderedSub
   return { blob, width: canvas.width, height: canvas.height };
 }
 
-export async function renderAllSubtitlesToPngs(
-  subtitles: Subtitle[],
-): Promise<Array<{ meta: { startTime: number; endTime: number; x: number; y: number; width: number; height: number }; blob: Blob }>> {
+export async function renderAllSubtitlesToPngs(subtitles: Subtitle[]): Promise<
+  Array<{
+    meta: {
+      startTime: number;
+      endTime: number;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
+    blob: Blob;
+  }>
+> {
   const results = [];
   for (const s of subtitles) {
     const { blob, width, height } = await renderSubtitlePng(s);
     results.push({
-      meta: { startTime: s.startTime, endTime: s.endTime, x: s.position.x, y: s.position.y, width, height },
+      meta: {
+        startTime: s.startTime,
+        endTime: s.endTime,
+        x: s.position.x,
+        y: s.position.y,
+        width,
+        height,
+      },
       blob,
     });
   }
