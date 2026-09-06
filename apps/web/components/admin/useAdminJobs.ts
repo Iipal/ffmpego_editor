@@ -8,6 +8,8 @@ import { preloadHeavyCard } from "./heavy";
 import { useLatest } from "./hooks";
 import { useAdminMutations } from "./mutations";
 
+let didPreloadHeavyCard = false;
+
 export function useAdminJobs() {
   const queryClient = useQueryClient();
   // rerender-lazy-state-init: read localStorage only once (cheap guard: window check)
@@ -142,6 +144,8 @@ export function useAdminJobs() {
       return {
         filtered: [] as JobEntry[],
         pendingCount: 0,
+        completedCount: 0,
+        failedCount: 0,
         maxProgress: 0,
         minAge: 0,
         maxAge: 0,
@@ -149,6 +153,8 @@ export function useAdminJobs() {
     const len = jobs.length; // js-cache-property-access
     const filtered: JobEntry[] = [];
     let pendingCount = 0;
+    let completedCount = 0;
+    let failedCount = 0;
     let maxProgress = -Infinity;
     let minAge = Infinity;
     let maxAge = -Infinity;
@@ -162,6 +168,8 @@ export function useAdminJobs() {
       const prog = job.progress;
       const age = job.ageSeconds;
       if (status === "processing") pendingCount += 1;
+      else if (status === "completed") completedCount += 1;
+      else if (status === "failed") failedCount += 1;
       if (prog > maxProgress) maxProgress = prog;
       if (age < minAge) minAge = age;
       if (age > maxAge) maxAge = age;
@@ -170,20 +178,15 @@ export function useAdminJobs() {
     if (maxProgress === -Infinity) maxProgress = 0;
     if (minAge === Infinity) minAge = 0;
     if (maxAge === -Infinity) maxAge = 0;
-    return { filtered, pendingCount, maxProgress, minAge, maxAge };
+    return { filtered, pendingCount, completedCount, failedCount, maxProgress, minAge, maxAge };
   }, [jobs, sortedJobs, deferredFilter]);
 
   // rerender-split-combined-hooks: narrow consumers to avoid recomputing when unrelated derived changes
+  // js-combine-iterations: completed/failed come from the single loop above (no extra .filter passes)
   const filtered = filteredAndCounts.filtered;
   const pendingCount = filteredAndCounts.pendingCount;
-  const completedCount = useMemo(
-    () => jobs.filter((j) => j.status === "completed").length,
-    [jobs],
-  );
-  const failedCount = useMemo(
-    () => jobs.filter((j) => j.status === "failed").length,
-    [jobs],
-  );
+  const completedCount = filteredAndCounts.completedCount;
+  const failedCount = filteredAndCounts.failedCount;
   const maxProgress = filteredAndCounts.maxProgress;
   void maxProgress; // keep for stats display if needed
 
@@ -209,7 +212,10 @@ export function useAdminJobs() {
   const hasJobs = jobs.length > 0;
 
   // js-request-idle-callback demo: defer preloading heavy card on idle after mount
+  // advanced-init-once: module guard so StrictMode remount / multi-mount only preloads once
   useEffect(() => {
+    if (didPreloadHeavyCard) return;
+    didPreloadHeavyCard = true;
     const schedule =
       typeof window !== "undefined" && "requestIdleCallback" in window
         ? (cb: () => void) =>

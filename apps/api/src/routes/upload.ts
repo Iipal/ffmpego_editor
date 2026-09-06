@@ -5,6 +5,9 @@ import path from "node:path";
 
 const app = new Hono();
 
+// js-hoist-regexp: hoist per-request RegExp to module scope
+const SAFE_NAME_RE = /[^a-zA-Z0-9._-]/g;
+
 // 8 MB default chunk — good balance: keeps Bun memory flat, allows progress, resumable
 export const DEFAULT_CHUNK_BYTES = 8 * 1024 * 1024;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
@@ -46,7 +49,7 @@ app.post("/upload/init", async (c) => {
     64 * 1024 * 1024,
   );
   const uploadId = crypto.randomUUID();
-  const safeName = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const safeName = path.basename(filename).replace(SAFE_NAME_RE, "_");
   const temporaryPath = path.join(os.tmpdir(), `${uploadId}-${safeName}`);
   // Pre-create sparse file to reserve space and enable random-access writes
   const fd = fs.openSync(temporaryPath, "w");

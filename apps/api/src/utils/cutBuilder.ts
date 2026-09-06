@@ -1,6 +1,30 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// server-hoist-static-io: candidate list is static — build once, cache resolved path
+const WATERMARK_CANDIDATES = [
+  path.join(import.meta.dir, "../assets/minozavr.png"),
+  path.resolve("apps/api/assets/minozavr.png"),
+  path.resolve("assets/minozavr.png"),
+  path.join(process.cwd(), "apps/api/assets/minozavr.png"),
+  path.join(process.cwd(), "assets/minozavr.png"),
+];
+let cachedWatermarkPath: string | undefined;
+
+function resolveWatermarkPath(): string {
+  if (cachedWatermarkPath !== undefined) return cachedWatermarkPath;
+  for (const c of WATERMARK_CANDIDATES) {
+    try {
+      if (fs.existsSync(c)) {
+        cachedWatermarkPath = c;
+        return c;
+      }
+    } catch {}
+  }
+  cachedWatermarkPath = WATERMARK_CANDIDATES[0];
+  return cachedWatermarkPath;
+}
+
 export type CutMode = "full-size" | "2-stack" | "1-stack";
 
 export interface CutSegment {
@@ -80,22 +104,7 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
     (options.mode === "2-stack" || options.mode === "1-stack");
   let watermarkPath: string | null = null;
   if (watermarkEnabled) {
-    const candidates = [
-      path.join(import.meta.dir, "../assets/minozavr.png"),
-      path.resolve("apps/api/assets/minozavr.png"),
-      path.resolve("assets/minozavr.png"),
-      path.join(process.cwd(), "apps/api/assets/minozavr.png"),
-      path.join(process.cwd(), "assets/minozavr.png"),
-    ];
-    for (const c of candidates) {
-      try {
-        if (fs.existsSync(c)) {
-          watermarkPath = c;
-          break;
-        }
-      } catch {}
-    }
-    if (!watermarkPath) watermarkPath = candidates[0];
+    watermarkPath = resolveWatermarkPath();
   }
 
   const args: string[] = ["-y", "-i", options.inputPath];

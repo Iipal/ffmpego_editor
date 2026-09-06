@@ -1,6 +1,8 @@
 import type { SubtitleTemplate } from "./subtitleTypes";
 
-export const SUBTITLE_TEMPLATES_STORAGE_KEY = "video-editor:subtitle-templates";
+// client-localstorage-schema: versioned key so future schema changes can migrate
+export const SUBTITLE_TEMPLATES_STORAGE_KEY = "video-editor:subtitle-templates:v1";
+const LEGACY_SUBTITLE_TEMPLATES_KEY = "video-editor:subtitle-templates";
 
 export interface SubtitleTemplateStorage {
   load(): SubtitleTemplate[];
@@ -77,7 +79,18 @@ function isValidTemplate(obj: unknown): obj is SubtitleTemplate {
 export const subtitleTemplateStorage: SubtitleTemplateStorage = {
   load(): SubtitleTemplate[] {
     try {
-      const raw = localStorage.getItem(SUBTITLE_TEMPLATES_STORAGE_KEY);
+      let raw = localStorage.getItem(SUBTITLE_TEMPLATES_STORAGE_KEY);
+      // migrate v0 (unversioned) -> v1 once
+      if (!raw) {
+        const legacy = localStorage.getItem(LEGACY_SUBTITLE_TEMPLATES_KEY);
+        if (legacy) {
+          raw = legacy;
+          try {
+            localStorage.setItem(SUBTITLE_TEMPLATES_STORAGE_KEY, legacy);
+            localStorage.removeItem(LEGACY_SUBTITLE_TEMPLATES_KEY);
+          } catch {}
+        }
+      }
       if (!raw) return [];
       const parsed: unknown = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];

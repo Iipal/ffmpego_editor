@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback } from "react";
 import { formatTime } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
 import { getSubtitleTrack } from "./subtitle-helpers";
@@ -13,11 +13,9 @@ export const SubtitleRow = memo(function SubtitleRow({
   onSelect,
 }: SubtitleRowProps) {
   const handleSelect = useCallback(() => onSelect(sub.id), [onSelect, sub.id]);
-  const trackLabel = useMemo(() => getSubtitleTrack(sub) + 1, [sub]);
-  const fontLabel = useMemo(
-    () => sub.style.fontFamily.split(",")[0],
-    [sub.style.fontFamily],
-  );
+  // rerender-simple-expression-in-memo: primitive math — derive during render
+  const trackLabel = getSubtitleTrack(sub) + 1;
+  const fontLabel = sub.style.fontFamily.split(",")[0];
   return (
     <button
       onClick={handleSelect}

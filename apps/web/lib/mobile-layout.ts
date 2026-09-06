@@ -75,14 +75,21 @@ export function enforceZoneAspect(z: CropZone, mode: MobileLayoutMode, split: nu
   return z;
 }
 
+// js-set-map-lookups: O(1) mode validation instead of Array.includes per call
+const VALID_MODES = new Set<MobileLayoutMode>(["full", "stacked"]);
+
 export function normalizeLayout(l: MobileLayout): MobileLayout {
   const split = clamp(l.splitRatio ?? 0.5, MIN_SPLIT, MAX_SPLIT);
   const sourceAR = 16 / 9;
-  let zones = l.zones.map(clampZone).map((z) => enforceZoneAspect(z, l.mode, split, sourceAR));
-  zones = zones.map((z) => {
-    let x = clamp(z.x, 0, 1 - z.width);
-    let y = clamp(z.y, 0, 1 - z.height);
-    return { ...z, x, y };
+  // js-combine-iterations: single pass does clamp + aspect-enforce + bounds-clamp
+  const zones = l.zones.map((raw) => {
+    const clamped = clampZone(raw);
+    const enforced = enforceZoneAspect(clamped, l.mode, split, sourceAR);
+    const x = clamp(enforced.x, 0, 1 - enforced.width);
+    const y = clamp(enforced.y, 0, 1 - enforced.height);
+    return x === enforced.x && y === enforced.y
+      ? enforced
+      : { ...enforced, x, y };
   });
   return { ...l, splitRatio: split, zones, outputAspectRatio: 9 / 16, sourceAspectRatio: sourceAR };
 }
@@ -152,7 +159,7 @@ export function resizeZoneAspectLocked(start: CropZone, handle: string, dx: numb
 }
 
 export function validateLayout(l: MobileLayout): string | null {
-  if (!["full", "stacked"].includes(l.mode)) return "Invalid mode";
+  if (!VALID_MODES.has(l.mode)) return "Invalid mode";
   if (l.mode === "full" && l.zones.length !== 1) return "Full needs 1 zone";
   if (l.mode === "stacked" && l.zones.length !== 2) return "Stacked needs 2 zones";
   if (l.splitRatio < MIN_SPLIT || l.splitRatio > MAX_SPLIT) return "Split out of range";

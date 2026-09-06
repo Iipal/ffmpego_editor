@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { readdir, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
@@ -52,6 +53,11 @@ interface TranscodeJob {
 
 const app = new Hono();
 const jobs = new Map<string, TranscodeJob>();
+
+// js-hoist-regexp: hoist hot-path RegExps out of per-line / per-file loops
+const OUT_TIME_RE = /^out_time_(?:us|ms)=(\d+)$/;
+const LINE_SPLIT_RE = /\r?\n/;
+const JOB_INPUT_RE = /^[0-9a-f-]{36}-/;
 
 /** Absolute temp output path (os.tmpdir) — never relative, so ffmpeg's cwd can't matter. */
 function tempOutputPath(jobId: string, suffix: string, ext: string): string {
@@ -193,7 +199,7 @@ function parseSettings(
  * reporting premature completion.
  */
 function updateProgress(job: TranscodeJob, line: string, duration: number) {
-  const match = line.match(/^out_time_(?:us|ms)=(\d+)$/);
+  const match = OUT_TIME_RE.exec(line);
   if (!match) return;
   const processedSeconds = Number(match[1]) / 1_000_000;
   job.progress = Math.min(99, Math.max(0, (processedSeconds / duration) * 100));
@@ -214,7 +220,7 @@ async function readProgress(
     const { done, value } = await reader.read();
     if (done) break;
     pending += decoder.decode(value, { stream: true });
-    const lines = pending.split(/\r?\n/);
+    const lines = pending.split(LINE_SPLIT_RE);
     pending = lines.pop() ?? "";
     for (const line of lines) updateProgress(job, line, duration);
   }
@@ -1066,7 +1072,6 @@ app.delete("/transcode/jobs", async (c) => {
   }
   // Also sweep stray temp files on disk (apps/api/temp_* and /tmp/*-*.mp4 matching job pattern)
   try {
-    const { readdir, unlink } = await import("node:fs/promises");
     const apiDir = ".";
     try {
       const files = await readdir(apiDir);
@@ -1087,7 +1092,7 @@ app.delete("/transcode/jobs", async (c) => {
       const tmpFiles = await readdir(os.tmpdir());
       for (const f of tmpFiles) {
         const isJobInput =
-          /^[0-9a-f-]{36}-/.test(f) &&
+          JOB_INPUT_RE.test(f) &&
           (f.endsWith(".mp4") ||
             f.endsWith(".png") ||
             f.endsWith(".webm") ||

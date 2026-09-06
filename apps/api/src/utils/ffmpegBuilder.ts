@@ -1,6 +1,30 @@
 import fs from "node:fs";
 import path from "node:path";
 
+// server-hoist-static-io: candidate list is static — build once, cache resolved path
+const WATERMARK_CANDIDATES = [
+  path.join(import.meta.dir, "../assets/minozavr.png"),
+  path.resolve("apps/api/assets/minozavr.png"),
+  path.resolve("assets/minozavr.png"),
+  path.join(process.cwd(), "apps/api/assets/minozavr.png"),
+  path.join(process.cwd(), "assets/minozavr.png"),
+];
+let cachedWatermarkPath: string | null | undefined;
+
+function resolveWatermarkPath(): string {
+  if (cachedWatermarkPath !== undefined) return cachedWatermarkPath as string;
+  for (const c of WATERMARK_CANDIDATES) {
+    try {
+      if (fs.existsSync(c)) {
+        cachedWatermarkPath = c;
+        return c;
+      }
+    } catch {}
+  }
+  cachedWatermarkPath = WATERMARK_CANDIDATES[0];
+  return cachedWatermarkPath;
+}
+
 /**
  * Input options used to build a full FFmpeg command line.
  *
@@ -161,22 +185,7 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   const watermarkEnabled = !!options.watermark && !!options.mobileLayout;
   let watermarkPath: string | null = null;
   if (watermarkEnabled) {
-    const candidates = [
-      path.join(import.meta.dir, "../assets/minozavr.png"),
-      path.resolve("apps/api/assets/minozavr.png"),
-      path.resolve("assets/minozavr.png"),
-      path.join(process.cwd(), "apps/api/assets/minozavr.png"),
-      path.join(process.cwd(), "assets/minozavr.png"),
-    ];
-    for (const c of candidates) {
-      try {
-        if (fs.existsSync(c)) {
-          watermarkPath = c;
-          break;
-        }
-      } catch {}
-    }
-    if (!watermarkPath) watermarkPath = candidates[0];
+    watermarkPath = resolveWatermarkPath();
   }
 
   const args: string[] = ["-y"];

@@ -12,13 +12,21 @@ const familyToSubsets = new Map<string, string[]>();
 const loadedFonts = new Set<string>();
 const loadingFonts = new Map<string, Promise<void>>();
 
+// js-set-map-lookups: O(1) generic-family check instead of Array.includes per call
+const SYSTEM_FONT_SET = new Set([
+  "serif",
+  "sans-serif",
+  "monospace",
+  "cursive",
+  "fantasy",
+  "system-ui",
+]);
+
 function isSystemFont(family: string): boolean {
   const f = family.trim();
   // system stacks contain comma, or generic families
   if (f.includes(",")) return true;
-  const lower = f.toLowerCase();
-  if (["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui"].includes(lower)) return true;
-  return false;
+  return SYSTEM_FONT_SET.has(f.toLowerCase());
 }
 
 function googleFontHref(family: string): string {
@@ -84,13 +92,15 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
     const r = await fetch(FONTSOURCE_API, { cache: "force-cache" });
     if (r.ok) {
       const data: Array<{ family: string; subsets?: string[]; type?: string }> = await r.json();
-      const metas: GoogleFontMeta[] = data
-        .filter((f) => !f.type || f.type === "google")
-        .map((f) => ({ family: f.family, subsets: f.subsets ?? [] }))
-        .filter((f) => !!f.family);
-      if (metas.length > 100) {
-        const uniq = new Map<string, GoogleFontMeta>();
-        for (const m of metas) if (!uniq.has(m.family)) uniq.set(m.family, m);
+      // js-combine-iterations: single pass filters google-only + non-empty + dedups
+      const uniq = new Map<string, GoogleFontMeta>();
+      for (const f of data) {
+        if (f.type && f.type !== "google") continue;
+        if (!f.family) continue;
+        if (!uniq.has(f.family))
+          uniq.set(f.family, { family: f.family, subsets: f.subsets ?? [] });
+      }
+      if (uniq.size > 100) {
         cachedMeta = Array.from(uniq.values()).sort((a, b) => a.family.localeCompare(b.family));
         cachedFamilies = cachedMeta.map((m) => m.family);
         for (const m of cachedMeta) familyToSubsets.set(m.family.toLowerCase(), m.subsets);
@@ -102,10 +112,14 @@ export async function fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
     const r2 = await fetch(GWFH_API, { cache: "force-cache" });
     if (r2.ok) {
       const data2: Array<{ family: string; subsets?: string[] }> = await r2.json();
-      const metas2: GoogleFontMeta[] = data2.map((f) => ({ family: f.family, subsets: f.subsets ?? [] })).filter((f) => !!f.family);
-      if (metas2.length > 100) {
-        const uniq2 = new Map<string, GoogleFontMeta>();
-        for (const m of metas2) if (!uniq2.has(m.family)) uniq2.set(m.family, m);
+      // js-combine-iterations: single pass filters empty + dedups
+      const uniq2 = new Map<string, GoogleFontMeta>();
+      for (const f of data2) {
+        if (!f.family) continue;
+        if (!uniq2.has(f.family))
+          uniq2.set(f.family, { family: f.family, subsets: f.subsets ?? [] });
+      }
+      if (uniq2.size > 100) {
         cachedMeta = Array.from(uniq2.values()).sort((a, b) => a.family.localeCompare(b.family));
         cachedFamilies = cachedMeta.map((m) => m.family);
         for (const m of cachedMeta) familyToSubsets.set(m.family.toLowerCase(), m.subsets);
