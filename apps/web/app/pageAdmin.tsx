@@ -55,8 +55,9 @@ export default function PageAdmin() {
     completedCount,
     failedCount,
     hasJobs,
-    pollTickRef,
+    liveStatus,
     deletePending,
+    cancelPending,
     clearAllPending,
     clearPendingPending,
     setFilterStable,
@@ -64,6 +65,8 @@ export default function PageAdmin() {
     handleClearPending,
     handleRefresh,
     handleDeleteOne,
+    handleCancelOne,
+    handleDownloadOne,
   } = admin;
 
   // rendering-usetransition-loading: useTransition pending as loading signal (not manual isLoading alone)
@@ -79,6 +82,7 @@ export default function PageAdmin() {
       <AdminHeader
         isFilterStale={isFilterStale}
         isFetching={isFetching}
+        liveStatus={liveStatus}
         jobsLength={jobs.length}
         pendingCount={pendingCount}
         clearAllPending={clearAllPending}
@@ -98,6 +102,8 @@ export default function PageAdmin() {
         isStale={isFilterStale}
         isFetching={isFetching}
         apiBase={API_BASE_URL}
+        queue={data?.queue}
+        liveStatus={liveStatus}
         onRefresh={handleRefresh}
       />
 
@@ -105,18 +111,16 @@ export default function PageAdmin() {
         <CardHeader className="pb-3">
           <CardTitle className="text-sm" suppressHydrationWarning>
             Current jobs · {data?.count ?? 0} total{" "}
-            {isFetching ? "· live polling…" : null}{" "}
             {isPendingTransition ? "· updating filter…" : null}
           </CardTitle>
           <CardDescription className="flex flex-col gap-2">
             <FilterBar
               deferredFilter={deferredFilter}
               isFilterStale={isFilterStale}
-              isFetching={isFetching}
+              liveStatus={liveStatus}
               isPendingTransition={isPendingTransition}
               jobsLength={jobs.length}
               pendingCount={pendingCount}
-              pollTick={pollTickRef.current}
               isError={isError}
               error={error as Error | null}
               onSelect={setFilterStable}
@@ -133,7 +137,10 @@ export default function PageAdmin() {
             isFilterStale={isFilterStale}
             hasJobs={hasJobs}
             deletePending={deletePending}
+            cancelPending={cancelPending}
             onDelete={handleDeleteOne}
+            onCancel={handleCancelOne}
+            onDownload={handleDownloadOne}
           />
         </CardContent>
       </Card>

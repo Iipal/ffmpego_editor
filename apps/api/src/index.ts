@@ -1,8 +1,17 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import videoRoutes from "./routes/video.js";
+import videoRoutes, { getQueueStats } from "./routes/video.js";
 import metadataRoutes from "./routes/metadata.js";
 import uploadRoutes from "./routes/upload.js";
+import { startupSweep } from "./db.js";
+
+// B1: recover interrupted jobs + sweep orphan temp files from crashes.
+const sweep = startupSweep();
+if (sweep.recoveredJobs > 0 || sweep.deletedFiles > 0) {
+  console.log(
+    `[api] startup sweep: marked ${sweep.recoveredJobs} interrupted job(s) failed, deleted ${sweep.deletedFiles} orphan file(s)`,
+  );
+}
 
 const app = new Hono();
 app.use("/api/*", cors({
@@ -29,6 +38,7 @@ app.get("/health", (c) => {
     status: "ok",
     timestamp: new Date().toISOString(),
     ffmpegPath: "/usr/bin/ffmpeg",
+    queue: getQueueStats(),
   });
 });
 

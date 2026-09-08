@@ -8,6 +8,10 @@ import type { Cut, CutMode } from "./types";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
+import {
+  queuedLabel,
+  throwTranscodeHttpError,
+} from "@/lib/transcode-jobs";
 import { stripExtension } from "@/lib/video-file";
 
 type VideoStore = ReturnType<typeof useVideoStore>;
@@ -141,14 +145,18 @@ export function useCutExport({
         const payload = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
-        throw new Error(payload?.error ?? `Export failed: ${res.status}`);
+        // B2: shapes 429 (queue full + Retry-After) distinctly.
+        throwTranscodeHttpError(res, payload);
       }
       const j = (await res.json()) as { jobId: string; progressUrl: string };
       const progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
-      await awaitTranscodeCompletion(progressUrl, (progress) => {
-        toast.loading(`Exporting cuts… ${Math.round(progress)}%`, {
-          id: "cut-export",
-        });
+      await awaitTranscodeCompletion(progressUrl, (progress, info) => {
+        toast.loading(
+          info?.status === "queued"
+            ? `${queuedLabel(info.queuePosition)} — waiting for a worker…`
+            : `Exporting cuts… ${Math.round(progress)}%`,
+          { id: "cut-export" },
+        );
       });
       toast.loading("Downloading file…", { id: "cut-export" });
       const blob = await fetchDownloadBlob(

@@ -8,8 +8,8 @@ import type { JobsAreaProps } from "./types";
 
 // JobsArea — CropArea-style control & readout surface for transcode jobs
 // Mirrors pageEditorCrop CropArea: one authoritative bar (top bar + readout
-// grid + hint). Readouts are derived, never stored. Jobs live in the API
-// in-memory Map and poll via useQuery; Refresh re-fetches on demand.
+// grid + hint). Readouts are derived, never stored. Jobs persist in the API
+// SQLite registry and arrive via SSE live sync; Refresh re-fetches on demand.
 export const JobsArea = memo(function JobsArea({
   total,
   pending,
@@ -18,9 +18,14 @@ export const JobsArea = memo(function JobsArea({
   filter,
   isStale,
   isFetching,
+  liveStatus,
   apiBase,
+  queue,
   onRefresh,
 }: JobsAreaProps) {
+  const queueLabel = queue
+    ? `workers ${queue.active}/${queue.maxConcurrent} · queued ${queue.queued}/${queue.maxQueued}`
+    : null;
   return (
     <div className="rounded-md border border-kumo-hairline bg-kumo-recessed">
       {/* Top bar: identity + actions */}
@@ -39,13 +44,19 @@ export const JobsArea = memo(function JobsArea({
                 <span
                   className={cn(
                     "size-1.5 rounded-full",
-                    isFetching
-                      ? "bg-kumo-brand animate-pulse"
-                      : "bg-kumo-success",
+                    liveStatus === "live"
+                      ? "bg-kumo-success"
+                      : liveStatus === "error"
+                        ? "bg-red-500"
+                        : "bg-kumo-brand animate-pulse",
                   )}
                   aria-hidden
                 />
-                {isFetching ? "polling" : "live"}
+                {liveStatus === "live"
+                  ? "live"
+                  : liveStatus === "error"
+                    ? "stream unavailable"
+                    : "connecting…"}
               </span>
             </span>
             <span className="text-[11px] leading-none text-kumo-subtle tabular-nums">
@@ -85,7 +96,7 @@ export const JobsArea = memo(function JobsArea({
           </div>
           <div className="mt-0.5 font-mono text-xs tabular-nums">{total}</div>
           <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            in-memory · lost on restart
+            SQLite · survives restart
           </div>
         </div>
         <div className="bg-kumo-recessed px-3 py-2">
@@ -94,7 +105,7 @@ export const JobsArea = memo(function JobsArea({
           </div>
           <div className="mt-0.5 font-mono text-xs tabular-nums">{pending}</div>
           <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            processing
+            processing + queued
           </div>
         </div>
         <div className="bg-kumo-recessed px-3 py-2">
@@ -105,7 +116,7 @@ export const JobsArea = memo(function JobsArea({
             {completed}
           </div>
           <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            outputs on disk
+            kept until deleted
           </div>
         </div>
         <div className="bg-kumo-recessed px-3 py-2">
@@ -130,8 +141,10 @@ export const JobsArea = memo(function JobsArea({
       <div className="flex items-center gap-1.5 border-t border-kumo-hairline px-3 py-2 text-[11px] leading-none text-kumo-subtle">
         <SlidersHorizontal className="size-3 shrink-0" aria-hidden />
         <span>
-          Auto-refresh every 1.5s · Pending = processing · temp inputs
-          /tmp/&lt;uuid&gt;-* · outputs ./temp_&lt;uuid&gt;.* on the API
+          Live sync via SSE · Pending = processing + queued · outputs kept
+          server-side until deleted · temp inputs /tmp/&lt;uuid&gt;-* · outputs
+          /tmp/temp_&lt;jobId&gt;.* on the API
+          {queueLabel ? ` · ${queueLabel}` : null}
         </span>
       </div>
     </div>

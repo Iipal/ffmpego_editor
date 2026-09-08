@@ -10,11 +10,17 @@ import {
   useTransition,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FILTER_SET, type Filter, type JobEntry } from "./types";
+import {
+  FILTER_SET,
+  type Filter,
+  type JobEntry,
+  type JobsResponse,
+} from "./types";
 import { fetchJobs, getCachedFilter, setCachedFilter } from "./helpers";
 import { preloadHeavyCard } from "./heavy";
 import { useLatest } from "./hooks";
 import { useAdminMutations } from "./mutations";
+import { useJobsLiveSync } from "./useJobsLiveSync";
 
 let didPreloadHeavyCard = false;
 
@@ -33,8 +39,7 @@ export function useAdminJobs() {
 
   const [isPendingTransition, startTransition] = useTransition();
 
-  // rerender-use-ref-transient-values: polling tick stored in ref to avoid 1.5s parent re-renders beyond useQuery
-  const pollTickRef = useRef(0);
+  // rerender-use-ref-transient-values: cached length in ref (no extra renders)
   const jobsLengthRef = useRef(0);
 
   const latestFilterRef = useLatest(filter); // advanced-use-latest
@@ -44,25 +49,32 @@ export function useAdminJobs() {
     filterRef.current = filter;
   }, [filter]);
 
-  // rerender-derived-state-no-effect: hasError derived during render, not effect
-  // rerender-defer-reads: pollTick only read on demand (not subscribed in child)
-  // client-swr-dedup: useQuery dedupes identical ["admin-jobs"] fetches across mounts; staleTime 0 + refetchInterval = live polling
+  // Live sync via SSE (GET /api/transcode/jobs/stream) instead of interval
+  // polling: snapshots land in the cache via setQueryData, so the UI stays in
+  // sync without isFetching churn or an "updating" flash. The useQuery below
+  // is the initial paint + manual-refresh path only.
+  // client-swr-dedup: useQuery dedupes identical ["admin-jobs"] fetches across mounts
   // client-passive-event-listeners: scroll/touch handled passively via ensureGlobalListeners
   // rerender-dependencies: deps narrow to primitives (deferredFilter string, not object)
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["admin-jobs"],
     queryFn: fetchJobs,
-    refetchInterval: 1500,
-    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
     retry: 1,
     staleTime: 0,
     gcTime: 0,
   });
 
-  // rerender-use-ref-transient-values: bump poll tick without causing extra layout; cache length in ref
+  const handleSnapshot = useCallback(
+    (payload: JobsResponse) => {
+      queryClient.setQueryData(["admin-jobs"], payload);
+    },
+    [queryClient],
+  );
+  const liveStatus = useJobsLiveSync(handleSnapshot);
+
+  // rerender-use-ref-transient-values: cache length in ref for confirm dialogs
   useEffect(() => {
-    pollTickRef.current += 1;
     jobsLengthRef.current = data?.jobs?.length ?? 0;
   }, [data]);
 
@@ -77,8 +89,12 @@ export function useAdminJobs() {
   }, [queryClient]);
 
   // async-parallel: independent invalidations could be Promise.all; here single but pattern shown
-  const { deleteOneMutation, clearAllMutation, clearPendingMutation } =
-    useAdminMutations(invalidateRef);
+  const {
+    deleteOneMutation,
+    clearAllMutation,
+    clearPendingMutation,
+    cancelOneMutation,
+  } = useAdminMutations(invalidateRef);
 
   // Stable callbacks — rerender-functional-setstate (no filter dep; use functional or ref)
   const setFilterStable = useCallback((f: Filter) => {
@@ -117,6 +133,37 @@ export function useAdminJobs() {
     },
     [deleteOneMutation],
   );
+
+  // B2: cooperative cancel keeps the row + logTail + files for inspection.
+  const handleCancelOne = useCallback(
+    (id: string) => {
+      cancelOneMutation.mutate(id);
+    },
+    [cancelOneMutation],
+  );
+
+  // B1: outputs persist server-side until deleted — re-download any completed
+  // job straight from the row.
+  const handleDownloadOne = useCallback((job: JobEntry) => {
+    void (async () => {
+      const { API_BASE_URL } = await import("@/lib/api-client");
+      const { fetchDownloadBlob, saveBlobFile } = await import(
+        "@/lib/save-blob-file"
+      );
+      const { toast } = await import("sonner");
+      try {
+        const blob = await fetchDownloadBlob(
+          `${API_BASE_URL}/api/transcode/download/${job.jobId}`,
+        );
+        const fallback = job.outputPath.split("/").pop() || `${job.jobId}.mp4`;
+        const saved = await saveBlobFile(blob, job.filename || fallback);
+        toast.success("Download saved", { description: saved });
+      } catch (e) {
+        if ((e as DOMException)?.name === "AbortError") return;
+        toast.error(e instanceof Error ? e.message : "Download failed");
+      }
+    })();
+  }, []);
 
   // -----------------------------------------------------------------------
   // Derived data — rerender-split-combined-hooks, js-combine-iterations,
@@ -175,9 +222,10 @@ export function useAdminJobs() {
       const status = job.status;
       const prog = job.progress;
       const age = job.ageSeconds;
-      if (status === "processing") pendingCount += 1;
+      // B2: pending = actively transcoding + waiting in the bounded queue.
+      if (status === "processing" || status === "queued") pendingCount += 1;
       else if (status === "completed") completedCount += 1;
-      else if (status === "failed") failedCount += 1;
+      else if (status === "failed" || status === "cancelled") failedCount += 1;
       if (prog > maxProgress) maxProgress = prog;
       if (age < minAge) minAge = age;
       if (age > maxAge) maxAge = age;
@@ -208,7 +256,10 @@ export function useAdminJobs() {
 
   // js-flatmap-filter: derive active ids in one pass (map+filter combined)
   const activeIds = useMemo(
-    () => jobs.flatMap((j) => (j.status === "processing" ? [j.jobId] : [])),
+    () =>
+      jobs.flatMap((j) =>
+        j.status === "processing" || j.status === "queued" ? [j.jobId] : [],
+      ),
     [jobs],
   );
   void activeIds; // retained for future use / demonstrates js-flatmap-filter
@@ -218,7 +269,9 @@ export function useAdminJobs() {
   const processingSet = useMemo(
     () =>
       new Set(
-        filtered.flatMap((j) => (j.status === "processing" ? [j.jobId] : [])),
+        filtered.flatMap((j) =>
+          j.status === "processing" || j.status === "queued" ? [j.jobId] : [],
+        ),
       ),
     [filtered],
   );
@@ -264,15 +317,18 @@ export function useAdminJobs() {
     completedCount,
     failedCount,
     hasJobs,
-    pollTickRef,
+    liveStatus,
     deletePending: deleteOneMutation.isPending,
     clearAllPending: clearAllMutation.isPending,
     clearPendingPending: clearPendingMutation.isPending,
+    cancelPending: cancelOneMutation.isPending,
     setFilterStable,
     handleClearAll,
     handleClearPending,
     handleRefresh,
     handleDeleteOne,
+    handleCancelOne,
+    handleDownloadOne,
   };
 }
 

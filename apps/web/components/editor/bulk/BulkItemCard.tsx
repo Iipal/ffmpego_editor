@@ -107,11 +107,14 @@ export function BulkItemCard({
               aria-hidden
             />
             {STATUS_LABEL[it.status]}
-            {it.status === "uploading" || it.status === "processing" ? (
+            {it.status === "uploading" ||
+            it.status === "queued" ||
+            it.status === "processing" ? (
               <span className="ml-auto">{it.progress}%</span>
             ) : null}
           </div>
           {it.status === "uploading" ||
+          it.status === "queued" ||
           it.status === "processing" ||
           it.status === "saving" ? (
             <Progress value={it.progress} />

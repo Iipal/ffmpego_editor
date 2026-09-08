@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-client";
+import { cancelTranscodeJob } from "@/lib/transcode-jobs";
 import { JOB_ID_RE } from "./helpers";
 
 export function useAdminMutations(invalidateRef: RefObject<() => void>) {
@@ -71,6 +72,8 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
 
   const clearPendingMutation = useMutation({
     mutationFn: async () => {
+      // B2: the server treats ?status=processing|pending as processing+queued,
+      // so this clears both active and queued jobs.
       const res = await fetch(
         `${API_BASE_URL}/api/transcode/jobs?status=processing`,
         { method: "DELETE" },
@@ -86,5 +89,28 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  return { deleteOneMutation, clearAllMutation, clearPendingMutation };
+  // B2: cooperative cancel — kills ffmpeg but keeps the row + logTail + files
+  // (unlike delete which removes everything).
+  const cancelOneMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      if (!JOB_ID_RE.test(jobId)) throw new Error("Invalid jobId");
+      return cancelTranscodeJob(jobId);
+    },
+    onSuccess: (status) => {
+      toast.success(
+        status === "cancelled"
+          ? "Cancellation requested — job kept for inspection"
+          : `Job already ${status}`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return {
+    deleteOneMutation,
+    clearAllMutation,
+    clearPendingMutation,
+    cancelOneMutation,
+  };
 }

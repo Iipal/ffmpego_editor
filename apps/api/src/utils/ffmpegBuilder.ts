@@ -64,10 +64,9 @@ export interface TranscodeOptions {
 }
 
 /**
- * Temporary output directory for rendered video files.
- *
- * Files are written as `temp_${jobId}.${format}` in the project root
- * and deleted after being served to the frontend.
+ * Fallback output directory when no explicit outputPath is provided.
+ * All callers pass an absolute os.tmpdir() path; files are kept until the
+ * user deletes the job (no auto-delete on download).
  */
 export const OUTPUT_DIRECTORY = ".";
 

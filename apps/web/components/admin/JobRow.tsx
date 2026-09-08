@@ -13,12 +13,19 @@ import { preloadHeavyProgress } from "./heavy";
 export const JobRow = memo(function JobRow({
   job,
   onDelete,
+  onCancel,
+  onDownload,
   deletePending,
+  cancelPending,
 }: JobRowProps) {
   // rerender-simple-expression-in-memo: simple expression inside memo, no useMemo needed
+  // B2: queued jobs wait for a worker slot; flag only exaggerated waits.
   const isHanged =
-    job.status === "processing" &&
-    (job.ageSeconds > 30 || (job.progress === 0 && job.ageSeconds > 10));
+    (job.status === "processing" &&
+      (job.ageSeconds > 30 || (job.progress === 0 && job.ageSeconds > 10))) ||
+    (job.status === "queued" && job.ageSeconds > 120);
+  const isActive = job.status === "processing" || job.status === "queued";
+  const isCompleted = job.status === "completed";
   const shortId = job.jobId.slice(0, 8);
   // js-cache-property-access: cache frequently read props in locals
   const prog = job.progress;
@@ -34,6 +41,20 @@ export const JobRow = memo(function JobRow({
     if (!confirm(`Delete job ${shortId} (${status})?`)) return;
     onDelete(job.jobId);
   }, [job.jobId, shortId, status, onDelete]);
+
+  const handleCancel = useCallback(() => {
+    if (!JOB_ID_RE.test(job.jobId)) {
+      toast.error("Invalid job id");
+      return;
+    }
+    // B2: cooperative cancel — kills ffmpeg, keeps row + logTail + files.
+    if (!confirm(`Cancel job ${shortId} (${status})? Files are kept.`)) return;
+    onCancel(job.jobId);
+  }, [job.jobId, shortId, status, onCancel]);
+
+  const handleDownload = useCallback(() => {
+    onDownload(job);
+  }, [job, onDownload]);
 
   const badgeClass = statusBadge(status);
   const progressRounded = Math.round(prog);
@@ -87,8 +108,45 @@ export const JobRow = memo(function JobRow({
               {job.error}
             </p>
           ) : null}
+          {job.status === "queued" &&
+          typeof job.queuePosition === "number" ? (
+            <p className="mt-1 text-xs text-kumo-subtle">
+              Queue position #{job.queuePosition + 1} — waiting for a worker…
+            </p>
+          ) : null}
+          {job.logTail ? (
+            <details className="mt-1 text-xs">
+              <summary className="cursor-pointer text-kumo-subtle hover:text-kumo-strong">
+                ffmpeg log tail
+              </summary>
+              <pre className="mt-1 max-h-40 overflow-auto rounded border border-kumo-line bg-kumo-recessed p-2 font-mono text-[11px] whitespace-pre-wrap wrap-break-word">
+                {job.logTail}
+              </pre>
+            </details>
+          ) : null}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
+          {isCompleted ? (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleDownload}
+              title="Re-download output (kept server-side until deleted)"
+            >
+              Download
+            </Button>
+          ) : null}
+          {isActive ? (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={handleCancel}
+              disabled={cancelPending}
+              title="Cancel transcode but keep the job row + logs"
+            >
+              Cancel
+            </Button>
+          ) : null}
           <Button
             variant="secondary-destructive"
             size="xs"
@@ -99,7 +157,7 @@ export const JobRow = memo(function JobRow({
           </Button>
         </div>
       </div>
-      {status === "processing" ? (
+      {status === "processing" || status === "queued" ? (
         <div className="flex items-center gap-2">
           {/* Prefer static Progress for LCP; DynamicProgress available for code-split path via preload */}
           <Progress value={prog} className="h-1.5 flex-1" />

@@ -7,6 +7,10 @@ import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
 import { HEAVY_MODULES } from "./heavy-modules";
 import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
+import {
+  queuedLabel,
+  throwTranscodeHttpError,
+} from "@/lib/transcode-jobs";
 import { stripExtension } from "@/lib/video-file";
 
 export type UseSubtitleExportArgs = {
@@ -145,14 +149,18 @@ export function useSubtitleExport({
         const payload = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
-        throw new Error(payload?.error ?? `Export failed: ${res.status}`);
+        // B2: shapes 429 (queue full + Retry-After) distinctly.
+        throwTranscodeHttpError(res, payload);
       }
       const j = (await res.json()) as { jobId: string; progressUrl: string };
       const progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
-      await awaitTranscodeCompletion(progressUrl, (progress) => {
-        toast.loading(`Exporting… ${Math.round(progress)}%`, {
-          id: "subtitles-export",
-        });
+      await awaitTranscodeCompletion(progressUrl, (progress, info) => {
+        toast.loading(
+          info?.status === "queued"
+            ? `${queuedLabel(info.queuePosition)} — waiting for a worker…`
+            : `Exporting… ${Math.round(progress)}%`,
+          { id: "subtitles-export" },
+        );
       });
       toast.loading("Downloading file…", { id: "subtitles-export" });
       const downloadUrl = `${API_BASE_URL}/api/transcode/download/${j.jobId}`;

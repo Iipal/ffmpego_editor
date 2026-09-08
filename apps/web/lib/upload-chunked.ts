@@ -3,6 +3,7 @@
 // so Bun never buffers the whole file in RAM. Progress is reportable per chunk.
 
 import { API_BASE_URL } from "./api-client";
+import { shapeXhrError } from "./transcode-jobs";
 
 export interface ChunkedUploadOptions {
   chunkSize?: number; // default 8MB — tuned for LAN/localhost throughput vs memory
@@ -154,10 +155,16 @@ export function uploadFormWithProgress<T>(
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(xhr.response as T);
       } else {
-        const err =
-          (xhr.response as { error?: string } | null)?.error ??
-          `API error: ${xhr.status}`;
-        reject(new Error(err));
+        // B2: carry HTTP status + Retry-After so callers can shape 429
+        // (queue full) distinctly from validation errors.
+        const serverError = (xhr.response as { error?: string } | null)?.error;
+        reject(
+          shapeXhrError(
+            xhr.status,
+            serverError,
+            xhr.getResponseHeader("Retry-After"),
+          ),
+        );
       }
     };
     xhr.onerror = () => reject(new Error("Network error during upload"));

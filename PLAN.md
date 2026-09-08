@@ -180,7 +180,7 @@
   - Crop: `-vf crop=w:h:x:y` (convert percentage values to actual pixel bounds based on source resolution)
   - FPS: `-r <fps>`
   - Custom args: Append raw string values passed from the user textarea.
-  - Output path: Ensure output is sent strictly to `~/ffmpego_edits/${filename}.${fileExt}`.
+  - Output path: `os.tmpdir()/temp_<jobId>.<ext>` (kept until the user deletes the job; downloading does not delete).
   - Lossless MP4: `-c:v libx264 -crf 0 -pix_fmt yuv444p`.
 
 

@@ -14,7 +14,10 @@ type JobsListProps = {
   isFilterStale: boolean;
   hasJobs: boolean;
   deletePending: boolean;
+  cancelPending: boolean;
   onDelete: (id: string) => void;
+  onCancel: (id: string) => void;
+  onDownload: (job: JobEntry) => void;
 };
 
 export const JobsList = memo(function JobsList({
@@ -25,7 +28,10 @@ export const JobsList = memo(function JobsList({
   isFilterStale,
   hasJobs,
   deletePending,
+  cancelPending,
   onDelete,
+  onCancel,
+  onDownload,
 }: JobsListProps) {
   // rendering-conditional-render: explicit ternary (not &&) for each branch
   // rendering-content-visibility: applied per JobRow li via style prop
@@ -54,7 +60,10 @@ export const JobsList = memo(function JobsList({
               <JobRow
                 job={job}
                 onDelete={onDelete}
+                onCancel={onCancel}
+                onDownload={onDownload}
                 deletePending={deletePending}
+                cancelPending={cancelPending}
               />
             </ViewTransition>
           ))}

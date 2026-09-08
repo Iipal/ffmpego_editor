@@ -26,7 +26,7 @@ You are strictly forbidden from writing custom UI components (like buttons, drop
 ## 4. Backend & FFmpeg Execution Rules
 *   **Performance:** The API must run on Bun using Hono. Do not use Express or NestJS. 
 *   **Execution:** Use `Bun.spawn()` or `Bun.$` for invoking the locally installed `ffmpeg` binary. Ensure non-blocking execution so the API remains responsive.
-*   **Output Path:** The absolute destination for all processed files MUST BE `~/ffmpego_edits/${filename}.${fileExt}`. Expand the `~` to the local user's home directory programmatically using Node's `os.homedir()`.
+*   **Output Path:** Rendered files go to the OS temp dir (`os.tmpdir()/temp_<jobId>.<ext>`) and are kept until the user explicitly deletes the job (`DELETE /api/transcode/jobs/:jobId`). Downloading does NOT delete anything.
 *   **Security:** This app is designed EXCLUSIVELY for local deployment. Ignore standard security protocols (CORS restrictions, rate limiting, JWT auth, payload size limits). Optimize purely for speed and local developer experience.
 
 ## 5. Development Workflow

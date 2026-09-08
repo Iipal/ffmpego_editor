@@ -42,6 +42,8 @@ export interface MobileSubtitlesOptions {
 
 export const OUTPUT_W = 1080;
 export const OUTPUT_H = 1920;
+// Fallback dir when no explicit outputPath is given. Callers pass absolute
+// os.tmpdir() paths; files persist until the user deletes the job.
 export const OUTPUT_DIRECTORY = ".";
 
 function buildFormatArgs(format: "mp4" | "webm" | "mov", crf?: number) {

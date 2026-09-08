@@ -3,12 +3,149 @@ import { readdir, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
-import { buildFFmpegArgs, OUTPUT_DIRECTORY } from "../utils/ffmpegBuilder.js";
+import { buildFFmpegArgs } from "../utils/ffmpegBuilder.js";
 import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { consumeUpload } from "./upload.js";
+import {
+  deleteJob,
+  getJob,
+  insertJob,
+  listJobs,
+  updateJob,
+  type JobRow,
+  type JobStatus,
+} from "../db.js";
 
-type JobStatus = "processing" | "completed" | "failed";
+type ProcHandle = ReturnType<typeof Bun.spawn>;
+
+// ---------------------------------------------------------------------------
+// B2: bounded transcode queue. ffmpeg is CPU-heavy; unbounded Bun.spawn calls
+// OOM / thrash the machine when bulk mode fires N exports at once.
+// Concurrency = min(2, cpuCount - 1), queue overflow → 429 + Retry-After.
+// ---------------------------------------------------------------------------
+const MAX_CONCURRENT = Math.max(
+  1,
+  Math.min(2, (os.cpus?.()?.length ?? 2) - 1 || 1),
+);
+const MAX_QUEUED = 50;
+
+let activeCount = 0;
+const waitQueue: string[] = [];
+const procs = new Map<string, ProcHandle>();
+const starters = new Map<string, () => Promise<void>>();
+
+export function getQueueStats() {
+  return {
+    active: activeCount,
+    queued: waitQueue.length,
+    maxConcurrent: MAX_CONCURRENT,
+    maxQueued: MAX_QUEUED,
+  };
+}
+
+// js-hoist-regexp: hoist hot-path RegExps out of per-line / per-file loops
+const OUT_TIME_RE = /^out_time_(?:us|ms)=(\d+)$/;
+const LINE_SPLIT_RE = /\r?\n/;
+const JOB_INPUT_RE = /^[0-9a-f-]{36}-/;
+const LOG_TAIL_MAX_LINES = 50;
+const LOG_TAIL_MAX_CHARS = 20_000;
+
+function pushTail(tail: string[], line: string): string[] {
+  tail.push(line);
+  while (tail.length > LOG_TAIL_MAX_LINES) tail.shift();
+  let joined = tail.join("\n");
+  while (joined.length > LOG_TAIL_MAX_CHARS && tail.length > 1) {
+    tail.shift();
+    joined = tail.join("\n");
+  }
+  return tail;
+}
+
+/** Absolute temp output path (os.tmpdir) — never relative, so ffmpeg's cwd can't matter. */
+function tempOutputPath(jobId: string, suffix: string, ext: string): string {
+  return path.join(os.tmpdir(), `temp_${jobId}${suffix}.${ext}`);
+}
+
+function cleanupJobFiles(job: Pick<JobRow, "outputPath" | "alternateOutputPath" | "temporaryInputPath" | "subtitlePaths">) {
+  for (const p of [
+    job.outputPath,
+    job.alternateOutputPath,
+    job.temporaryInputPath,
+    ...(job.subtitlePaths ?? []),
+  ].filter(Boolean) as string[]) {
+    try {
+      fs.unlinkSync(p);
+    } catch {
+      try {
+        Bun.file(p).delete();
+      } catch {}
+    }
+  }
+}
+
+function killProc(jobId: string) {
+  const proc = procs.get(jobId);
+  if (!proc) return;
+  // Graceful SIGTERM first, SIGKILL fallback after 2s if still alive.
+  try {
+    proc.kill();
+  } catch {}
+  setTimeout(() => {
+    try {
+      if (proc.exitCode === null) proc.kill(9);
+    } catch {}
+  }, 2000).unref?.();
+}
+
+function dequeue(jobId: string) {
+  const i = waitQueue.indexOf(jobId);
+  if (i >= 0) waitQueue.splice(i, 1);
+  starters.delete(jobId);
+}
+
+function pumpQueue() {
+  while (activeCount < MAX_CONCURRENT && waitQueue.length > 0) {
+    const nextId = waitQueue.shift()!;
+    const start = starters.get(nextId);
+    if (!start) continue;
+    starters.delete(nextId);
+    activeCount++;
+    updateJob(nextId, { status: "processing", progress: 0 });
+    void start().finally(() => {
+      activeCount = Math.max(0, activeCount - 1);
+      pumpQueue();
+    });
+  }
+}
+
+/**
+ * Register a starter for a job already inserted as `queued`.
+ * Returns true when the job starts immediately or is queued,
+ * false when the queue is full (caller must 429 + delete the row).
+ */
+function enqueue(jobId: string, start: () => Promise<void>): boolean {
+  if (activeCount < MAX_CONCURRENT) {
+    activeCount++;
+    updateJob(jobId, { status: "processing", progress: 0 });
+    void start().finally(() => {
+      activeCount = Math.max(0, activeCount - 1);
+      pumpQueue();
+    });
+    return true;
+  }
+  if (waitQueue.length >= MAX_QUEUED) return false;
+  starters.set(jobId, start);
+  waitQueue.push(jobId);
+  return true;
+}
+
+function createQueuedJob(
+  init: Omit<JobRow, "status" | "progress" | "error" | "logTail" | "updatedAt">,
+): JobRow {
+  insertJob({ ...init, status: "queued", progress: 0, error: null, logTail: null });
+  return getJob(init.jobId)!;
+}
 
 interface TranscodeSettings {
   sourceWidth: number;
@@ -38,73 +175,7 @@ interface TranscodeSettings {
   } | null;
 }
 
-interface TranscodeJob {
-  jobId: string;
-  status: JobStatus;
-  progress: number;
-  outputPath: string;
-  alternateOutputPath?: string;
-  error?: string;
-  temporaryInputPath: string;
-  subtitlePaths?: string[];
-  createdAt: number;
-  proc?: ReturnType<typeof Bun.spawn>;
-}
-
 const app = new Hono();
-const jobs = new Map<string, TranscodeJob>();
-
-// js-hoist-regexp: hoist hot-path RegExps out of per-line / per-file loops
-const OUT_TIME_RE = /^out_time_(?:us|ms)=(\d+)$/;
-const LINE_SPLIT_RE = /\r?\n/;
-const JOB_INPUT_RE = /^[0-9a-f-]{36}-/;
-
-/** Absolute temp output path (os.tmpdir) — never relative, so ffmpeg's cwd can't matter. */
-function tempOutputPath(jobId: string, suffix: string, ext: string): string {
-  return path.join(os.tmpdir(), `temp_${jobId}${suffix}.${ext}`);
-}
-
-function cleanupJobFiles(job: TranscodeJob) {
-  for (const p of [
-    job.outputPath,
-    job.alternateOutputPath,
-    job.temporaryInputPath,
-    ...(job.subtitlePaths ?? []),
-  ].filter(Boolean) as string[]) {
-    try {
-      if (p.startsWith("/") || p.startsWith(os.tmpdir())) {
-        try {
-          fs.unlinkSync(p);
-        } catch {
-          try {
-            Bun.file(p).delete();
-          } catch {}
-        }
-      } else {
-        try {
-          fs.unlinkSync(p);
-        } catch {
-          try {
-            Bun.file(p).delete();
-          } catch {}
-        }
-      }
-    } catch {}
-  }
-}
-
-function killJob(job: TranscodeJob) {
-  try {
-    job.proc?.kill();
-  } catch {}
-  // SIGKILL fallback via Bun.spawnSync pkill? rely on proc.kill()
-  try {
-    // Force kill if still running
-    if (job.proc && job.proc.exitCode === null) {
-      job.proc.kill(9);
-    }
-  } catch {}
-}
 
 async function resolveInputFile(
   c: {
@@ -191,78 +262,100 @@ function parseSettings(
 }
 
 /**
- * Convert FFmpeg progress lines into a normalized job progress percentage.
+ * Convert FFmpeg progress lines into a normalized progress percentage.
  *
  * FFmpeg reports progress as out_time_us or out_time_ms. The code converts the
  * reported position into seconds and compares it to the total trim duration.
  * Progress is capped at 99% while the process is still running to avoid
  * reporting premature completion.
  */
-function updateProgress(job: TranscodeJob, line: string, duration: number) {
+function progressFromLine(line: string, duration: number): number | null {
   const match = OUT_TIME_RE.exec(line);
-  if (!match) return;
+  if (!match) return null;
   const processedSeconds = Number(match[1]) / 1_000_000;
-  job.progress = Math.min(99, Math.max(0, (processedSeconds / duration) * 100));
+  return Math.min(99, Math.max(0, (processedSeconds / duration) * 100));
 }
 
 /**
- * Stream FFmpeg stderr output and update the job progress in real time.
+ * Stream FFmpeg stderr, updating DB progress in real time and capturing a
+ * bounded tail of log lines so failures are debuggable from SSE / /jobs.
  */
 async function readProgress(
   stream: ReadableStream<Uint8Array>,
-  job: TranscodeJob,
+  jobId: string,
   duration: number,
 ) {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
+  const tail: string[] = [];
   let pending = "";
+  let lastFlush = 0;
+  const flush = (progress?: number) => {
+    const now = Date.now();
+    // Throttle DB writes to ~5Hz; always flush terminal-relevant tail.
+    if (progress === undefined || now - lastFlush > 200) {
+      lastFlush = now;
+      updateJob(jobId, {
+        ...(progress !== undefined ? { progress } : {}),
+        logTail: tail.join("\n"),
+      });
+    }
+  };
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     pending += decoder.decode(value, { stream: true });
     const lines = pending.split(LINE_SPLIT_RE);
     pending = lines.pop() ?? "";
-    for (const line of lines) updateProgress(job, line, duration);
+    for (const line of lines) {
+      const trimmed = line.length > 2000 ? line.slice(0, 2000) : line;
+      if (trimmed) pushTail(tail, trimmed);
+      const p = progressFromLine(line, duration);
+      if (p !== null) flush(p);
+    }
   }
+  if (pending) pushTail(tail, pending.slice(0, 2000));
+  updateJob(jobId, { logTail: tail.join("\n") });
 }
 
 /**
  * Spawn the FFmpeg process and wait until the export completes.
- *
- * This function updates the job record as the exporter runs, and marks the
- * status completed/failed at the end.
+ * Respects cooperative cancellation: if the row was marked `cancelled`
+ * while ffmpeg ran, the terminal state is left alone.
  */
-async function runTranscode(
-  job: TranscodeJob,
-  args: string[],
-  temporaryPath: string,
-  duration: number,
-) {
-  job.status = "processing";
-  job.progress = 0;
+async function runTranscode(jobId: string, args: string[], duration: number) {
   const proc = Bun.spawn(["ffmpeg", ...args], {
     stdout: "ignore",
     stderr: "pipe",
   });
-  job.proc = proc;
+  procs.set(jobId, proc);
   try {
     await Promise.all([
       proc.exited,
-      readProgress(proc.stderr as ReadableStream<Uint8Array>, job, duration),
+      readProgress(proc.stderr as ReadableStream<Uint8Array>, jobId, duration),
     ]);
-    if ((await proc.exited) === 0) {
-      job.status = "completed";
-      job.progress = 100;
+    const current = getJob(jobId);
+    if (current?.status === "cancelled") return;
+    const code = await proc.exited;
+    if (code === 0) {
+      updateJob(jobId, { status: "completed", progress: 100 });
     } else {
-      job.status = "failed";
-      job.error = "FFmpeg exited without completing the export.";
+      const tail = getJob(jobId)?.logTail ?? "";
+      const last = tail.split("\n").slice(-5).join("\n");
+      updateJob(jobId, {
+        status: "failed",
+        error: `FFmpeg exited with code ${code}.${last ? `\nLast output:\n${last}` : ""}`,
+      });
     }
   } catch (error) {
-    job.status = "failed";
-    job.error =
-      error instanceof Error ? error.message : "FFmpeg failed to start.";
+    const current = getJob(jobId);
+    if (current?.status === "cancelled") return;
+    updateJob(jobId, {
+      status: "failed",
+      error: error instanceof Error ? error.message : "FFmpeg failed to start.",
+    });
   } finally {
-    job.proc = undefined;
+    procs.delete(jobId);
   }
 }
 
@@ -363,6 +456,16 @@ async function probeMediaDuration(inputPath: string): Promise<number | null> {
   }
 }
 
+function queueFullResponse(c: {
+  json: (body: unknown, status?: number, headers?: Record<string, string>) => Response;
+}) {
+  return c.json(
+    { error: "Transcode queue is full, try again shortly.", ...getQueueStats() },
+    429,
+    { "Retry-After": "10" },
+  );
+}
+
 app.post("/transcode/mobile", async (c) => {
   let form: FormData;
   try {
@@ -419,7 +522,7 @@ app.post("/transcode/mobile", async (c) => {
     const probed = await probeMediaDuration(temporaryPath);
     if (probed) progressDuration = probed;
   }
-  let originalArgs = buildFFmpegArgs({
+  const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
     filename: settings.exportFilename.trim() || filename,
     sourceWidth: settings.sourceWidth,
@@ -437,19 +540,25 @@ app.post("/transcode/mobile", async (c) => {
     watermark: !!settings.watermark,
   });
   console.log("MOBILE ARGS", originalArgs);
-  const job: TranscodeJob = {
+  createQueuedJob({
     jobId,
-    status: "processing",
-    progress: 0,
     outputPath: originalOutputPath,
-    alternateOutputPath: undefined,
+    alternateOutputPath: null,
     temporaryInputPath: temporaryPath,
+    subtitlePaths: [],
     createdAt: Date.now(),
-  };
-  jobs.set(jobId, job);
-  void (async () => {
-    await runTranscode(job, originalArgs, temporaryPath, progressDuration);
-  })();
+    kind: "mobile",
+    filename: settings.exportFilename.trim() || filename,
+  });
+  const started = enqueue(jobId, () => runTranscode(jobId, originalArgs, progressDuration));
+  if (!started) {
+    const job = getJob(jobId);
+    if (job) {
+      cleanupJobFiles(job);
+      deleteJob(jobId);
+    }
+    return queueFullResponse(c);
+  }
   return c.json({
     jobId,
     progressUrl: `/api/transcode/progress/${jobId}`,
@@ -643,26 +752,27 @@ app.post("/transcode/mobile/subtitles", async (c) => {
 
   console.log("MOBILE_SUBTITLES ARGS", originalArgs);
 
-  const job: TranscodeJob = {
+  createQueuedJob({
     jobId,
-    status: "processing",
-    progress: 0,
     outputPath: originalOutputPath,
-    alternateOutputPath: undefined,
+    alternateOutputPath: null,
     temporaryInputPath: temporaryPath,
     subtitlePaths: subtitlePngPaths,
     createdAt: Date.now(),
-  };
-  jobs.set(jobId, job);
-  void (async () => {
-    await runTranscode(
-      job,
-      originalArgs,
-      temporaryPath,
-      Math.max(0.001, trimEnd - trimStart),
-    );
-    // keep subtitlePaths for cleanup on download
-  })();
+    kind: "mobile-subtitles",
+    filename: settings.exportFilename.trim() || file.name,
+  });
+  const started = enqueue(jobId, () =>
+    runTranscode(jobId, originalArgs, Math.max(0.001, trimEnd - trimStart)),
+  );
+  if (!started) {
+    const job = getJob(jobId);
+    if (job) {
+      cleanupJobFiles(job);
+      deleteJob(jobId);
+    }
+    return queueFullResponse(c);
+  }
   return c.json({
     jobId,
     progressUrl: `/api/transcode/progress/${jobId}`,
@@ -871,19 +981,25 @@ app.post("/transcode/cut", async (c) => {
     watermark: !!settings.watermark,
   });
   console.log("CUT ARGS", cutArgs);
-  const job: TranscodeJob = {
+  createQueuedJob({
     jobId,
-    status: "processing",
-    progress: 0,
     outputPath: originalOutputPath,
-    alternateOutputPath: undefined,
+    alternateOutputPath: null,
     temporaryInputPath: temporaryPath,
+    subtitlePaths: [],
     createdAt: Date.now(),
-  };
-  jobs.set(jobId, job);
-  void (async () => {
-    await runTranscode(job, cutArgs, temporaryPath, totalDuration);
-  })();
+    kind: "cut",
+    filename: settings.exportFilename.trim() || filename,
+  });
+  const started = enqueue(jobId, () => runTranscode(jobId, cutArgs, totalDuration));
+  if (!started) {
+    const job = getJob(jobId);
+    if (job) {
+      cleanupJobFiles(job);
+      deleteJob(jobId);
+    }
+    return queueFullResponse(c);
+  }
   const dims =
     settings.mode === "full-size"
       ? { width: settings.sourceWidth, height: settings.sourceHeight }
@@ -899,8 +1015,8 @@ app.post("/transcode/cut", async (c) => {
  * POST /transcode
  *
  * Accepts a video file and export settings, writes the file to a temp path,
- * and begins asynchronous export jobs for normal and optionally speed-adjusted
- * versions.
+ * and enqueues an export job (normal + optionally speed-adjusted version).
+ * The worker slot is held across both passes so progress stays coherent.
  */
 app.post("/transcode", async (c) => {
   let form: FormData;
@@ -937,7 +1053,6 @@ app.post("/transcode", async (c) => {
 
   // Generate temp output paths in os.tmpdir()
   const originalOutputPath = tempOutputPath(jobId, "", format);
-  let alternateOutputPath: string | undefined;
 
   const mobileLayout = settings.mobileLayout
     ? {
@@ -969,30 +1084,25 @@ app.post("/transcode", async (c) => {
 
   console.log("ARGS", originalArgs);
 
-  const job: TranscodeJob = {
+  createQueuedJob({
     jobId,
-    status: "processing",
-    progress: 0,
     outputPath: originalOutputPath,
-    alternateOutputPath: undefined,
+    alternateOutputPath: null,
     temporaryInputPath: temporaryPath,
+    subtitlePaths: [],
     createdAt: Date.now(),
-  };
-  jobs.set(jobId, job);
+    kind: "transcode",
+    filename: settings.exportFilename.trim() || filename,
+  });
 
+  const duration = Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]);
   const runAll = async () => {
-    job.status = "processing";
-    job.progress = 0;
-    await runTranscode(
-      job,
-      originalArgs,
-      temporaryPath,
-      Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]),
-    );
-
+    await runTranscode(jobId, originalArgs, duration);
+    const afterFirst = getJob(jobId);
+    if (!afterFirst || afterFirst.status !== "completed") return;
     if (settings.exportSpeed !== 1) {
       const suffix = `_${settings.exportSpeed.toFixed(1)}`;
-      alternateOutputPath = tempOutputPath(jobId, suffix, format);
+      const alternateOutputPath = tempOutputPath(jobId, suffix, format);
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
         filename: settings.exportFilename.trim() || filename,
@@ -1010,67 +1120,145 @@ app.post("/transcode", async (c) => {
         outputPath: alternateOutputPath,
         mobileLayout: mobileLayout as never,
       });
-      job.alternateOutputPath = alternateOutputPath;
-      await runTranscode(
-        job,
-        speedArgs,
-        temporaryPath,
-        Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]),
-      );
+      updateJob(jobId, { alternateOutputPath, progress: 0 });
+      await runTranscode(jobId, speedArgs, duration);
     }
   };
 
-  void runAll();
+  const started = enqueue(jobId, runAll);
+  if (!started) {
+    const job = getJob(jobId);
+    if (job) {
+      cleanupJobFiles(job);
+      deleteJob(jobId);
+    }
+    return queueFullResponse(c);
+  }
 
   return c.json({ jobId, progressUrl: `/api/transcode/progress/${jobId}` });
 });
 
 /**
- * GET /transcode/jobs
- * List all jobs (for debugging / clearing pending).
+ * Shared jobs snapshot payload (B1 SQLite rows + B2 queue stats).
+ * Used by both GET /transcode/jobs and the SSE jobs stream.
  */
-app.get("/transcode/jobs", (c) => {
-  const list = Array.from(jobs.values()).map((j) => ({
+function buildJobsPayload() {
+  const list = listJobs().map((j) => ({
     jobId: j.jobId,
     status: j.status,
     progress: j.progress,
     outputPath: j.outputPath,
     alternateOutputPath: j.alternateOutputPath,
     error: j.error,
+    logTail: j.logTail,
+    kind: j.kind,
+    filename: j.filename,
     createdAt: j.createdAt,
+    queuePosition: j.status === "queued" ? waitQueue.indexOf(j.jobId) : null,
     ageSeconds: Math.round((Date.now() - j.createdAt) / 1000),
   }));
-  return c.json({ count: list.length, jobs: list });
+  return { count: list.length, jobs: list, queue: getQueueStats() };
+}
+
+/**
+ * GET /transcode/jobs
+ * List all jobs (persisted in SQLite, survives restarts).
+ */
+app.get("/transcode/jobs", (c) => {
+  return c.json(buildJobsPayload());
 });
 
 /**
+ * GET /transcode/jobs/stream
+ *
+ * SSE push stream of the full jobs snapshot for the Admin dashboard.
+ * Emits the snapshot immediately on connect, then every 1s. Stays open
+ * indefinitely (EventSource auto-reconnects on drop); closes on client
+ * disconnect. Replaces client-side polling so the UI never flashes an
+ * "updating" state — snapshots land in the query cache without isFetching.
+ */
+app.get("/transcode/jobs/stream", (c) => {
+  const encoder = new TextEncoder();
+  let interval: ReturnType<typeof setInterval> | undefined;
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const send = () => {
+        try {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(buildJobsPayload())}\n\n`),
+          );
+        } catch {
+          if (interval) clearInterval(interval);
+          try {
+            controller.close();
+          } catch {}
+        }
+      };
+      send();
+      interval = setInterval(send, 1000);
+    },
+    cancel() {
+      if (interval) clearInterval(interval);
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Content-Type": "text/event-stream",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+});
+
+function hardDeleteJob(id: string): { killed: boolean; deleted: boolean } {
+  const job = getJob(id);
+  if (!job) return { killed: false, deleted: false };
+  const wasActive = job.status === "processing" || job.status === "queued";
+  if (job.status === "queued") dequeue(id);
+  if (job.status === "processing") {
+    killProc(id);
+    // Release the slot now; runTranscode's finally still decrements via pump
+    // guard — instead mark cancelled first so the runner no-ops its finish.
+    updateJob(id, { status: "cancelled" });
+  }
+  const fresh = getJob(id);
+  if (fresh) cleanupJobFiles(fresh);
+  deleteJob(id);
+  // If it held a worker slot, pump the next queued job immediately.
+  if (wasActive) {
+    // runTranscode finally will also pump; double-pump is harmless (guarded).
+    pumpQueue();
+  }
+  return { killed: job.status === "processing", deleted: true };
+}
+
+/**
  * DELETE /transcode/jobs
- * Clear all jobs - kills hanging FFmpeg processes and deletes temp files.
- * Query param ?status=processing|pending filters to only those statuses.
+ * Clear jobs - kills running FFmpeg processes and deletes files + DB rows.
+ * Query param ?status=processing|pending|queued|completed|failed filters.
  */
 app.delete("/transcode/jobs", async (c) => {
   const filter = c.req.query("status");
-  const shouldDelete = (j: TranscodeJob) => {
-    if (!filter) return true;
+  const shouldDelete = (j: JobRow) => {
+    if (!filter || filter === "all") return true;
     if (filter === "processing" || filter === "pending")
-      return j.status === "processing";
-    return j.status === filter;
+      return j.status === "processing" || j.status === "queued";
+    return j.status === (filter as JobStatus);
   };
   let killed = 0;
   let deleted = 0;
   const ids: string[] = [];
-  for (const [id, job] of Array.from(jobs.entries())) {
+  for (const job of listJobs()) {
     if (!shouldDelete(job)) continue;
-    if (job.status === "processing") {
-      killJob(job);
-      killed++;
+    const r = hardDeleteJob(job.jobId);
+    if (r.killed) killed++;
+    if (r.deleted) {
+      deleted++;
+      ids.push(job.jobId);
     }
-    cleanupJobFiles(job);
-    jobs.delete(id);
-    deleted++;
-    ids.push(id);
   }
-  // Also sweep stray temp files on disk (apps/api/temp_* and /tmp/*-*.mp4 matching job pattern)
+  // Also sweep stray temp files on disk (apps/api/temp_* and /tmp/* matching job pattern)
   try {
     const apiDir = ".";
     try {
@@ -1122,52 +1310,64 @@ app.post("/transcode/clear", async (c) => {
   let killed = 0;
   let deleted = 0;
   const ids: string[] = [];
-  const shouldDelete = (j: TranscodeJob) => {
+  const shouldDelete = (j: JobRow) => {
     if (!filter) return true;
     if (filter === "processing" || filter === "pending")
-      return j.status === "processing";
-    return j.status === filter;
+      return j.status === "processing" || j.status === "queued";
+    return j.status === (filter as JobStatus);
   };
-  for (const [id, job] of Array.from(jobs.entries())) {
+  for (const job of listJobs()) {
     if (!shouldDelete(job)) continue;
-    if (job.status === "processing") {
-      killJob(job);
-      killed++;
+    const r = hardDeleteJob(job.jobId);
+    if (r.killed) killed++;
+    if (r.deleted) {
+      deleted++;
+      ids.push(job.jobId);
     }
-    cleanupJobFiles(job);
-    jobs.delete(id);
-    deleted++;
-    ids.push(id);
   }
   return c.json({ cleared: deleted, killed, ids, filter: filter ?? "all" });
 });
 
 app.delete("/transcode/jobs/:jobId", async (c) => {
   const id = c.req.param("jobId");
-  const job = jobs.get(id);
+  // ?mode=cancel → cooperative cancel: kill ffmpeg, keep row + files so the
+  // user can inspect logTail; SSE emits { status: "cancelled" } then closes.
+  if (c.req.query("mode") === "cancel") {
+    const job = getJob(id);
+    if (!job) return c.json({ error: "Job not found." }, 404);
+    if (job.status === "queued") {
+      dequeue(id);
+      updateJob(id, { status: "cancelled", error: "Cancelled by user." });
+      return c.json({ cancelled: id, status: "cancelled" });
+    }
+    if (job.status === "processing") {
+      updateJob(id, { status: "cancelled", error: "Cancelled by user." });
+      killProc(id);
+      return c.json({ cancelled: id, status: "cancelled" });
+    }
+    return c.json({ cancelled: id, status: job.status });
+  }
+  const job = getJob(id);
   if (!job) return c.json({ error: "Job not found." }, 404);
-  if (job.status === "processing") killJob(job);
-  cleanupJobFiles(job);
-  jobs.delete(id);
-  return c.json({ deleted: id, status: job.status });
+  const prevStatus = job.status;
+  hardDeleteJob(id);
+  return c.json({ deleted: id, status: prevStatus });
 });
 
 /**
  * GET /transcode/download/:jobId
  *
- * Returns the rendered video file as a binary response so the frontend can
- * present a save dialog to the user. The file is deleted after it is served.
+ * Returns the rendered video file. Files are kept until the user explicitly
+ * deletes the job (DELETE /transcode/jobs/:jobId) — downloading does NOT
+ * delete anything (B1 keep-until-delete).
  */
 app.get("/transcode/download/:jobId", async (c) => {
-  const job = jobs.get(c.req.param("jobId"));
+  const id = c.req.param("jobId");
+  const job = getJob(id);
   if (!job || job.status !== "completed") {
     return c.json({ error: "Job not found or not completed." }, 404);
   }
 
-  // Return the primary output file.
-  // NOTE: read the file into memory BEFORE cleanup. The previous code
-  // returned `new Response(file.stream())` with deletion in `finally`,
-  // which deleted the file before Bun finished streaming it → ENOENT.
   const filePath = job.outputPath;
   const file = Bun.file(filePath);
   if (!(await file.exists())) {
@@ -1180,26 +1380,6 @@ app.get("/transcode/download/:jobId", async (c) => {
     console.error("[transcode/download] failed reading output file:", e);
     return c.json({ error: "Output file could not be read." }, 500);
   }
-
-  // Cleanup AFTER the bytes are safely in memory, then respond.
-  const cleanupPaths = [
-    job.outputPath,
-    job.alternateOutputPath,
-    job.temporaryInputPath,
-    ...(job.subtitlePaths ?? []),
-  ].filter(Boolean) as string[];
-  for (const p of cleanupPaths) {
-    try {
-      fs.unlinkSync(p);
-    } catch {
-      try {
-        await Bun.file(p).delete();
-      } catch {
-        // Ignore cleanup errors.
-      }
-    }
-  }
-  jobs.delete(c.req.param("jobId"));
 
   const isVideo = /\.(mp4|webm|mov)$/i.test(filePath);
   return new Response(bytes, {
@@ -1214,12 +1394,14 @@ app.get("/transcode/download/:jobId", async (c) => {
 /**
  * GET /transcode/progress/:jobId
  *
- * Returns an SSE stream of the current job record. The client will receive
- * updates every 200ms until the job completes.
+ * SSE stream of the job row (read fresh from SQLite every 200ms).
+ * Emits { status: queued|processing } then terminal
+ * { completed|failed|cancelled } (with error + logTail) and closes.
  */
 app.get("/transcode/progress/:jobId", (c) => {
-  const job = jobs.get(c.req.param("jobId"));
-  if (!job) return c.json({ error: "Export job not found." }, 404);
+  const id = c.req.param("jobId");
+  const initial = getJob(id);
+  if (!initial) return c.json({ error: "Export job not found." }, 404);
 
   const encoder = new TextEncoder();
   let interval: ReturnType<typeof setInterval> | undefined;
@@ -1228,23 +1410,39 @@ app.get("/transcode/progress/:jobId", (c) => {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = () => {
+        const job = getJob(id);
+        if (!job) {
+          try {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ jobId: id, status: "failed", progress: 0, error: "Job was deleted." })}\n\n`,
+              ),
+            );
+          } catch {}
+          if (interval) clearInterval(interval);
+          if (timeout) clearTimeout(timeout);
+          try {
+            controller.close();
+          } catch {}
+          return;
+        }
+        const queuePosition =
+          job.status === "queued" ? waitQueue.indexOf(job.jobId) : null;
+        const payload = { ...job, queuePosition, queue: getQueueStats() };
         try {
-          // Avoid leaking Bun proc handle into JSON (strips proc)
-          const { proc: _p, ...safe } = job as unknown as Record<
-            string,
-            unknown
-          >;
           controller.enqueue(
-            encoder.encode(`data: ${JSON.stringify(safe)}\n\n`),
+            encoder.encode(`data: ${JSON.stringify(payload)}\n\n`),
           );
         } catch {
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({ jobId: job.jobId, status: job.status, progress: job.progress })}\n\n`,
-            ),
-          );
+          try {
+            controller.enqueue(
+              encoder.encode(
+                `data: ${JSON.stringify({ jobId: job.jobId, status: job.status, progress: job.progress })}\n\n`,
+              ),
+            );
+          } catch {}
         }
-        if (job.status !== "processing") {
+        if (job.status !== "processing" && job.status !== "queued") {
           if (interval) clearInterval(interval);
           if (timeout) clearTimeout(timeout);
           try {

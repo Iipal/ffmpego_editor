@@ -7,6 +7,10 @@ import { baseNameOf } from "./helpers";
 import type { BulkItem, FsDirHandle } from "./types";
 import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
+import {
+  TranscodeCancelledError,
+  throwTranscodeHttpError,
+} from "@/lib/transcode-jobs";
 
 export type UseBulkExportArgs = {
   itemsRef: { current: BulkItem[] };
@@ -38,7 +42,11 @@ export function useBulkExport({
       return;
     }
     const queue = itemsRef.current.filter(
-      (it) => it.selected && (it.status === "idle" || it.status === "failed"),
+      (it) =>
+        it.selected &&
+        (it.status === "idle" ||
+          it.status === "failed" ||
+          it.status === "cancelled"),
     );
     if (queue.length === 0) {
       toast.error("Nothing to export — select files first");
@@ -101,7 +109,8 @@ export function useBulkExport({
             const payload = (await res.json().catch(() => null)) as {
               error?: string;
             } | null;
-            throw new Error(payload?.error ?? `Export failed: ${res.status}`);
+            // B2: shapes 429 (queue full + Retry-After) distinctly.
+            throwTranscodeHttpError(res, payload);
           }
           const j = (await res.json()) as {
             jobId: string;
@@ -121,10 +130,16 @@ export function useBulkExport({
           progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
         }
         patchItem(id, { status: "processing", progress: 50 });
-        await awaitTranscodeCompletion(progressUrl, (progress) => {
-          patchItem(id, {
-            progress: 50 + Math.round((progress / 100) * 45),
-          });
+        await awaitTranscodeCompletion(progressUrl, (progress, info) => {
+          // B2: reflect server queue state per item instead of jumping to 50%+.
+          if (info?.status === "queued") {
+            patchItem(id, { status: "queued", progress: 50 });
+          } else {
+            patchItem(id, {
+              status: "processing",
+              progress: 50 + Math.round((progress / 100) * 45),
+            });
+          }
         });
         patchItem(id, { status: "saving", progress: 97 });
         const blob = await fetchDownloadBlob(
@@ -146,6 +161,10 @@ export function useBulkExport({
         const msg = e instanceof Error ? e.message : "Export failed";
         if ((e as DOMException)?.name === "AbortError") {
           patchItem(id, { status: "idle", progress: 0 });
+        } else if (e instanceof TranscodeCancelledError) {
+          // B2: cooperatively cancelled server-side; row kept for inspection.
+          patchItem(id, { status: "cancelled", progress: 0, error: msg });
+          failed++;
         } else {
           patchItem(id, { status: "failed", progress: 0, error: msg });
           failed++;

@@ -14,12 +14,16 @@ export { NOOP } from "@/lib/utils";
 export const formatAgeCache = new Map<number, string>();
 export const statusBadgeCache = new Map<string, string>();
 export const statusBadgeRaw: Record<string, string> = {
+  queued:
+    "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-900",
   processing:
     "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-900",
   completed:
     "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
   failed:
     "bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900",
+  cancelled:
+    "bg-kumo-recessed text-kumo-subtle border-kumo-line",
 };
 
 // client-event-listeners: dedup global listeners (single listener for N JobRow instances)

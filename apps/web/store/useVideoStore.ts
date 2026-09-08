@@ -84,10 +84,21 @@ export interface VideoState {
   bitrateKbps: number;
   ffprobeReport: FFprobeReport | null;
   isSidebarOpen: boolean;
-  transcodeStatus: "idle" | "processing" | "completed" | "failed";
+  // B2: server emits queued before processing, cancelled on cooperative cancel.
+  transcodeStatus:
+    | "idle"
+    | "queued"
+    | "processing"
+    | "completed"
+    | "failed"
+    | "cancelled";
   transcodeProgress: number;
   transcodeOutputPath: string | null;
   transcodeError: string | null;
+  // B1/B2: active job id for cancel + re-download; queue position + ffmpeg tail.
+  transcodeJobId: string | null;
+  transcodeQueuePosition: number | null;
+  transcodeLogTail: string | null;
   subtitles: Subtitle[];
   selectedSubtitleId: string | null;
   subtitleTrackCountExplicit: number;
@@ -134,6 +145,9 @@ const initialState: VideoState = {
   transcodeProgress: 0,
   transcodeOutputPath: null,
   transcodeError: null,
+  transcodeJobId: null,
+  transcodeQueuePosition: null,
+  transcodeLogTail: null,
   subtitles: [],
   selectedSubtitleId: null,
   subtitleTrackCountExplicit: 1,

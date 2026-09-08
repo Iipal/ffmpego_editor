@@ -37,6 +37,7 @@ export const STATUS_LABEL: Record<BulkStatus, string> = {
   saving: "Saving",
   completed: "Done",
   failed: "Failed",
+  cancelled: "Cancelled",
 };
 
 export function statusColor(s: BulkStatus): string {
@@ -44,7 +45,9 @@ export function statusColor(s: BulkStatus): string {
     case "completed":
       return "bg-kumo-success";
     case "failed":
+    case "cancelled":
       return "bg-kumo-warn";
+    case "queued":
     case "uploading":
     case "processing":
     case "saving":

@@ -77,10 +77,12 @@ export interface TranscodeResponse {
 }
 
 export interface TranscodeProgress {
-  status: "processing" | "completed" | "failed";
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
   progress: number;
   outputPath: string;
   alternateOutputPath?: string;
   error?: string;
+  logTail?: string | null;
+  queuePosition?: number | null;
   jobId: string;
 }

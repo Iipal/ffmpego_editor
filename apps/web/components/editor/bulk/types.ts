@@ -5,7 +5,8 @@ export type BulkStatus =
   | "processing"
   | "saving"
   | "completed"
-  | "failed";
+  | "failed"
+  | "cancelled";
 
 export interface BulkItem {
   id: string;

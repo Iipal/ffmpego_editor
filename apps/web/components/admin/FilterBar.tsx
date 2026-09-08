@@ -4,29 +4,35 @@ import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { API_BASE_URL } from "@/lib/api-client";
 import { FILTER_OPTIONS, type Filter } from "./types";
+import type { LiveStatus } from "./useJobsLiveSync";
 
 type FilterBarProps = {
   deferredFilter: string;
   isFilterStale: boolean;
-  isFetching: boolean;
+  liveStatus: LiveStatus;
   isPendingTransition: boolean;
   jobsLength: number;
   pendingCount: number;
-  pollTick: number;
   isError: boolean;
   error: Error | null;
   onSelect: (f: Filter) => void;
   onRefresh: () => void;
 };
 
+const LIVE_COPY: Record<LiveStatus, string> = {
+  live: "live sync",
+  connecting: "connecting…",
+  reconnecting: "reconnecting…",
+  error: "stream unavailable",
+};
+
 export const FilterBar = memo(function FilterBar({
   deferredFilter,
   isFilterStale,
-  isFetching,
+  liveStatus,
   isPendingTransition,
   jobsLength,
   pendingCount,
-  pollTick,
   isError,
   error,
   onSelect,
@@ -63,11 +69,11 @@ export const FilterBar = memo(function FilterBar({
         className="text-[10px] font-mono text-kumo-subtle"
         suppressHydrationWarning
       >
-        Storage: in-memory Map (apps/api/src/routes/video.ts:49) · temp input
-        /tmp/&lt;uuid&gt;-* · output ./temp_&lt;uuid&gt;.* (apps/api). Lost on
-        restart. {isFetching ? "· live polling…" : null}{" "}
+        Storage: SQLite registry (apps/api/.data/app.sqlite) · temp input
+        /tmp/&lt;uuid&gt;-* · output /tmp/temp_&lt;jobId&gt;.* kept until
+        deleted. Survives restart. · {LIVE_COPY[liveStatus]}{" "}
         {isPendingTransition ? "· updating filter…" : null} · jobs: {jobsLength}{" "}
-        · pending: {pendingCount} · tick: {pollTick}
+        · pending: {pendingCount}
       </div>
       {isError ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">

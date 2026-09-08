@@ -16,6 +16,11 @@ import {
   uploadFileChunked,
   uploadFormWithProgress,
 } from "@/lib/upload-chunked";
+import {
+  TranscodeCancelledError,
+  throwTranscodeHttpError,
+  withLogTail,
+} from "@/lib/transcode-jobs";
 
 type TranscodeRequest = Pick<
   VideoState,
@@ -156,7 +161,8 @@ export function useTranscodeMutation() {
           const err = (await res.json().catch(() => null)) as {
             error?: string;
           } | null;
-          throw new Error(err?.error ?? `Transcode failed: ${res.status}`);
+          // B2: shapes 429 (queue full + Retry-After) distinctly.
+          throwTranscodeHttpError(res, err);
         }
         response = (await res.json()) as TranscodeResponse;
       } else {
@@ -182,13 +188,29 @@ export function useTranscodeMutation() {
         API_BASE_URL,
       ).toString();
 
+      // B1: track the job id — outputs persist server-side until deleted,
+      // so the user can re-download / cancel from Admin even after this tab's
+      // auto-download. B2: SSE emits queued → processing → terminal.
+      videoStore.setState((p) => ({ ...p, transcodeJobId: response.jobId }));
       return new Promise<TranscodeProgress>((resolve, reject) => {
         const source = new EventSource(progressUrl);
         source.onmessage = (event) => {
           const progress = JSON.parse(event.data) as TranscodeProgress;
+          if (progress.status === "queued") {
+            videoStore.setState((previous) => ({
+              ...previous,
+              transcodeStatus: "queued",
+              transcodeProgress: progress.progress,
+              transcodeQueuePosition: progress.queuePosition ?? null,
+            }));
+            return;
+          }
           videoStore.setState((previous) => ({
             ...previous,
+            transcodeStatus: "processing",
             transcodeProgress: progress.progress,
+            transcodeQueuePosition: null,
+            transcodeLogTail: progress.logTail ?? null,
           }));
           if (progress.status === "completed") {
             source.close();
@@ -196,7 +218,17 @@ export function useTranscodeMutation() {
           }
           if (progress.status === "failed") {
             source.close();
-            reject(new Error(progress.error ?? "Export failed."));
+            reject(
+              new Error(withLogTail(progress.error, progress.logTail)),
+            );
+          }
+          if (progress.status === "cancelled") {
+            source.close();
+            reject(
+              new TranscodeCancelledError(
+                progress.error ?? "Export cancelled.",
+              ),
+            );
           }
         };
         source.onerror = () => {
@@ -212,6 +244,9 @@ export function useTranscodeMutation() {
         transcodeProgress: 0,
         transcodeOutputPath: null,
         transcodeError: null,
+        transcodeJobId: null,
+        transcodeQueuePosition: null,
+        transcodeLogTail: null,
         uploadStage: "transcode",
         uploadStatus: "uploading",
         uploadProgress: 0,
@@ -262,6 +297,21 @@ export function useTranscodeMutation() {
           ...previous,
           transcodeStatus: "idle",
           transcodeProgress: 0,
+          transcodeJobId: null,
+          transcodeQueuePosition: null,
+          uploadStatus: "idle",
+          uploadStage: null,
+        }));
+        return;
+      }
+      // B2: cooperative cancel lands here as TranscodeCancelledError — the
+      // job row (with logTail) is kept server-side, surfaced via Admin.
+      if (error instanceof TranscodeCancelledError) {
+        videoStore.setState((previous) => ({
+          ...previous,
+          transcodeStatus: "cancelled",
+          transcodeError: error.message,
+          transcodeQueuePosition: null,
           uploadStatus: "idle",
           uploadStage: null,
         }));

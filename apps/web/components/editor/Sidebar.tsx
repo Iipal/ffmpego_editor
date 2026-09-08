@@ -675,11 +675,31 @@ export function Sidebar() {
             )}
             {state.uploadStatus === "uploading" &&
               state.uploadStage === "transcode" && <UploadProgress />}
-            {state.transcodeStatus === "processing" && (
-              <Progress
-                value={state.transcodeProgress}
-                aria-label="Export progress"
-              />
+            {(state.transcodeStatus === "processing" ||
+              state.transcodeStatus === "queued") && (
+              <div className="space-y-1">
+                {state.transcodeStatus === "queued" && (
+                  <p className="text-xs text-kumo-subtle" aria-live="polite">
+                    {state.transcodeQueuePosition != null
+                      ? `Queued #${state.transcodeQueuePosition + 1} — waiting for a worker…`
+                      : "Queued — waiting for a worker…"}
+                  </p>
+                )}
+                <Progress
+                  value={state.transcodeProgress}
+                  aria-label="Export progress"
+                />
+              </div>
+            )}
+            {state.transcodeStatus === "cancelled" && (
+              <p className="text-xs text-kumo-subtle" aria-live="polite">
+                Export cancelled — job kept in Admin for inspection.
+              </p>
+            )}
+            {state.transcodeStatus === "failed" && state.transcodeError && (
+              <p className="text-xs text-red-600 wrap-break-word">
+                {state.transcodeError}
+              </p>
             )}
             <Button
               className="w-full"
@@ -691,7 +711,9 @@ export function Sidebar() {
               }
             >
               {transcodeMutation.isPending
-                ? `Exporting ${Math.round(state.transcodeProgress)}%`
+                ? state.transcodeStatus === "queued"
+                  ? "Queued for export…"
+                  : `Exporting ${Math.round(state.transcodeProgress)}%`
                 : "Export video"}
             </Button>
           </CollapsibleContent>
