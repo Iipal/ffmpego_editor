@@ -7,7 +7,7 @@
  * - v1: `{ version: 1, kind, settings }` wrapper (current).
  */
 import { z } from "zod";
-import { cutSettingsSchema, genericSettingsSchema, mobileSettingsSchema } from "./settings.js";
+import { cutSettingsSchema, genericSettingsSchema, mobileSettingsSchema } from "./settings";
 
 export const PLAN_VERSION = 1 as const;
 

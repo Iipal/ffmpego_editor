@@ -15,7 +15,7 @@ import {
   genericSettingsSchema,
   mobileSettingsSchema,
   cutSettingsSchema,
-} from "../src/index.js";
+} from "../src/index";
 
 const genericV0 = {
   exportFormat: "mp4",
