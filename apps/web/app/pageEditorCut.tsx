@@ -22,6 +22,7 @@ import {
 } from "@/components/editor/cut/useCutExport";
 import type { Cut } from "@/components/editor/cut/types";
 import { stripExtension } from "@/lib/video-file";
+import { AudioControls } from "@/components/editor/AudioControls";
 
 export type { CutMode } from "@/components/editor/cut/types";
 
@@ -196,6 +197,7 @@ export default function CutEditorPage() {
               />
             </CutTimeline>
           </CutPreview>
+          <AudioControls />
         </div>
 
         {/* Sidebar settings */}
