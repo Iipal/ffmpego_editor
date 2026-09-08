@@ -41,14 +41,14 @@ export function MobileEmptyState() {
         icon={<Monitor className="size-3.5" aria-hidden />}
         label="Source and portrait preview"
       >
-        <div className="grid gap-3 md:grid-cols-[1.35fr_0.9fr]">
+        <div className="grid gap-3 grid-cols-2 justify-center">
           <div className="aspect-video rounded-md border border-kumo-hairline bg-kumo-base flex items-center justify-center">
             <span className="text-xs text-kumo-subtle">
               16:9 source — position zones
             </span>
           </div>
           <div className="flex justify-center">
-            <div className="aspect-9/16 w-32 rounded-xl border border-kumo-hairline bg-kumo-base flex items-center justify-center">
+            <div className="aspect-9/16 rounded-xl border border-kumo-hairline bg-kumo-base flex items-center justify-center">
               <span className="text-[11px] text-kumo-subtle">9:16 STACKED</span>
             </div>
           </div>

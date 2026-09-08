@@ -1,4 +1,4 @@
-import { Crop, Film, Monitor, Scissors } from "lucide-react";
+import { Crop, Film, Scissors } from "lucide-react";
 import { CapabilityCard } from "../shared/CapabilityCard";
 import {
   DashedPreviewHint,
@@ -34,17 +34,6 @@ export function CropEmptyState() {
           meta="mp4 · webm · mov · crf 0–60"
         />
       </div>
-
-      <DashedPreviewHint
-        icon={<Monitor className="size-3.5" aria-hidden />}
-        label="Crop preview"
-      >
-        <div className="aspect-video rounded-md border border-kumo-hairline bg-kumo-base flex items-center justify-center">
-          <span className="text-xs text-kumo-subtle">
-            Drop a video to start editing
-          </span>
-        </div>
-      </DashedPreviewHint>
     </EmptyStateShell>
   );
 }

@@ -122,7 +122,7 @@ export function VideoUploader() {
       </p>
       <Input
         ref={inputRef}
-        className="sr-only"
+        className="sr-only w-10"
         type="file"
         accept={ACCEPTED_VIDEO_INPUT_ATTR}
         onChange={(event) => selectFile(event.target.files?.[0])}

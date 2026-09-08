@@ -7,10 +7,7 @@ import {
   preloadExportChunks,
   preloadMobilePreview,
 } from "@/components/editor/subtitles/heavy-modules";
-import {
-  NoVideoPlaceholderCard,
-  NoVideoPreviewSkeleton,
-} from "@/components/editor/subtitles/placeholders";
+import { NoVideoPlaceholderCard } from "@/components/editor/subtitles/placeholders";
 import { PreviewPane } from "@/components/editor/subtitles/PreviewPane";
 import { SubtitleArea } from "@/components/editor/subtitles/SubtitleArea";
 import { SubtitleListPanel } from "@/components/editor/subtitles/SubtitleListPanel";
@@ -29,10 +26,7 @@ export default function PageEditorSubtitles() {
 
   // rendering-conditional-render: explicit ternary, not &&
   return !e.hasVideo ? (
-    <div className="space-y-3">
-      {NoVideoPlaceholderCard}
-      {NoVideoPreviewSkeleton}
-    </div>
+    <div className="space-y-3">{NoVideoPlaceholderCard}</div>
   ) : (
     <div className="space-y-3">
       <video

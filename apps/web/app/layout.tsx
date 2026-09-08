@@ -38,12 +38,10 @@ export default function RootLayout({
       <body className="min-h-full antialiased bg-background text-foreground">
         <Providers>
           <Toaster />
-          <div className="flex min-h-screen items-stretch bg-kumo-canvas">
+          <div className="flex min-h-screen w-full items-stretch bg-kumo-canvas">
             <AppSidebar />
-            <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
-              <div className="mx-auto flex w-full max-w-400 flex-col gap-6">
-                {children}
-              </div>
+            <main className="flex-1 px-4 py-8 sm:px-8 min-w-0">
+              <div className="flex flex-col gap-6 min-w-0">{children}</div>
             </main>
           </div>
         </Providers>
