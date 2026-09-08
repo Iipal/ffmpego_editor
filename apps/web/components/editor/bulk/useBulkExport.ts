@@ -11,6 +11,7 @@ import {
   TranscodeCancelledError,
   throwTranscodeHttpError,
 } from "@/lib/transcode-jobs";
+import { assertMobileSettings } from "@/lib/validate-settings";
 
 export type UseBulkExportArgs = {
   itemsRef: { current: BulkItem[] };
@@ -87,6 +88,8 @@ export function useBulkExport({
           customFFmpegArgs: "",
           watermark: useWatermark,
         });
+        // Pre-upload: same schemas the API enforces — fail before upload bytes.
+        assertMobileSettings(settingsJson);
         let jobId: string;
         let progressUrl: string;
         const onUpload = (sent: number, total: number) =>

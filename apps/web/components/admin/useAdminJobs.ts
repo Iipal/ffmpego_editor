@@ -156,12 +156,11 @@ export function useAdminJobs() {
           `${API_BASE_URL}/api/transcode/download/${job.jobId}`,
         );
         // The stored job.filename is a bare export name (or the source file
-        // name) — the real output extension lives on the server outputPath
-        // (temp_<jobId>.<ext>). Re-attach it so webm/mov/webm-tg jobs don't
-        // save with a wrong .mp4 extension, and offer the matching picker
-        // filter instead of the MP4-only default.
-        const serverName =
-          job.outputPath.split("/").pop() || `${job.jobId}.mp4`;
+        // name) — the real output extension lives on the server descriptor
+        // (outputFile.name, e.g. export.webm). Re-attach it so webm/mov/webm-tg
+        // jobs don't save with a wrong .mp4 extension, and offer the matching
+        // picker filter instead of the MP4-only default.
+        const serverName = job.outputFile?.name || `${job.jobId}.mp4`;
         const serverExt =
           serverName.split(".").pop()?.toLowerCase() || "mp4";
         const rawBase =

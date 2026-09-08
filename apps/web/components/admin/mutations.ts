@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { API_BASE_URL } from "@/lib/api-client";
-import { cancelTranscodeJob } from "@/lib/transcode-jobs";
+import { cancelTranscodeJob, serverErrorMessage } from "@/lib/transcode-jobs";
 import { JOB_ID_RE } from "./helpers";
 
 export function useAdminMutations(invalidateRef: RefObject<() => void>) {
@@ -20,10 +20,10 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
         method: "DELETE",
       });
       if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(j?.error ?? `Delete failed: ${res.status}`);
+        const j = (await res.json().catch(() => null)) as unknown;
+        throw new Error(
+          serverErrorMessage(j) ?? `Delete failed: ${res.status}`,
+        );
       }
       return res.json() as Promise<unknown>;
     },

@@ -14,9 +14,9 @@ export interface ChunkedUploadOptions {
 
 export interface ChunkedUploadResult {
   uploadId: string;
+  assetId: string;
   filename: string;
   totalSize: number;
-  temporaryPath: string;
 }
 
 const DEFAULT_CHUNK = 8 * 1024 * 1024;
@@ -51,9 +51,9 @@ export async function uploadFileChunked(
   }
   const init = (await initRes.json()) as {
     uploadId: string;
+    assetId: string;
     chunkSize: number;
     totalSize: number;
-    temporaryPath: string;
   };
   const { uploadId } = init;
   const effectiveChunk = init.chunkSize ?? chunkSize;
@@ -85,10 +85,10 @@ export async function uploadFileChunked(
           },
         );
         if (!res.ok) {
-          const e = (await res.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(e?.error ?? `Chunk ${i} failed: ${res.status}`);
+          const e = (await res.json().catch(() => null)) as unknown;
+          throw new Error(
+            serverErrorMessage(e) ?? `Chunk ${i} failed: ${res.status}`,
+          );
         }
         sent += buf.byteLength;
         opts.onProgress?.(sent, file.size);
@@ -111,11 +111,9 @@ export async function uploadFileChunked(
     },
   );
   if (!completeRes.ok) {
-    const e = (await completeRes.json().catch(() => null)) as {
-      error?: string;
-    } | null;
+    const e = (await completeRes.json().catch(() => null)) as unknown;
     throw new Error(
-      e?.error ?? `Upload complete failed: ${completeRes.status}`,
+      serverErrorMessage(e) ?? `Upload complete failed: ${completeRes.status}`,
     );
   }
   const complete = (await completeRes.json()) as ChunkedUploadResult;

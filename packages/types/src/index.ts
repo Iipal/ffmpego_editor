@@ -92,11 +92,33 @@ export interface TranscodeResponse {
   progressUrl: string;
 }
 
+/**
+ * Opaque file descriptor — mirrors apps/api FileDescriptor.
+ * Absolute store paths never leave the server; clients get id/name/size/mime.
+ */
+export interface StoredFileDescriptor {
+  id: string;
+  role: "asset" | "artifact";
+  kind:
+    | "upload"
+    | "request-input"
+    | "output"
+    | "alternate-output"
+    | "subtitle-png"
+    | "ephemeral";
+  name: string;
+  byteSize: number;
+  mime: string;
+  ext: string;
+  createdAt: number;
+  expiresAt: number | null;
+}
+
 export interface TranscodeProgress {
   status: "queued" | "processing" | "completed" | "failed" | "cancelled";
   progress: number;
-  outputPath: string;
-  alternateOutputPath?: string;
+  outputFile: StoredFileDescriptor | null;
+  alternateFile?: StoredFileDescriptor | null;
   error?: string;
   logTail?: string | null;
   exitCode?: number | null;

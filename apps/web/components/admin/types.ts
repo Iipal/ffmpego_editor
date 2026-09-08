@@ -1,3 +1,4 @@
+import type { StoredFileDescriptor } from "@repo/types";
 import type { LiveStatus } from "./useJobsLiveSync";
 
 // Mirrors the B1/B2 API contract (apps/api/src/routes/video.ts):
@@ -14,8 +15,8 @@ export interface JobEntry {
   jobId: string;
   status: JobStatus;
   progress: number;
-  outputPath: string;
-  alternateOutputPath?: string;
+  outputFile: StoredFileDescriptor | null;
+  alternateFile?: StoredFileDescriptor | null;
   error?: string;
   logTail?: string | null;
   exitCode?: number | null;

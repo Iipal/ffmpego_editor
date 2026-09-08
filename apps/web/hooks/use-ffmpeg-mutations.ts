@@ -19,6 +19,7 @@ import {
   throwTranscodeHttpError,
   withLogTail,
 } from "@/lib/transcode-jobs";
+import { assertGenericSettings } from "@/lib/validate-settings";
 import type { CropSlice } from "@/store/cropSlice";
 import type { AudioTrackRenderSettings } from "@/store/audioSlice";
 
@@ -146,6 +147,9 @@ export function useTranscodeMutation() {
         fadeOutSeconds: request.fadeOutSeconds,
         muteSegments: request.muteSegments,
       });
+      // Fail fast on malformed settings (same schemas the API enforces)
+      // before spending upload bytes.
+      assertGenericSettings(settingsJson);
 
       const setUpload = (sent: number, total: number) => {
         const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
@@ -177,9 +181,7 @@ export function useTranscodeMutation() {
           body: form,
         });
         if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as {
-            error?: string;
-          } | null;
+          const err = (await res.json().catch(() => null)) as unknown;
           // B2: shapes 429 (queue full + Retry-After) distinctly.
           throwTranscodeHttpError(res, err);
         }

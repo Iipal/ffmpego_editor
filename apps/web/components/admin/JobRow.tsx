@@ -93,13 +93,13 @@ export const JobRow = memo(function JobRow({
           <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
             <span
               className="font-mono break-all text-kumo-default"
-              title={job.outputPath}
+              title={job.outputFile?.name ?? job.jobId}
             >
-              {job.outputPath}
+              {job.outputFile?.name ?? "output pending…"}
             </span>
-            {job.alternateOutputPath ? (
+            {job.alternateFile ? (
               <span className="font-mono break-all text-kumo-subtle">
-                + {job.alternateOutputPath}
+                + {job.alternateFile.name}
               </span>
             ) : null}
           </div>

@@ -1,4 +1,6 @@
 // API base URL - in production this would be an environment variable
+import { serverErrorMessage } from "./transcode-jobs";
+
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3100";
 
@@ -36,10 +38,10 @@ export async function apiFormPost<T>(
   });
 
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(payload?.error ?? `API error: ${response.status}`);
+    const payload = (await response.json().catch(() => null)) as unknown;
+    throw new Error(
+      serverErrorMessage(payload) ?? `API error: ${response.status}`,
+    );
   }
 
   return response.json() as Promise<T>;

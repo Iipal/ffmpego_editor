@@ -12,6 +12,7 @@
     "start": "bun run dist/index.js"
   },
   "dependencies": {
+    "@repo/contracts": "*",
     "@repo/ffmpeg-filters": "*",
     "@repo/types": "*",
     "@hono/node-server": "^2.1.1",

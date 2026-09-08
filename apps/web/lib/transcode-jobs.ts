@@ -48,20 +48,26 @@ export function parseRetryAfterMs(value: string | null): number | null {
 }
 
 /**
- * B4: backend 400s now return `{ error, issues }` (zod details). Combine both
- * so toasts show the per-field reasons instead of just the headline.
+ * Shared error envelope reader. The API returns `{ code, message, issues?,
+ * requestId?, jobId?, details? }` (@repo/contracts); legacy `{ error }`
+ * payloads are still accepted. 400s combine the headline with per-field
+ * reasons so toasts show actionable detail instead of just the headline.
  */
 export function serverErrorMessage(payload: unknown): string | undefined {
-  if (!payload || typeof payload !== "object" || !("error" in payload)) {
-    return undefined;
-  }
-  const p = payload as { error?: unknown; issues?: unknown };
-  if (typeof p.error !== "string" || p.error.length === 0) return undefined;
-  if (!Array.isArray(p.issues) || p.issues.length === 0) return p.error;
+  if (!payload || typeof payload !== "object") return undefined;
+  const p = payload as { error?: unknown; message?: unknown; issues?: unknown };
+  const headline =
+    typeof p.message === "string" && p.message.length > 0
+      ? p.message
+      : typeof p.error === "string" && p.error.length > 0
+        ? p.error
+        : undefined;
+  if (!headline) return undefined;
+  if (!Array.isArray(p.issues) || p.issues.length === 0) return headline;
   const details = p.issues
     .filter((i): i is string => typeof i === "string" && i.length > 0)
     .slice(0, 8);
-  return details.length > 0 ? `${p.error}\n${details.join("\n")}` : p.error;
+  return details.length > 0 ? `${headline}\n${details.join("\n")}` : headline;
 }
 
 function errorPayloadOf(payload: unknown): string | undefined {
@@ -124,10 +130,8 @@ export async function cancelTranscodeJob(jobId: string): Promise<string> {
     { method: "DELETE" },
   );
   if (!res.ok) {
-    const payload = (await res.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(payload?.error ?? `Cancel failed: ${res.status}`);
+    const payload = (await res.json().catch(() => null)) as unknown;
+    throw new Error(serverErrorMessage(payload) ?? `Cancel failed: ${res.status}`);
   }
   const body = (await res.json()) as { status?: string };
   return body.status ?? "cancelled";

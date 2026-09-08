@@ -1,9 +1,19 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { consumeUpload } from "./upload.js";
+import { err } from "../http.js";
+import {
+  MULTIPART_FIELDS,
+  UPLOAD_ID_HEADER,
+  UPLOAD_ID_QUERY,
+} from "@repo/contracts";
+import {
+  ArtifactStore,
+  AssetStore,
+  FileStoreQuotaError,
+  mimeForExt,
+  store,
+} from "../storage/index.js";
 
 const app = new Hono();
 const PEAK_COUNT = 2400;
@@ -20,21 +30,41 @@ type AudioTrack = {
 };
 
 async function resolveInput(c: Context) {
-  const uploadId = c.req.header("x-upload-id") ?? c.req.query("uploadId");
+  const uploadId =
+    c.req.header(UPLOAD_ID_HEADER) ?? c.req.query(UPLOAD_ID_QUERY);
   if (uploadId) {
-    const inputPath = consumeUpload(uploadId);
-    if (!inputPath || !fs.existsSync(inputPath)) return null;
-    return { inputPath, remove: false };
+    const consumed = consumeUpload(uploadId);
+    if (!consumed) return null;
+    return { assetId: null as string | null, inputPath: consumed.path, remove: false };
   }
   const form = await c.req.formData().catch(() => null);
-  const file = form?.get("file");
+  const file = form?.get(MULTIPART_FIELDS.file);
   if (!(file instanceof File)) return null;
-  const inputPath = path.join(
-    os.tmpdir(),
-    `${crypto.randomUUID()}-${path.basename(file.name)}`,
-  );
-  await Bun.write(inputPath, file);
-  return { inputPath, remove: true };
+  // Record-before-bytes; throws FileStoreQuotaError (handlers map to 507).
+  const size = Number.isFinite(file.size) ? file.size : 0;
+  const quota = store.checkQuota(size);
+  if (!quota.ok) throw new FileStoreQuotaError(size, quota.quotaBytes);
+  const { id, path: inputPath } = AssetStore.reserve({
+    kind: "request-input",
+    filename: file.name || "upload.bin",
+    mime: file.type || undefined,
+    sizeHint: size,
+  });
+  try {
+    await Bun.write(inputPath, file);
+  } catch (e) {
+    AssetStore.release(id);
+    throw e;
+  }
+  AssetStore.finalize(id);
+  return { assetId: id as string | null, inputPath, remove: true };
+}
+
+function quota507(c: Context, e: FileStoreQuotaError) {
+  return err(c, "QUOTA_EXCEEDED", {
+    message: e.message,
+    details: { neededBytes: e.neededBytes, quotaBytes: e.quotaBytes },
+  });
 }
 
 async function run(args: string[]) {
@@ -48,8 +78,15 @@ async function run(args: string[]) {
 }
 
 app.post("/audio/analysis", async (c) => {
-  const input = await resolveInput(c);
-  if (!input) return c.json({ error: "Audio file is required" }, 400);
+  let input: Awaited<ReturnType<typeof resolveInput>>;
+  try {
+    input = await resolveInput(c);
+  } catch (e) {
+    if (e instanceof FileStoreQuotaError) return quota507(c, e);
+    throw e;
+  }
+  if (!input)
+    return err(c, "FILE_REQUIRED", { message: "Audio file is required" });
   try {
     const probe = await run([
       "ffprobe",
@@ -64,7 +101,10 @@ app.post("/audio/analysis", async (c) => {
       input.inputPath,
     ]);
     if (probe.exitCode !== 0)
-      return c.json({ error: "Unable to inspect audio" }, 422);
+      return err(c, "FFPROBE_FAILED", {
+        message: "Unable to inspect audio",
+        details: { ffprobeStderr: probe.stderr.slice(-2000) },
+      });
     const parsed = JSON.parse(new TextDecoder().decode(probe.stdout)) as {
       format?: { duration?: string };
       streams?: Array<{
@@ -89,7 +129,8 @@ app.post("/audio/analysis", async (c) => {
         sampleRate: Number(stream.sample_rate ?? 8000),
       }),
     );
-    if (!tracks.length) return c.json({ error: "No audio tracks found" }, 422);
+    if (!tracks.length)
+      return err(c, "NO_AUDIO_TRACK", { message: "No audio tracks found" });
     const requestedTrack = Number(c.req.query("track") ?? 0);
     const trackIndex =
       Number.isInteger(requestedTrack) &&
@@ -100,7 +141,7 @@ app.post("/audio/analysis", async (c) => {
     const selectedTrack = tracks[trackIndex];
     const sampleRate = selectedTrack.sampleRate;
     if (!Number.isFinite(duration) || duration <= 0)
-      return c.json({ error: "Audio duration unavailable" }, 422);
+      return err(c, "AUDIO_FAILED", { message: "Audio duration unavailable" });
 
     const waveform = await run([
       "ffmpeg",
@@ -120,7 +161,10 @@ app.post("/audio/analysis", async (c) => {
       "pipe:1",
     ]);
     if (waveform.exitCode !== 0)
-      return c.json({ error: "Unable to decode audio waveform" }, 422);
+      return err(c, "AUDIO_FAILED", {
+        message: "Unable to decode audio waveform",
+        details: { ffmpegStderr: waveform.stderr.slice(-2000) },
+      });
     const peaks = new Array<number>(PEAK_COUNT).fill(0);
     const rms = new Array<number>(PEAK_COUNT).fill(0);
     const counts = new Array<number>(PEAK_COUNT).fill(0);
@@ -183,17 +227,30 @@ app.post("/audio/analysis", async (c) => {
         : null,
     });
   } catch {
-    return c.json({ error: "Audio analysis failed" }, 500);
+    return err(c, "INTERNAL", { message: "Audio analysis failed" });
   } finally {
-    if (input.remove) await Bun.$`rm -f ${input.inputPath}`;
+    if (input.remove && input.assetId) AssetStore.release(input.assetId);
   }
 });
 
 app.post("/audio/extract", async (c) => {
-  const input = await resolveInput(c);
-  if (!input) return c.json({ error: "Audio file is required" }, 400);
+  let input: Awaited<ReturnType<typeof resolveInput>>;
+  try {
+    input = await resolveInput(c);
+  } catch (e) {
+    if (e instanceof FileStoreQuotaError) return quota507(c, e);
+    throw e;
+  }
+  if (!input)
+    return err(c, "FILE_REQUIRED", { message: "Audio file is required" });
   const format = c.req.query("format") === "wav" ? "wav" : "mp3";
-  const outputPath = path.join(os.tmpdir(), `${crypto.randomUUID()}.${format}`);
+  // Ephemeral artifact: tracked from reserve, released after streaming.
+  // The 5-minute expiry backstop covers crashes between reserve and finally.
+  const { id: outputId, path: outputPath } = ArtifactStore.reserve({
+    kind: "ephemeral",
+    filename: `extracted.${format}`,
+    mime: mimeForExt(format),
+  });
   try {
     const requestedTrack = Number(c.req.query("track") ?? 0);
     const mapTrack =
@@ -230,8 +287,12 @@ app.post("/audio/extract", async (c) => {
           ];
     const result = await run(args);
     if (result.exitCode !== 0)
-      return c.json({ error: "Audio extraction failed" }, 422);
+      return err(c, "AUDIO_FAILED", {
+        message: "Audio extraction failed",
+        details: { ffmpegStderr: result.stderr.slice(-2000) },
+      });
     const body = await Bun.file(outputPath).arrayBuffer();
+    ArtifactStore.finalize(outputId);
     return new Response(body, {
       headers: {
         "Content-Type": format === "wav" ? "audio/wav" : "audio/mpeg",
@@ -239,8 +300,8 @@ app.post("/audio/extract", async (c) => {
       },
     });
   } finally {
-    await Bun.$`rm -f ${outputPath}`;
-    if (input.remove) await Bun.$`rm -f ${input.inputPath}`;
+    ArtifactStore.release(outputId);
+    if (input.remove && input.assetId) AssetStore.release(input.assetId);
   }
 });
 

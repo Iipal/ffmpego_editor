@@ -294,7 +294,7 @@ export function Sidebar() {
         onSuccess: (result) =>
           toast.success("Video exported.", {
             id: "transcode",
-            description: result.outputPath,
+            description: result.outputFile?.name ?? "Export complete",
           }),
         onError: (error) =>
           toast.error("Video export failed.", {
@@ -643,8 +643,8 @@ export function Sidebar() {
             </Select>
             {state.exportFormat === "webm-tg" && (
               <p className="text-[11px] leading-4 text-kumo-subtle">
-                Telegram sticker preset: 30fps, width 512px, VP9, no audio,
-                up to 3s. Trim, crop, filename and quality apply.
+                Telegram sticker preset: 30fps, width 512px, VP9, no audio, up
+                to 3s. Trim, crop, filename and quality apply.
               </p>
             )}
             <div className="space-y-2 pt-2">

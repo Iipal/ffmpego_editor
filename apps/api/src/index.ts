@@ -5,7 +5,9 @@ import videoRoutes, { getQueueStats } from "./routes/video.js";
 import metadataRoutes from "./routes/metadata.js";
 import audioRoutes from "./routes/audio.js";
 import uploadRoutes from "./routes/upload.js";
-import { startupSweep } from "./db.js";
+import filesRoutes from "./routes/files.js";
+import { listUploads, startupSweep } from "./db.js";
+import { store } from "./storage/index.js";
 import {
   formatBytes,
   getDiskFreeBytes,
@@ -20,6 +22,18 @@ if (sweep.recoveredJobs > 0 || sweep.deletedFiles > 0) {
   systemLog(
     `startup sweep: marked ${sweep.recoveredJobs} interrupted job(s) failed, deleted ${sweep.deletedFiles} orphan file(s)`,
   );
+}
+// AssetStore/ArtifactStore reconciliation: expired + stale-reserved rows,
+// rows whose bytes vanished, and store-root files with no owning row.
+// Live upload sessions are pinned so slow uploads survive a restart sweep.
+{
+  const pin = new Set(listUploads().map((u) => u.temporaryPath));
+  const r = store.reconcile(Date.now(), { pin });
+  if (r.expired + r.staleReserved + r.missing + r.orphans > 0) {
+    systemLog(
+      `store reconcile: freed ${r.bytesFreed} bytes (${r.orphans} orphans, ${r.expired} expired, ${r.staleReserved} stale-reserved, ${r.missing} missing)`,
+    );
+  }
 }
 
 const app = new Hono();
@@ -70,6 +84,7 @@ app.route("/api", uploadRoutes);
 app.route("/api", videoRoutes);
 app.route("/api", metadataRoutes);
 app.route("/api", audioRoutes);
+app.route("/api", filesRoutes);
 
 const PORT = Number(Bun.env.PORT ?? 3100);
 

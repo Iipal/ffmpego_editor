@@ -8,6 +8,7 @@ import { FILENAME_SANITIZE_RE, downloadAndSaveMobile } from "./mobile-helpers";
 import { NOOP } from "@/lib/utils";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
 import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
+import { assertMobileSettings } from "@/lib/validate-settings";
 import { stripExtension } from "@/lib/video-file";
 import { useSelector } from "@tanstack/react-store";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
@@ -104,6 +105,8 @@ export function useMobileExport(args: ExportArgs) {
           ? getAudioRenderSettings(audio.tracks)
           : undefined,
       });
+      // Pre-upload: same schemas the API enforces — fail before upload bytes.
+      assertMobileSettings(settingsJson);
       let res: Response;
       if (shouldUseChunked(file)) {
         const { uploadId } = await uploadFileChunked(file, {

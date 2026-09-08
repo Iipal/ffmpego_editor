@@ -9,6 +9,7 @@ import type { MobileLayout } from "@/lib/mobile-layout";
 import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
 import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
+import { assertCutSettings } from "@/lib/validate-settings";
 import { stripExtension } from "@/lib/video-file";
 import { useSelector } from "@tanstack/react-store";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
@@ -91,6 +92,8 @@ export function useCutExport({
     setIsExporting(true);
     toast.loading(`Exporting ${cuts.length} cut(s)…`, { id: "cut-export" });
     try {
+      // Pre-upload: same schemas the API enforces — fail before upload bytes.
+      assertCutSettings(settingsJson);
       const [{ API_BASE_URL }, chunkedMod] = await Promise.all([
         import("@/lib/api-client"),
         import("@/lib/upload-chunked"),

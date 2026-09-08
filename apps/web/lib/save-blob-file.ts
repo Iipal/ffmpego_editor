@@ -1,5 +1,6 @@
 // Shared blob-saving: File System Access picker with anchor-download fallback.
 // Deduped from cut / subtitles / mobile / bulk export flows (were 4 copies).
+import { serverErrorMessage } from "./transcode-jobs";
 
 export type SavePickerTypes = Array<{
   description?: string;
@@ -51,10 +52,10 @@ export async function saveBlobFile(
 export async function fetchDownloadBlob(downloadUrl: string): Promise<Blob> {
   const res = await fetch(downloadUrl);
   if (!res.ok) {
-    const payload = (await res.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(payload?.error ?? `Download failed: ${res.status}`);
+    const payload = (await res.json().catch(() => null)) as unknown;
+    throw new Error(
+      serverErrorMessage(payload) ?? `Download failed: ${res.status}`,
+    );
   }
   return res.blob();
 }

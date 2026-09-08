@@ -11,6 +11,7 @@ import {
   queuedLabel,
   throwTranscodeHttpError,
 } from "@/lib/transcode-jobs";
+import { assertMobileSettings } from "@/lib/validate-settings";
 import { stripExtension } from "@/lib/video-file";
 
 export type UseSubtitleExportArgs = {
@@ -93,21 +94,21 @@ export function useSubtitleExport({
       });
       const fd = new FormData();
       fd.append("file", file);
-      fd.append(
-        "settings",
-        JSON.stringify({
-          mobileLayout: layout,
-          sourceWidth: sw,
-          sourceHeight: sh,
-          trimRange: [trimStart, trimEnd],
-          exportFormat: "mp4",
-          exportFps: 30,
-          exportFilename: baseName,
-          exportQuality: 10,
-          exportSpeed: 1,
-          customFFmpegArgs: "",
-        }),
-      );
+      const settingsJson = JSON.stringify({
+        mobileLayout: layout,
+        sourceWidth: sw,
+        sourceHeight: sh,
+        trimRange: [trimStart, trimEnd],
+        exportFormat: "mp4",
+        exportFps: 30,
+        exportFilename: baseName,
+        exportQuality: 10,
+        exportSpeed: 1,
+        customFFmpegArgs: "",
+      });
+      // Pre-upload: same schemas the API enforces — fail before upload bytes.
+      assertMobileSettings(settingsJson);
+      fd.append("settings", settingsJson);
       // js-cache-property-access: cache rendered.length
       const renderedLen = rendered.length;
       const subtitlesMeta: Array<{

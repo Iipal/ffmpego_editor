@@ -21,6 +21,12 @@ export interface JobRow {
   exitCode: number | null;
   temporaryInputPath: string;
   subtitlePaths: string[];
+  /** Opaque AssetStore/ArtifactStore IDs. Path columns are write-mirrors kept
+   *  for crash-time readability; all live file access goes through the IDs. */
+  inputFileId: string | null;
+  outputFileId: string | null;
+  alternateFileId: string | null;
+  subtitleFileIds: string[];
   createdAt: number;
   updatedAt: number;
   kind: string;
@@ -33,6 +39,8 @@ export interface UploadRow {
   totalSize: number;
   received: number;
   temporaryPath: string;
+  /** Owning AssetStore record for the pre-allocated session file. */
+  fileId: string | null;
   createdAt: number;
   chunks: number[];
 }
@@ -80,12 +88,21 @@ CREATE TABLE IF NOT EXISTS uploads (
 
 // B4: numeric ffmpeg exit code (null while pending / spawn failure).
 // ALTER TABLE has no IF NOT EXISTS — guard via PRAGMA so restarts don't crash.
-const jobColumns = db.prepare(`PRAGMA table_info(jobs)`).all() as {
-  name: string;
-}[];
-if (!jobColumns.some((c) => c.name === "exitCode")) {
-  db.exec(`ALTER TABLE jobs ADD COLUMN exitCode INTEGER;`);
+function ensureColumn(table: string, column: string, ddl: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string;
+  }[];
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl};`);
+  }
 }
+ensureColumn("jobs", "exitCode", "INTEGER");
+// AssetStore/ArtifactStore ownership (opaque file IDs; path cols stay as mirrors).
+ensureColumn("jobs", "inputFileId", "TEXT");
+ensureColumn("jobs", "outputFileId", "TEXT");
+ensureColumn("jobs", "alternateFileId", "TEXT");
+ensureColumn("jobs", "subtitleFileIds", "TEXT DEFAULT '[]'");
+ensureColumn("uploads", "fileId", "TEXT");
 
 function rowToJob(r: Record<string, unknown>): JobRow {
   return {
@@ -99,6 +116,10 @@ function rowToJob(r: Record<string, unknown>): JobRow {
     exitCode: (r.exitCode as number | null) ?? null,
     temporaryInputPath: String(r.temporaryInputPath),
     subtitlePaths: JSON.parse(String(r.subtitlePaths ?? "[]")) as string[],
+    inputFileId: (r.inputFileId as string | null) ?? null,
+    outputFileId: (r.outputFileId as string | null) ?? null,
+    alternateFileId: (r.alternateFileId as string | null) ?? null,
+    subtitleFileIds: JSON.parse(String(r.subtitleFileIds ?? "[]")) as string[],
     createdAt: Number(r.createdAt),
     updatedAt: Number(r.updatedAt),
     kind: String(r.kind ?? "transcode"),
@@ -109,8 +130,8 @@ function rowToJob(r: Record<string, unknown>): JobRow {
 // ---- Jobs ----
 export function insertJob(job: Omit<JobRow, "updatedAt">): void {
   db.prepare(
-    `INSERT INTO jobs (jobId, status, progress, outputPath, alternateOutputPath, error, logTail, temporaryInputPath, subtitlePaths, createdAt, updatedAt, kind, filename)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO jobs (jobId, status, progress, outputPath, alternateOutputPath, error, logTail, temporaryInputPath, subtitlePaths, inputFileId, outputFileId, alternateFileId, subtitleFileIds, createdAt, updatedAt, kind, filename)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     job.jobId,
     job.status,
@@ -121,6 +142,10 @@ export function insertJob(job: Omit<JobRow, "updatedAt">): void {
     job.logTail,
     job.temporaryInputPath,
     JSON.stringify(job.subtitlePaths),
+    job.inputFileId,
+    job.outputFileId,
+    job.alternateFileId,
+    JSON.stringify(job.subtitleFileIds),
     job.createdAt,
     Date.now(),
     job.kind,
@@ -153,6 +178,7 @@ export function updateJob(
       | "logTail"
       | "exitCode"
       | "alternateOutputPath"
+      | "alternateFileId"
     >
   >,
 ): void {
@@ -182,6 +208,10 @@ export function updateJob(
     sets.push("alternateOutputPath = ?");
     vals.push(patch.alternateOutputPath);
   }
+  if (patch.alternateFileId !== undefined) {
+    sets.push("alternateFileId = ?");
+    vals.push(patch.alternateFileId);
+  }
   if (!sets.length) return;
   sets.push("updatedAt = ?");
   vals.push(Date.now());
@@ -196,14 +226,15 @@ export function deleteJob(jobId: string): void {
 // ---- Uploads ----
 export function insertUpload(u: UploadRow): void {
   db.prepare(
-    `INSERT OR REPLACE INTO uploads (uploadId, filename, totalSize, received, temporaryPath, createdAt, chunks)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO uploads (uploadId, filename, totalSize, received, temporaryPath, fileId, createdAt, chunks)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     u.uploadId,
     u.filename,
     u.totalSize,
     u.received,
     u.temporaryPath,
+    u.fileId,
     u.createdAt,
     JSON.stringify(u.chunks),
   );
@@ -220,6 +251,7 @@ export function getUpload(uploadId: string): UploadRow | null {
     totalSize: Number(r.totalSize),
     received: Number(r.received),
     temporaryPath: String(r.temporaryPath),
+    fileId: (r.fileId as string | null) ?? null,
     createdAt: Number(r.createdAt),
     chunks: JSON.parse(String(r.chunks ?? "[]")) as number[],
   };
@@ -261,6 +293,7 @@ export function listUploads(): UploadRow[] {
     totalSize: Number(r.totalSize),
     received: Number(r.received),
     temporaryPath: String(r.temporaryPath),
+    fileId: (r.fileId as string | null) ?? null,
     createdAt: Number(r.createdAt),
     chunks: JSON.parse(String(r.chunks ?? "[]")) as number[],
   }));
