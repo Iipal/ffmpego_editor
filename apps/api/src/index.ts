@@ -1,30 +1,44 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import os from "node:os";
 import videoRoutes, { getQueueStats } from "./routes/video.js";
 import metadataRoutes from "./routes/metadata.js";
 import uploadRoutes from "./routes/upload.js";
 import { startupSweep } from "./db.js";
+import {
+  formatBytes,
+  getDiskFreeBytes,
+  getFfmpegVersion,
+  systemError,
+  systemLog,
+} from "./observability.js";
 
 // B1: recover interrupted jobs + sweep orphan temp files from crashes.
 const sweep = startupSweep();
 if (sweep.recoveredJobs > 0 || sweep.deletedFiles > 0) {
-  console.log(
-    `[api] startup sweep: marked ${sweep.recoveredJobs} interrupted job(s) failed, deleted ${sweep.deletedFiles} orphan file(s)`,
+  systemLog(
+    `startup sweep: marked ${sweep.recoveredJobs} interrupted job(s) failed, deleted ${sweep.deletedFiles} orphan file(s)`,
   );
 }
 
 const app = new Hono();
-app.use("/api/*", cors({
-  origin: "*",
-  allowMethods: ["GET", "POST", "DELETE", "OPTIONS", "PATCH", "PUT"],
-  allowHeaders: ["*"],
-  exposeHeaders: ["*"],
-  credentials: false,
-  maxAge: 86400,
-}));
+app.use(
+  "/api/*",
+  cors({
+    origin: "*",
+    allowMethods: ["GET", "POST", "DELETE", "OPTIONS", "PATCH", "PUT"],
+    allowHeaders: ["*"],
+    exposeHeaders: ["*"],
+    credentials: false,
+    maxAge: 86400,
+  }),
+);
 app.onError((err, c) => {
-  console.error("[api] unhandled error:", err);
-  return c.json({ error: err instanceof Error ? err.message : "Internal Server Error" }, 500);
+  systemError("unhandled error:", err);
+  return c.json(
+    { error: err instanceof Error ? err.message : "Internal Server Error" },
+    500,
+  );
 });
 app.notFound((c) => c.json({ error: "Not Found" }, 404));
 
@@ -34,10 +48,18 @@ app.get("/", (c) => {
 });
 
 app.get("/health", (c) => {
+  // B5: ops snapshot — ffmpeg build, tmpdir disk headroom, queue depth.
+  // Disk/version probes are failure-tolerant (null when unavailable).
+  const tmpdir = os.tmpdir();
+  const diskFreeBytes = getDiskFreeBytes(tmpdir);
   return c.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     ffmpegPath: "/usr/bin/ffmpeg",
+    ffmpegVersion: getFfmpegVersion(),
+    tmpdir,
+    diskFreeBytes,
+    diskFreeHuman: diskFreeBytes == null ? null : formatBytes(diskFreeBytes),
     queue: getQueueStats(),
   });
 });
@@ -58,3 +80,9 @@ const server = Bun.serve({
 });
 
 console.log(`API Server running on ${server.url}`);
+{
+  const free = getDiskFreeBytes(os.tmpdir());
+  systemLog(
+    `ffmpeg: ${getFfmpegVersion() ?? "version probe failed"}; tmpdir ${os.tmpdir()} free ${free == null ? "unknown" : formatBytes(free)}`,
+  );
+}

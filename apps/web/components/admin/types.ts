@@ -18,6 +18,7 @@ export interface JobEntry {
   alternateOutputPath?: string;
   error?: string;
   logTail?: string | null;
+  exitCode?: number | null;
   kind?: string;
   filename?: string;
   queuePosition?: number | null;

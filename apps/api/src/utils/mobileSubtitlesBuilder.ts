@@ -34,7 +34,8 @@ export interface MobileSubtitlesOptions {
   format?: "mp4" | "webm" | "mov";
   fps?: number;
   crf?: number;
-  customArgs?: string;
+  /** Pre-parsed extra flags (see parseCustomArgs in validation.ts). */
+  customArgs?: string[];
   outputPath?: string;
   filename: string;
   speed?: number;
@@ -53,7 +54,16 @@ function buildFormatArgs(format: "mp4" | "webm" | "mov", crf?: number) {
       : 23;
   switch (format) {
     case "webm":
-      return ["-c:v", "libvpx-vp9", "-crf", String(normalizedCrf), "-b:v", "0", "-an"];
+      return [
+        "-c:v",
+        "libvpx-vp9",
+        "-crf",
+        String(normalizedCrf),
+        "-b:v",
+        "0",
+        "-c:a",
+        "libopus",
+      ];
     case "mov":
       return [
         "-c:v",
@@ -99,7 +109,9 @@ function buildFormatArgs(format: "mp4" | "webm" | "mov", crf?: number) {
  * We use overlay expressions: x='W*0.5-w/2' style -> centered at percent.
  * enable='between(t,scaledStart,scaledEnd)' where scaled times are adjusted for trim + speed.
  */
-export function buildMobileSubtitlesArgs(options: MobileSubtitlesOptions): string[] {
+export function buildMobileSubtitlesArgs(
+  options: MobileSubtitlesOptions,
+): string[] {
   const format = options.format ?? "mp4";
   const trimStart = options.trimRange[0];
   const trimEnd = options.trimRange[1];
@@ -107,16 +119,54 @@ export function buildMobileSubtitlesArgs(options: MobileSubtitlesOptions): strin
   const hasSpeed = speed !== 1 && Number.isFinite(speed) && speed > 0;
   const setpts = hasSpeed ? `,setpts=${(1 / speed).toFixed(6)}*PTS` : "";
 
-  const toCrop = (z: { x: number; y: number; width: number; height: number; zoom: number }) => {
-    const cw = Math.max(1, Math.min(options.sourceWidth, Math.round((z.width / 100) * options.sourceWidth)));
-    const ch = Math.max(1, Math.min(options.sourceHeight, Math.round((z.height / 100) * options.sourceHeight)));
-    const cx = Math.max(0, Math.min(options.sourceWidth - cw, Math.round((z.x / 100) * options.sourceWidth)));
-    const cy = Math.max(0, Math.min(options.sourceHeight - ch, Math.round((z.y / 100) * options.sourceHeight)));
+  const toCrop = (z: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    zoom: number;
+  }) => {
+    const cw = Math.max(
+      1,
+      Math.min(
+        options.sourceWidth,
+        Math.round((z.width / 100) * options.sourceWidth),
+      ),
+    );
+    const ch = Math.max(
+      1,
+      Math.min(
+        options.sourceHeight,
+        Math.round((z.height / 100) * options.sourceHeight),
+      ),
+    );
+    const cx = Math.max(
+      0,
+      Math.min(
+        options.sourceWidth - cw,
+        Math.round((z.x / 100) * options.sourceWidth),
+      ),
+    );
+    const cy = Math.max(
+      0,
+      Math.min(
+        options.sourceHeight - ch,
+        Math.round((z.y / 100) * options.sourceHeight),
+      ),
+    );
     return { cw, ch, cx, cy };
   };
 
   // Base args: trim + video input + png loop inputs
-  const args: string[] = ["-y", "-ss", String(trimStart), "-to", String(trimEnd), "-i", options.inputPath];
+  const args: string[] = [
+    "-y",
+    "-ss",
+    String(trimStart),
+    "-to",
+    String(trimEnd),
+    "-i",
+    options.inputPath,
+  ];
 
   for (const p of options.subtitlePngPaths) {
     args.push("-loop", "1", "-i", p);
@@ -163,9 +213,25 @@ export function buildMobileSubtitlesArgs(options: MobileSubtitlesOptions): strin
       } else {
         afilter = `atempo=${atempo.toFixed(6)}`;
       }
-      args.push("-filter_complex", filterComplex, "-map", "[v]", "-map", "0:a", "-filter:a", afilter);
+      args.push(
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[v]",
+        "-map",
+        "0:a",
+        "-filter:a",
+        afilter,
+      );
     } else {
-      args.push("-filter_complex", filterComplex, "-map", "[v]", "-map", "0:a?");
+      args.push(
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[v]",
+        "-map",
+        "0:a?",
+      );
     }
   } else {
     // Build overlay chain
@@ -209,23 +275,40 @@ export function buildMobileSubtitlesArgs(options: MobileSubtitlesOptions): strin
       } else {
         afilter = `atempo=${atempo.toFixed(6)}`;
       }
-      args.push("-filter_complex", filterComplex, "-map", "[vout]", "-map", "0:a", "-filter:a", afilter);
+      args.push(
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[vout]",
+        "-map",
+        "0:a",
+        "-filter:a",
+        afilter,
+      );
     } else {
-      args.push("-filter_complex", filterComplex, "-map", "[vout]", "-map", "0:a?");
+      args.push(
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[vout]",
+        "-map",
+        "0:a?",
+      );
     }
   }
 
   if (options.fps) args.push("-r", String(options.fps));
 
-  if (options.customArgs) {
-    const sanitized = options.customArgs.trim().split(/\s+/).filter(Boolean);
-    if (sanitized.length) args.push(...sanitized);
-  }
+  // Pre-parsed via parseCustomArgs (shell-quote + structural denylist).
+  // NOTE: -vf is denied at parse time (this builder owns a filter_complex).
+  if (options.customArgs?.length) args.push(...options.customArgs);
 
   // Ensure output stops at shortest (video) when png loops infinitely
   if (N > 0) args.push("-shortest");
 
-  const outputName = options.outputPath ?? path.join(OUTPUT_DIRECTORY, `${options.filename}.${format}`);
+  const outputName =
+    options.outputPath ??
+    path.join(OUTPUT_DIRECTORY, `${options.filename}.${format}`);
   args.push("-progress", "pipe:2", "-nostats", outputName);
 
   return args;

@@ -17,7 +17,11 @@ import { API_BASE_URL } from "./api-client";
 export class TranscodeHttpError extends Error {
   status: number;
   retryAfterMs: number | null;
-  constructor(status: number, message: string, retryAfterMs: number | null = null) {
+  constructor(
+    status: number,
+    message: string,
+    retryAfterMs: number | null = null,
+  ) {
     super(message);
     this.name = "TranscodeHttpError";
     this.status = status;
@@ -43,12 +47,25 @@ export function parseRetryAfterMs(value: string | null): number | null {
   return null;
 }
 
-function errorPayloadOf(payload: unknown): string | undefined {
-  if (payload && typeof payload === "object" && "error" in payload) {
-    const e = (payload as { error?: unknown }).error;
-    if (typeof e === "string" && e.length > 0) return e;
+/**
+ * B4: backend 400s now return `{ error, issues }` (zod details). Combine both
+ * so toasts show the per-field reasons instead of just the headline.
+ */
+export function serverErrorMessage(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object" || !("error" in payload)) {
+    return undefined;
   }
-  return undefined;
+  const p = payload as { error?: unknown; issues?: unknown };
+  if (typeof p.error !== "string" || p.error.length === 0) return undefined;
+  if (!Array.isArray(p.issues) || p.issues.length === 0) return p.error;
+  const details = p.issues
+    .filter((i): i is string => typeof i === "string" && i.length > 0)
+    .slice(0, 8);
+  return details.length > 0 ? `${p.error}\n${details.join("\n")}` : p.error;
+}
+
+function errorPayloadOf(payload: unknown): string | undefined {
+  return serverErrorMessage(payload);
 }
 
 /** User-facing message for a failed transcode POST. 429 explains the queue. */

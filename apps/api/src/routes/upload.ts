@@ -2,12 +2,8 @@ import { Hono } from "hono";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  deleteUpload,
-  getUpload,
-  insertUpload,
-  updateUpload,
-} from "../db.js";
+import { deleteUpload, getUpload, insertUpload, updateUpload } from "../db.js";
+import { getDiskFreeBytes, uploadLog } from "../observability.js";
 
 const app = new Hono();
 
@@ -26,15 +22,19 @@ function removeSessionFiles(temporaryPath: string, uploadId: string) {
 }
 
 // Sweep stale sessions (>6h) every 30min — DB-backed so it survives restarts.
-setInterval(() => {
-  const cutoff = Date.now() - 6 * 60 * 60 * 1000;
-  // listUploads imported lazily to avoid cycle cost at module top? static is fine.
-  void import("../db.js").then(({ listUploads }) => {
-    for (const u of listUploads()) {
-      if (u.createdAt < cutoff) removeSessionFiles(u.temporaryPath, u.uploadId);
-    }
-  });
-}, 30 * 60 * 1000).unref?.();
+setInterval(
+  () => {
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+    // listUploads imported lazily to avoid cycle cost at module top? static is fine.
+    void import("../db.js").then(({ listUploads }) => {
+      for (const u of listUploads()) {
+        if (u.createdAt < cutoff)
+          removeSessionFiles(u.temporaryPath, u.uploadId);
+      }
+    });
+  },
+  30 * 60 * 1000,
+).unref?.();
 
 // POST /upload/init — create session, pre-allocate temp file
 // Body JSON: { filename, totalSize, chunkSize? }
@@ -47,12 +47,29 @@ app.post("/upload/init", async (c) => {
   }
   const filename = (body.filename ?? "").trim() || "upload.bin";
   const totalSize = Number(body.totalSize);
-  if (!Number.isFinite(totalSize) || totalSize <= 0 || totalSize > MAX_UPLOAD_BYTES)
+  if (
+    !Number.isFinite(totalSize) ||
+    totalSize <= 0 ||
+    totalSize > MAX_UPLOAD_BYTES
+  )
     return c.json({ error: `totalSize must be 1..${MAX_UPLOAD_BYTES}` }, 400);
   const chunkSize = Math.min(
     Math.max(1 * 1024 * 1024, Number(body.chunkSize) || DEFAULT_CHUNK_BYTES),
     64 * 1024 * 1024,
   );
+  // B5: disk-quota gate — refuse to pre-allocate when tmpdir cannot hold the
+  // declared file (507 so clients can surface "server disk full" distinctly).
+  const diskFree = getDiskFreeBytes(os.tmpdir());
+  if (diskFree != null && totalSize > diskFree) {
+    return c.json(
+      {
+        error: `Insufficient server disk space: need ${totalSize} bytes, ${diskFree} available`,
+        neededBytes: totalSize,
+        diskFreeBytes: diskFree,
+      },
+      507,
+    );
+  }
   const uploadId = crypto.randomUUID();
   const safeName = path.basename(filename).replace(SAFE_NAME_RE, "_");
   const temporaryPath = path.join(os.tmpdir(), `${uploadId}-${safeName}`);
@@ -71,6 +88,10 @@ app.post("/upload/init", async (c) => {
     createdAt: Date.now(),
     chunks: [],
   });
+  uploadLog(
+    uploadId,
+    `init ${safeName} (${totalSize} bytes, chunk ${chunkSize})`,
+  );
   return c.json({ uploadId, temporaryPath, chunkSize, totalSize });
 });
 
@@ -82,10 +103,16 @@ app.post("/upload/chunk/:uploadId", async (c) => {
   if (!s) return c.json({ error: "Upload session not found" }, 404);
 
   const indexStr = c.req.header("x-chunk-index") ?? c.req.query("index") ?? "0";
-  const offsetStr = c.req.header("x-chunk-offset") ?? c.req.query("offset") ?? "0";
+  const offsetStr =
+    c.req.header("x-chunk-offset") ?? c.req.query("offset") ?? "0";
   const index = Number(indexStr);
   const offset = Number(offsetStr);
-  if (!Number.isFinite(index) || !Number.isFinite(offset) || offset < 0 || offset >= s.totalSize)
+  if (
+    !Number.isFinite(index) ||
+    !Number.isFinite(offset) ||
+    offset < 0 ||
+    offset >= s.totalSize
+  )
     return c.json({ error: "Invalid index/offset" }, 400);
 
   // Idempotent: if already received this index, return success without re-writing
@@ -120,7 +147,14 @@ app.post("/upload/chunk/:uploadId", async (c) => {
   if (received > s.totalSize) received = s.totalSize;
   updateUpload(uploadId, { received, chunks });
 
-  return c.json({ ok: true, uploadId, index, offset, received, totalSize: s.totalSize });
+  return c.json({
+    ok: true,
+    uploadId,
+    index,
+    offset,
+    received,
+    totalSize: s.totalSize,
+  });
 });
 
 // POST /upload/complete/:uploadId — verify size, trim sparse tail if needed
@@ -138,7 +172,9 @@ app.post("/upload/complete/:uploadId", async (c) => {
     }
   } catch (e) {
     return c.json(
-      { error: `Temp file missing: ${e instanceof Error ? e.message : String(e)}` },
+      {
+        error: `Temp file missing: ${e instanceof Error ? e.message : String(e)}`,
+      },
       500,
     );
   }

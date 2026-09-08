@@ -56,7 +56,8 @@ export interface CutTranscodeOptions {
   fps?: number;
   crf?: number;
   speed?: number;
-  customArgs?: string;
+  /** Pre-parsed extra flags (see parseCustomArgs in validation.ts). */
+  customArgs?: string[];
   outputPath?: string;
   watermark?: boolean;
 }
@@ -219,14 +220,9 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
 
   if (options.fps) args.push("-r", String(options.fps));
 
-  if (options.customArgs) {
-    const extra = options.customArgs
-      .replace(/(^|\s)-an(\s|$)/g, " ")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-    if (extra.length) args.push(...extra);
-  }
+  // Pre-parsed via parseCustomArgs (shell-quote + structural denylist).
+  // NOTE: no -an strip here anymore — routes sanitize; -vf is denied at parse.
+  if (options.customArgs?.length) args.push(...options.customArgs);
 
   args.push("-progress", "pipe:2", "-nostats", outputName);
   return args;

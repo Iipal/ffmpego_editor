@@ -50,15 +50,17 @@ Conventions: `- [ ]` = pending. Priority `P0` (critical) → `P2` (nice-to-have)
 - [ ] Delete `store/ffmpeg-store.tsx` (unused), stale `apps/api/dist/ffmpeg.js` (no source), fix `packages/ui` missing vs README
 - [ ] Add `tsc --noEmit` + `eslint` to CI (`turbo lint`)
 
-### B4. [P0] Stream downloads, strict validation
-- [ ] Replace `Bun.file().arrayBuffer()` in `GET /transcode/download/:id` with `stream() + Content-Length + Range` (10GB OOM today)
-- [ ] Shared `zod` schemas client/server for `trim/crop/zones/cuts/fps/crf/speed`; `shell-quote` parsing for `customArgs`
-- [ ] Fix `webm` silent force `fps=30,scale=512:-1 -an`; return `exitCode + last 50 stderr lines`; SSE heartbeat (currently 5m hard cap)
+### B4. [P0] Stream downloads, strict validation — DONE 2026-09-08
+- [x] `GET /transcode/download/:id` streams from disk (`Bun.file` + `slice` for Range, `Content-Length`, `Accept-Ranges`, single-range `206`, per-ext `Content-Type` mp4/webm/mov) — verified `200` full + `206 bytes 0-99` live
+- [x] `apps/api/src/validation.ts` (zod `4.5.4`): `genericSettingsSchema` (crop-or-mobile refine), `mobileSettingsSchema`, `cutSettingsSchema` (sorted non-overlap, zones, stack split), `parseSettingsJson` → `400 + issues`; client/server sharing deferred to B3 (`@repo/types`)
+- [x] `parseCustomArgs` via `shell-quote`: rejects non-string operator tokens, structural deny-list (`-i/-ss/-to/-t/-progress/-nostats/-map/-filter_complex/-filter:a/-f/-y/-n`), bare positionals only after flags; `-vf` merges into `-vf` chain (generic path) else `400`; verified denied `-i → 400` + `-vf eq=… → accepted` live
+- [x] `webm` keeps audio (`libopus`, respects `fps`/resolution — verified 128x128@10fps + opus live); `exitCode INTEGER` column (PRAGMA-guarded migration) surfaced in jobs payload + SSE + Admin `(exit N)` badge; per-job SSE heartbeat `: heartbeat` every 15s, 5m hard cap removed
 
-### B5. [P0] Tests + observability for media engine
-- [ ] `bun test` for `buildFFmpegArgs/buildCutArgs/buildSubtitlesArgs`: pixel clamp, split `0.2–0.8`, overlap, timed overlay math
-- [ ] `ffprobe` golden JSON fixtures; differentiate `422 no video stream` vs `500 spawn fail`
-- [ ] `/health` reports `ffmpeg version, disk free, queue depth`; structured `jobId`-tagged logs; disk-quota check before `init/complete`
+### B5. [P0] Tests + observability for media engine — DONE 2026-09-08
+- [x] `bun test` (25 tests, `apps/api/test/`): crop pixel clamp/overflow, split `0.2–0.8` + halves sum, cut sort/concat, subtitle `between(t)` trim+speed math, atempo chains, webm-opus, `-vf` merge/throw, fps/trim flags
+- [x] Golden ffprobe fixtures (`test/fixtures/ffprobe-av.json` from real `testsrc+sine` probe, audio-only, empty) + `extractVideoMetadata` pure helper; routes differentiate `500 spawn fail` vs `422 rejected file (+stderr tail)` vs `422 no video stream`
+- [x] `/health` reports `ffmpegVersion, tmpdir, diskFreeBytes/Human, queue`; jobId-tagged logs (`[job <id>]`, `[upload <id>]`, `[api]`, replaces `ARGS` dumps); disk-quota gate on `upload/init` → `507 + neededBytes`
+- [x] Drive-by: `mobileSubtitlesBuilder` webm `-an` → `libopus` (B4 fix missed that builder); fixed `process.stderr/stdout` tsc union errors; added `"test": "bun test"` script (tests live outside `src/` so `tsc` build unaffected)
 
 ## Suggested Order
 1. B1 + B2 (data loss / OOM)

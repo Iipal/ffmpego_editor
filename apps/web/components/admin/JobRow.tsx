@@ -105,11 +105,13 @@ export const JobRow = memo(function JobRow({
           </div>
           {job.error ? (
             <p className="mt-1 text-xs text-red-600 wrap-break-word">
+              {typeof job.exitCode === "number"
+                ? `(exit ${job.exitCode}) `
+                : null}
               {job.error}
             </p>
           ) : null}
-          {job.status === "queued" &&
-          typeof job.queuePosition === "number" ? (
+          {job.status === "queued" && typeof job.queuePosition === "number" ? (
             <p className="mt-1 text-xs text-kumo-subtle">
               Queue position #{job.queuePosition + 1} — waiting for a worker…
             </p>

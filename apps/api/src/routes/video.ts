@@ -7,6 +7,18 @@ import { buildFFmpegArgs } from "../utils/ffmpegBuilder.js";
 import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { consumeUpload } from "./upload.js";
+import { jobError, jobLog, systemError } from "../observability.js";
+import {
+  cutSettingsSchema,
+  genericSettingsSchema,
+  mobileSettingsSchema,
+  normalizeTrimAlias,
+  parseCustomArgs,
+  parseSettingsJson,
+  type CutSettings,
+  type GenericSettings,
+  type MobileSettings,
+} from "../validation.js";
 import {
   deleteJob,
   getJob,
@@ -67,7 +79,15 @@ function tempOutputPath(jobId: string, suffix: string, ext: string): string {
   return path.join(os.tmpdir(), `temp_${jobId}${suffix}.${ext}`);
 }
 
-function cleanupJobFiles(job: Pick<JobRow, "outputPath" | "alternateOutputPath" | "temporaryInputPath" | "subtitlePaths">) {
+function cleanupJobFiles(
+  job: Pick<
+    JobRow,
+    | "outputPath"
+    | "alternateOutputPath"
+    | "temporaryInputPath"
+    | "subtitlePaths"
+  >,
+) {
   for (const p of [
     job.outputPath,
     job.alternateOutputPath,
@@ -141,39 +161,28 @@ function enqueue(jobId: string, start: () => Promise<void>): boolean {
 }
 
 function createQueuedJob(
-  init: Omit<JobRow, "status" | "progress" | "error" | "logTail" | "updatedAt">,
+  init: Omit<
+    JobRow,
+    "status" | "progress" | "error" | "logTail" | "exitCode" | "updatedAt"
+  >,
 ): JobRow {
-  insertJob({ ...init, status: "queued", progress: 0, error: null, logTail: null });
+  insertJob({
+    ...init,
+    status: "queued",
+    progress: 0,
+    error: null,
+    logTail: null,
+    exitCode: null,
+  });
   return getJob(init.jobId)!;
 }
 
-interface TranscodeSettings {
-  sourceWidth: number;
-  sourceHeight: number;
-  trimRange: [number, number];
-  ignoreTrim?: boolean;
-  ignoreTrimSettings?: boolean;
-  crop: { x: number; y: number; width: number; height: number };
-  exportFormat: "mp4" | "webm" | "mov";
-  exportFps: number;
-  exportFilename: string;
-  exportQuality: number;
-  exportSpeed: number;
-  customFFmpegArgs: string;
-  watermark?: boolean;
-  mobileLayout?: {
-    mode: "full" | "stacked";
-    splitRatio: number;
-    zones: Array<{
-      id: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      zoom: number;
-    }>;
-  } | null;
-}
+// B4: strict zod schemas (validation.ts) replace the hand-rolled validators.
+// 400s now carry structured `issues`; client/server schema sharing waits on
+// B3 (@repo/types).
+export type TranscodeSettings = GenericSettings;
+export type MobileTranscodeSettings = MobileSettings;
+export type CutTranscodeSettings = CutSettings;
 
 const app = new Hono();
 
@@ -214,51 +223,6 @@ async function resolveInputFile(
   const tmp = path.join(os.tmpdir(), `${jobIdTmp}-${path.basename(file.name)}`);
   await Bun.write(tmp, file);
   return { temporaryPath: tmp, filename: file.name, isChunked: false };
-}
-
-/**
- * Parse and validate the JSON settings object from the form payload.
- *
- * This protects the exporter from malformed user input before building the
- * FFmpeg command.
- */
-function parseSettings(
-  value: FormDataEntryValue | null,
-): TranscodeSettings | null {
-  if (typeof value !== "string") return null;
-  try {
-    const settings = JSON.parse(value) as TranscodeSettings;
-    console.log("Parsed settings:", settings);
-    console.log({
-      sourceWidth: !Number.isFinite(settings.sourceWidth),
-      sourceHeight: !Number.isFinite(settings.sourceHeight),
-      trimRangeInvalid:
-        !Array.isArray(settings.trimRange) || settings.trimRange.length !== 2,
-      cropInvalid: !settings.crop,
-      exportFpsInvalid: !Number.isFinite(settings.exportFps),
-      exportFilenameInvalid: !settings.exportFilename,
-      exportSpeedInvalid: !Number.isFinite(settings.exportSpeed),
-      exportQualityInvalid: !Number.isFinite(settings.exportQuality),
-    });
-    const hasCrop = !!settings.crop;
-    const hasMobile = !!settings.mobileLayout;
-    if (
-      !Number.isFinite(settings.sourceWidth) ||
-      !Number.isFinite(settings.sourceHeight) ||
-      !Array.isArray(settings.trimRange) ||
-      settings.trimRange.length !== 2 ||
-      (!hasCrop && !hasMobile) ||
-      !Number.isFinite(settings.exportFps) ||
-      !settings.exportFilename ||
-      !Number.isFinite(settings.exportSpeed) ||
-      !Number.isFinite(settings.exportQuality)
-    ) {
-      return null;
-    }
-    return settings;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -338,14 +302,19 @@ async function runTranscode(jobId: string, args: string[], duration: number) {
     if (current?.status === "cancelled") return;
     const code = await proc.exited;
     if (code === 0) {
-      updateJob(jobId, { status: "completed", progress: 100 });
+      updateJob(jobId, { status: "completed", progress: 100, exitCode: 0 });
+      jobLog(jobId, "completed (exit 0)");
     } else {
+      // B4: numeric exitCode column replaces exit-code-in-string parsing;
+      // last-5-lines summary kept for human readability.
       const tail = getJob(jobId)?.logTail ?? "";
       const last = tail.split("\n").slice(-5).join("\n");
       updateJob(jobId, {
         status: "failed",
+        exitCode: code,
         error: `FFmpeg exited with code ${code}.${last ? `\nLast output:\n${last}` : ""}`,
       });
+      jobError(jobId, `failed (exit ${code})`);
     }
   } catch (error) {
     const current = getJob(jobId);
@@ -354,77 +323,9 @@ async function runTranscode(jobId: string, args: string[], duration: number) {
       status: "failed",
       error: error instanceof Error ? error.message : "FFmpeg failed to start.",
     });
+    jobError(jobId, "failed to start:", error);
   } finally {
     procs.delete(jobId);
-  }
-}
-
-function parseMobileSettings(value: FormDataEntryValue | null):
-  | (TranscodeSettings & {
-      mobileLayout: NonNullable<TranscodeSettings["mobileLayout"]>;
-    })
-  | null {
-  if (typeof value !== "string") return null;
-  try {
-    const s = JSON.parse(value) as TranscodeSettings & { watermark?: unknown };
-    if (
-      !Number.isFinite(s.sourceWidth) ||
-      !Number.isFinite(s.sourceHeight) ||
-      !Array.isArray(s.trimRange) ||
-      s.trimRange.length !== 2 ||
-      !s.mobileLayout ||
-      !["full", "stacked"].includes(s.mobileLayout.mode) ||
-      typeof s.mobileLayout.splitRatio !== "number" ||
-      s.mobileLayout.splitRatio < 0.2 ||
-      s.mobileLayout.splitRatio > 0.8 ||
-      !Array.isArray(s.mobileLayout.zones)
-    )
-      return null;
-    const expected = s.mobileLayout.mode === "full" ? 1 : 2;
-    if (s.mobileLayout.zones.length !== expected) return null;
-    for (const z of s.mobileLayout.zones) {
-      if (
-        typeof z.x !== "number" ||
-        typeof z.y !== "number" ||
-        typeof z.width !== "number" ||
-        typeof z.height !== "number" ||
-        z.x < 0 ||
-        z.y < 0 ||
-        z.x + z.width > 1.001 ||
-        z.y + z.height > 1.001 ||
-        z.width < 0.02 ||
-        z.height < 0.02
-      )
-        return null;
-    }
-    if (
-      !Number.isFinite(s.exportFps) ||
-      !s.exportFilename ||
-      !Number.isFinite(s.exportSpeed) ||
-      !Number.isFinite(s.exportQuality)
-    )
-      return null;
-    if (s.watermark !== undefined && typeof s.watermark !== "boolean")
-      return null;
-    if (s.ignoreTrim !== undefined && typeof s.ignoreTrim !== "boolean")
-      return null;
-    if (
-      s.ignoreTrimSettings !== undefined &&
-      typeof s.ignoreTrimSettings !== "boolean"
-    )
-      return null;
-    // Normalize alias: frontend may send either key
-    if (
-      s.ignoreTrim === undefined &&
-      typeof s.ignoreTrimSettings === "boolean"
-    ) {
-      s.ignoreTrim = s.ignoreTrimSettings;
-    }
-    return s as unknown as TranscodeSettings & {
-      mobileLayout: NonNullable<TranscodeSettings["mobileLayout"]>;
-    };
-  } catch {
-    return null;
   }
 }
 
@@ -457,13 +358,37 @@ async function probeMediaDuration(inputPath: string): Promise<number | null> {
 }
 
 function queueFullResponse(c: {
-  json: (body: unknown, status?: number, headers?: Record<string, string>) => Response;
+  json: (
+    body: unknown,
+    status?: number,
+    headers?: Record<string, string>,
+  ) => Response;
 }) {
   return c.json(
-    { error: "Transcode queue is full, try again shortly.", ...getQueueStats() },
+    {
+      error: "Transcode queue is full, try again shortly.",
+      ...getQueueStats(),
+    },
     429,
     { "Retry-After": "10" },
   );
+}
+
+/**
+ * B4: parse customFFmpegArgs via shell-quote + structural denylist.
+ * Returns the parsed args or an { argError } the route turns into 400.
+ */
+function parseArgsField(
+  raw: string | undefined,
+  allowVf: boolean,
+): { args: string[]; extraVf: string[] } | { argError: string } {
+  try {
+    return parseCustomArgs(raw, { allowVf });
+  } catch (e) {
+    return {
+      argError: e instanceof Error ? e.message : "Invalid customFFmpegArgs.",
+    };
+  }
 }
 
 app.post("/transcode/mobile", async (c) => {
@@ -471,19 +396,24 @@ app.post("/transcode/mobile", async (c) => {
   try {
     form = await c.req.formData();
   } catch (e) {
-    console.error("[transcode/mobile] formData parse failed:", e);
+    systemError("[transcode/mobile] formData parse failed:", e);
     return c.json({ error: "Invalid multipart body" }, 400);
   }
-  const settings = parseMobileSettings(form.get("settings"));
-  if (!settings) {
+  const mobileParsed = parseSettingsJson(
+    form.get("settings"),
+    mobileSettingsSchema,
+  );
+  if (!mobileParsed.ok) {
     return c.json(
       {
         error:
           "A video file and valid mobileLayout export settings are required. Requires 16:9 source to 9:16 stacked/full with 1 or 2 zones.",
+        issues: mobileParsed.issues,
       },
       400,
     );
   }
+  const settings = normalizeTrimAlias(mobileParsed.data);
   const resolved = await resolveInputFile(
     c as unknown as {
       req: {
@@ -510,9 +440,11 @@ app.post("/transcode/mobile", async (c) => {
       height: z.height * 100,
     })),
   };
-  const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
-    .replace(/(^|\s)-an(\s|$)/g, " ")
-    .trim();
+  const custom = parseArgsField(
+    (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
+    false, // mobile builds a filter_complex graph — -vf denied at parse
+  );
+  if ("argError" in custom) return c.json({ error: custom.argError }, 400);
   const ignoreTrim = settings.ignoreTrim === true;
   let progressDuration = Math.max(
     0.001,
@@ -533,13 +465,13 @@ app.post("/transcode/mobile", async (c) => {
     format,
     fps: 60,
     crf: 10,
-    customArgs: sanitizedCustomArgs,
+    customArgs: custom.args,
     outputPath: originalOutputPath,
     mobileLayout: mobileLayout as never,
     speed: settings.exportSpeed,
     watermark: !!settings.watermark,
   });
-  console.log("MOBILE ARGS", originalArgs);
+  jobLog(jobId, "mobile ffmpeg args:", originalArgs.join(" "));
   createQueuedJob({
     jobId,
     outputPath: originalOutputPath,
@@ -550,7 +482,9 @@ app.post("/transcode/mobile", async (c) => {
     kind: "mobile",
     filename: settings.exportFilename.trim() || filename,
   });
-  const started = enqueue(jobId, () => runTranscode(jobId, originalArgs, progressDuration));
+  const started = enqueue(jobId, () =>
+    runTranscode(jobId, originalArgs, progressDuration),
+  );
   if (!started) {
     const job = getJob(jobId);
     if (job) {
@@ -571,19 +505,24 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   try {
     form = await c.req.formData();
   } catch (e) {
-    console.error("[transcode/mobile/subtitles] formData parse failed:", e);
+    systemError("[transcode/mobile/subtitles] formData parse failed:", e);
     return c.json({ error: "Invalid multipart body" }, 400);
   }
-  const settings = parseMobileSettings(form.get("settings"));
-  if (!settings) {
+  const subParsed = parseSettingsJson(
+    form.get("settings"),
+    mobileSettingsSchema,
+  );
+  if (!subParsed.ok) {
     return c.json(
       {
         error:
           "A video file and valid mobileLayout export settings are required for subtitles endpoint.",
+        issues: subParsed.issues,
       },
       400,
     );
   }
+  const settings = normalizeTrimAlias(subParsed.data);
   const resolvedSubtitle = await resolveInputFile(
     c as unknown as {
       req: {
@@ -728,9 +667,11 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     })),
   };
 
-  const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
-    .replace(/(^|\s)-an(\s|$)/g, " ")
-    .trim();
+  const custom = parseArgsField(
+    (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
+    false, // subtitles builder owns a filter_complex graph
+  );
+  if ("argError" in custom) return c.json({ error: custom.argError }, 400);
   const originalOutputPath = tempOutputPath(jobId, "_mobile_subtitles", format);
 
   const originalArgs = buildMobileSubtitlesArgs({
@@ -744,13 +685,13 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     format,
     fps: settings.exportFps,
     crf: 10,
-    customArgs: sanitizedCustomArgs,
+    customArgs: custom.args,
     outputPath: originalOutputPath,
     filename: settings.exportFilename.trim() || file.name,
     speed: settings.exportSpeed,
   });
 
-  console.log("MOBILE_SUBTITLES ARGS", originalArgs);
+  jobLog(jobId, "mobile-subtitles ffmpeg args:", originalArgs.join(" "));
 
   createQueuedJob({
     jobId,
@@ -780,171 +721,26 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   });
 });
 
-function parseCutSettings(value: FormDataEntryValue | null): {
-  mode: "full-size" | "2-stack" | "1-stack";
-  cuts: Array<{ start: number; end: number }>;
-  sourceWidth: number;
-  sourceHeight: number;
-  exportFilename: string;
-  exportFps: number;
-  exportQuality: number;
-  exportSpeed: number;
-  customFFmpegArgs: string;
-  watermark?: boolean;
-  splitRatio?: number;
-  zones?: Array<{
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    zoom: number;
-  }>;
-} | null {
-  if (typeof value !== "string") return null;
-  try {
-    const s = JSON.parse(value) as Record<string, unknown>;
-    const mode = s.mode as string;
-    if (!["full-size", "2-stack", "1-stack"].includes(mode)) return null;
-    const cuts = s.cuts as Array<{ start: number; end: number }> | undefined;
-    if (!Array.isArray(cuts) || cuts.length === 0 || cuts.length > 50)
-      return null;
-    const sorted = [...cuts].sort((a, b) => a.start - b.start);
-    for (const cut of sorted) {
-      if (
-        typeof cut.start !== "number" ||
-        typeof cut.end !== "number" ||
-        !Number.isFinite(cut.start) ||
-        !Number.isFinite(cut.end) ||
-        cut.start < 0 ||
-        cut.end <= cut.start + 0.049
-      )
-        return null;
-    }
-    for (let i = 1; i < sorted.length; i++) {
-      if (sorted[i].start < sorted[i - 1].end - 0.001) return null;
-    }
-    const sourceWidth = s.sourceWidth as number;
-    const sourceHeight = s.sourceHeight as number;
-    if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight))
-      return null;
-    const exportFps = (s.exportFps as number) ?? 30;
-    const exportQuality = (s.exportQuality as number) ?? 18;
-    const exportSpeed = (s.exportSpeed as number) ?? 1;
-    if (
-      !Number.isFinite(exportFps) ||
-      !Number.isFinite(exportQuality) ||
-      !Number.isFinite(exportSpeed)
-    )
-      return null;
-    const exportFilename =
-      typeof s.exportFilename === "string" ? s.exportFilename : "";
-    const customFFmpegArgs =
-      typeof s.customFFmpegArgs === "string" ? s.customFFmpegArgs : "";
-    if (s.watermark !== undefined && typeof s.watermark !== "boolean")
-      return null;
-    let splitRatio: number | undefined;
-    if (mode === "2-stack") {
-      const z = s.zones as unknown;
-      if (!Array.isArray(z) || z.length !== 2) return null;
-      for (const zone of z) {
-        const zz = zone as Record<string, unknown>;
-        if (
-          typeof zz.x !== "number" ||
-          typeof zz.y !== "number" ||
-          typeof zz.width !== "number" ||
-          typeof zz.height !== "number"
-        )
-          return null;
-        // Accept 0-1 normalized or 0-100 percent
-        const scale =
-          (zz.width as number) > 1 || (zz.height as number) > 1 ? 100 : 1;
-        const nx = (zz.x as number) / scale;
-        const ny = (zz.y as number) / scale;
-        const nw = (zz.width as number) / scale;
-        const nh = (zz.height as number) / scale;
-        if (
-          nx < 0 ||
-          ny < 0 ||
-          nx + nw > 1.001 ||
-          ny + nh > 1.001 ||
-          nw < 0.02 ||
-          nh < 0.02
-        )
-          return null;
-      }
-      splitRatio = s.splitRatio as number;
-      if (
-        typeof splitRatio !== "number" ||
-        splitRatio < 0.2 ||
-        splitRatio > 0.8
-      )
-        return null;
-    } else if (mode === "1-stack") {
-      const z = s.zones as unknown;
-      if (!Array.isArray(z) || z.length !== 1) return null;
-      const zz = (z as Array<Record<string, unknown>>)[0];
-      if (
-        typeof zz.x !== "number" ||
-        typeof zz.y !== "number" ||
-        typeof zz.width !== "number" ||
-        typeof zz.height !== "number"
-      )
-        return null;
-      const scale =
-        (zz.width as number) > 1 || (zz.height as number) > 1 ? 100 : 1;
-      const nx = (zz.x as number) / scale;
-      const ny = (zz.y as number) / scale;
-      const nw = (zz.width as number) / scale;
-      const nh = (zz.height as number) / scale;
-      if (
-        nx < 0 ||
-        ny < 0 ||
-        nx + nw > 1.001 ||
-        ny + nh > 1.001 ||
-        nw < 0.02 ||
-        nh < 0.02
-      )
-        return null;
-    }
-    return {
-      mode: mode as "full-size" | "2-stack" | "1-stack",
-      cuts: sorted,
-      sourceWidth,
-      sourceHeight,
-      exportFilename,
-      exportFps,
-      exportQuality,
-      exportSpeed,
-      customFFmpegArgs,
-      watermark:
-        typeof s.watermark === "boolean" ? (s.watermark as boolean) : undefined,
-      splitRatio,
-      zones: (s.zones as never) ?? undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
 app.post("/transcode/cut", async (c) => {
   let form: FormData;
   try {
     form = await c.req.formData();
   } catch (e) {
-    console.error("[transcode/cut] formData parse failed:", e);
+    systemError("[transcode/cut] formData parse failed:", e);
     return c.json({ error: "Invalid multipart body" }, 400);
   }
-  const settings = parseCutSettings(form.get("settings"));
-  if (!settings) {
+  const cutParsed = parseSettingsJson(form.get("settings"), cutSettingsSchema);
+  if (!cutParsed.ok) {
     return c.json(
       {
         error:
           "A video file and valid cut settings are required (mode + non-overlapping cuts + zones for stack modes).",
+        issues: cutParsed.issues,
       },
       400,
     );
   }
+  const settings = cutParsed.data;
   const resolved = await resolveInputFile(
     c as unknown as {
       req: {
@@ -960,9 +756,11 @@ app.post("/transcode/cut", async (c) => {
   const jobId = crypto.randomUUID();
   const originalOutputPath = tempOutputPath(jobId, "_cut", "mp4");
   const totalDuration = Math.max(0.001, totalCutDuration(settings.cuts));
-  const sanitizedCustomArgs = (settings.customFFmpegArgs || "")
-    .replace(/(^|\s)-an(\s|$)/g, " ")
-    .trim();
+  const custom = parseArgsField(
+    (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
+    false, // cut builder owns a filter_complex graph
+  );
+  if ("argError" in custom) return c.json({ error: custom.argError }, 400);
   const cutArgs = buildCutFFmpegArgs({
     inputPath: temporaryPath,
     filename: settings.exportFilename.trim() || filename,
@@ -976,11 +774,11 @@ app.post("/transcode/cut", async (c) => {
     fps: settings.exportFps,
     crf: settings.exportQuality,
     speed: settings.exportSpeed,
-    customArgs: sanitizedCustomArgs,
+    customArgs: custom.args,
     outputPath: originalOutputPath,
     watermark: !!settings.watermark,
   });
-  console.log("CUT ARGS", cutArgs);
+  jobLog(jobId, "cut ffmpeg args:", cutArgs.join(" "));
   createQueuedJob({
     jobId,
     outputPath: originalOutputPath,
@@ -991,7 +789,9 @@ app.post("/transcode/cut", async (c) => {
     kind: "cut",
     filename: settings.exportFilename.trim() || filename,
   });
-  const started = enqueue(jobId, () => runTranscode(jobId, cutArgs, totalDuration));
+  const started = enqueue(jobId, () =>
+    runTranscode(jobId, cutArgs, totalDuration),
+  );
   if (!started) {
     const job = getJob(jobId);
     if (job) {
@@ -1023,16 +823,23 @@ app.post("/transcode", async (c) => {
   try {
     form = await c.req.formData();
   } catch (e) {
-    console.error("[transcode] formData parse failed:", e);
+    systemError("[transcode] formData parse failed:", e);
     return c.json({ error: "Invalid multipart body" }, 400);
   }
-  const settings = parseSettings(form.get("settings"));
-  if (!settings) {
+  const genericParsed = parseSettingsJson(
+    form.get("settings"),
+    genericSettingsSchema,
+  );
+  if (!genericParsed.ok) {
     return c.json(
-      { error: "A video file and valid export settings are required." },
+      {
+        error: "A video file and valid export settings are required.",
+        issues: genericParsed.issues,
+      },
       400,
     );
   }
+  const settings = genericParsed.data;
   const resolvedMain = await resolveInputFile(
     c as unknown as {
       req: {
@@ -1046,7 +853,7 @@ app.post("/transcode", async (c) => {
     return c.json({ error: "A video file or uploadId is required." }, 400);
   const { temporaryPath, filename } = resolvedMain;
   const file = { name: filename } as File;
-  console.log(file, settings, form);
+  void file;
 
   const format = settings.exportFormat;
   const jobId = crypto.randomUUID();
@@ -1067,6 +874,10 @@ app.post("/transcode", async (c) => {
         })),
       }
     : null;
+  // B4: -vf merges into our -vf chain only for the plain path; a
+  // mobileLayout builds a filter_complex graph where -vf is denied.
+  const custom = parseArgsField(settings.customFFmpegArgs, !mobileLayout);
+  if ("argError" in custom) return c.json({ error: custom.argError }, 400);
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
     filename: settings.exportFilename.trim() || filename,
@@ -1077,12 +888,13 @@ app.post("/transcode", async (c) => {
     format,
     fps: settings.exportFps,
     crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
-    customArgs: settings.customFFmpegArgs,
+    customArgs: custom.args,
+    extraVideoFilters: custom.extraVf,
     outputPath: originalOutputPath,
     mobileLayout: mobileLayout as never,
   });
 
-  console.log("ARGS", originalArgs);
+  jobLog(jobId, "ffmpeg args:", originalArgs.join(" "));
 
   createQueuedJob({
     jobId,
@@ -1095,7 +907,10 @@ app.post("/transcode", async (c) => {
     filename: settings.exportFilename.trim() || filename,
   });
 
-  const duration = Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]);
+  const duration = Math.max(
+    0.001,
+    settings.trimRange[1] - settings.trimRange[0],
+  );
   const runAll = async () => {
     await runTranscode(jobId, originalArgs, duration);
     const afterFirst = getJob(jobId);
@@ -1116,7 +931,8 @@ app.post("/transcode", async (c) => {
         fps: settings.exportFps,
         crf:
           settings.exportFormat === "mov" ? undefined : settings.exportQuality,
-        customArgs: settings.customFFmpegArgs,
+        customArgs: custom.args,
+        extraVideoFilters: custom.extraVf,
         outputPath: alternateOutputPath,
         mobileLayout: mobileLayout as never,
       });
@@ -1151,6 +967,7 @@ function buildJobsPayload() {
     alternateOutputPath: j.alternateOutputPath,
     error: j.error,
     logTail: j.logTail,
+    exitCode: j.exitCode,
     kind: j.kind,
     filename: j.filename,
     createdAt: j.createdAt,
@@ -1360,6 +1177,10 @@ app.delete("/transcode/jobs/:jobId", async (c) => {
  * Returns the rendered video file. Files are kept until the user explicitly
  * deletes the job (DELETE /transcode/jobs/:jobId) — downloading does NOT
  * delete anything (B1 keep-until-delete).
+ *
+ * B4: streams from disk (no whole-file buffering → no 10GB OOM) with
+ * Content-Length, correct Content-Type per extension, Accept-Ranges, and
+ * single-range (bytes=start-end) support for resumable downloads / seeking.
  */
 app.get("/transcode/download/:jobId", async (c) => {
   const id = c.req.param("jobId");
@@ -1369,25 +1190,65 @@ app.get("/transcode/download/:jobId", async (c) => {
   }
 
   const filePath = job.outputPath;
-  const file = Bun.file(filePath);
-  if (!(await file.exists())) {
+  let stat: { size: number };
+  try {
+    stat = fs.statSync(filePath);
+  } catch (e) {
+    systemError("[transcode/download] failed stating output file:", e);
     return c.json({ error: "Output file not found." }, 404);
   }
-  let bytes: ArrayBuffer;
-  try {
-    bytes = await file.arrayBuffer();
-  } catch (e) {
-    console.error("[transcode/download] failed reading output file:", e);
-    return c.json({ error: "Output file could not be read." }, 500);
+  const total = stat.size;
+  if (total <= 0) {
+    return c.json({ error: "Output file is empty." }, 500);
   }
 
-  const isVideo = /\.(mp4|webm|mov)$/i.test(filePath);
-  return new Response(bytes, {
-    headers: {
-      "Content-Type": isVideo ? "video/mp4" : "application/octet-stream",
-      "Content-Disposition": `attachment; filename="${filePath.split("/").pop()}"`,
-      "Cache-Control": "no-store",
-    },
+  const ext = filePath.split(".").pop()?.toLowerCase();
+  const contentType =
+    ext === "mp4"
+      ? "video/mp4"
+      : ext === "webm"
+        ? "video/webm"
+        : ext === "mov"
+          ? "video/quicktime"
+          : "application/octet-stream";
+  const filename = filePath.split("/").pop() ?? `${id}.mp4`;
+  const baseHeaders = {
+    "Content-Type": contentType,
+    "Content-Disposition": `attachment; filename="${filename}"`,
+    "Cache-Control": "no-store",
+    "Accept-Ranges": "bytes",
+  };
+
+  const range = c.req.header("Range") ?? c.req.header("range");
+  if (range) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
+    if (!m || (m[1] === "" && m[2] === "")) {
+      return c.json({ error: "Invalid Range header." }, 416, {
+        "Content-Range": `bytes */${total}`,
+      });
+    }
+    let start = m[1] === "" ? total - Number(m[2]) : Number(m[1]);
+    let end = m[2] === "" ? total - 1 : Number(m[2]);
+    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+      return c.json({ error: "Invalid Range header." }, 416, {
+        "Content-Range": `bytes */${total}`,
+      });
+    }
+    start = Math.max(0, Math.min(start, total - 1));
+    end = Math.max(start, Math.min(end, total - 1));
+    const length = end - start + 1;
+    return new Response(Bun.file(filePath).slice(start, end + 1), {
+      status: 206,
+      headers: {
+        ...baseHeaders,
+        "Content-Length": String(length),
+        "Content-Range": `bytes ${start}-${end}/${total}`,
+      },
+    });
+  }
+
+  return new Response(Bun.file(filePath), {
+    headers: { ...baseHeaders, "Content-Length": String(total) },
   });
 });
 
@@ -1396,7 +1257,10 @@ app.get("/transcode/download/:jobId", async (c) => {
  *
  * SSE stream of the job row (read fresh from SQLite every 200ms).
  * Emits { status: queued|processing } then terminal
- * { completed|failed|cancelled } (with error + logTail) and closes.
+ * { completed|failed|cancelled } (with error + logTail + exitCode) and closes.
+ * B4: no 5-minute hard cap (long 4K renders stalled at 99%) — the stream
+ * closes on terminal state or client disconnect, and a `: heartbeat` comment
+ * every 15s keeps proxies/NATs from killing idle connections.
  */
 app.get("/transcode/progress/:jobId", (c) => {
   const id = c.req.param("jobId");
@@ -1405,8 +1269,7 @@ app.get("/transcode/progress/:jobId", (c) => {
 
   const encoder = new TextEncoder();
   let interval: ReturnType<typeof setInterval> | undefined;
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const startMs = Date.now();
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const send = () => {
@@ -1420,7 +1283,7 @@ app.get("/transcode/progress/:jobId", (c) => {
             );
           } catch {}
           if (interval) clearInterval(interval);
-          if (timeout) clearTimeout(timeout);
+          if (heartbeat) clearInterval(heartbeat);
           try {
             controller.close();
           } catch {}
@@ -1444,15 +1307,7 @@ app.get("/transcode/progress/:jobId", (c) => {
         }
         if (job.status !== "processing" && job.status !== "queued") {
           if (interval) clearInterval(interval);
-          if (timeout) clearTimeout(timeout);
-          try {
-            controller.close();
-          } catch {}
-        }
-        // Hard cap 5min to avoid infinite SSE holding browser connection slots (6 per host)
-        if (Date.now() - startMs > 5 * 60 * 1000) {
-          if (interval) clearInterval(interval);
-          if (timeout) clearTimeout(timeout);
+          if (heartbeat) clearInterval(heartbeat);
           try {
             controller.close();
           } catch {}
@@ -1460,20 +1315,20 @@ app.get("/transcode/progress/:jobId", (c) => {
       };
       send();
       interval = setInterval(send, 200);
-      // Safety timeout
-      timeout = setTimeout(
-        () => {
+      // B4: heartbeat comment (SSE comments are ignored by EventSource) so
+      // idle proxies don't reap the connection during long renders.
+      heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: heartbeat\n\n`));
+        } catch {
           if (interval) clearInterval(interval);
-          try {
-            controller.close();
-          } catch {}
-        },
-        5 * 60 * 1000 + 1000,
-      );
+          if (heartbeat) clearInterval(heartbeat);
+        }
+      }, 15000);
     },
     cancel() {
       if (interval) clearInterval(interval);
-      if (timeout) clearTimeout(timeout);
+      if (heartbeat) clearInterval(heartbeat);
     },
   });
   return new Response(stream, {

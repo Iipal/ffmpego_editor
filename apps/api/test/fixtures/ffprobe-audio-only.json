@@ -1,0 +1,25 @@
+{
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "aac",
+      "codec_long_name": "AAC (Advanced Audio Coding)",
+      "codec_type": "audio",
+      "sample_rate": "44100",
+      "channels": 2,
+      "r_frame_rate": "0/0",
+      "avg_frame_rate": "0/0",
+      "duration": "1.000000",
+      "bit_rate": "128000"
+    }
+  ],
+  "format": {
+    "filename": "fixture-audio-only.m4a",
+    "nb_streams": 1,
+    "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+    "duration": "1.000000",
+    "size": "16000",
+    "bit_rate": "128000",
+    "probe_score": 100
+  }
+}

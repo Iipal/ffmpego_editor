@@ -3,21 +3,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { consumeUpload } from "./upload.js";
+import { extractVideoMetadata, type FFprobeReport } from "../utils/metadata.js";
+import { systemError } from "../observability.js";
 
 const app = new Hono();
-
-interface FFprobeReport {
-  format?: Record<string, unknown>;
-  streams?: Array<Record<string, unknown>>;
-  programs?: Array<Record<string, unknown>>;
-  chapters?: Array<Record<string, unknown>>;
-  frames?: Array<Record<string, unknown>>;
-  packets?: Array<Record<string, unknown>>;
-  packets_and_frames?: Array<Record<string, unknown>>;
-  program_version?: Record<string, unknown>;
-  library_versions?: Array<Record<string, unknown>>;
-  error?: Record<string, unknown>;
-}
 
 app.post("/metadata", async (c) => {
   // Allow either direct file upload OR reusable chunked uploadId (avoids re-uploading 10GB for metadata+transcode)
@@ -31,8 +20,13 @@ app.post("/metadata", async (c) => {
 
   if (uploadIdHeader) {
     const p = consumeUpload(uploadIdHeader);
-    if (!p) return c.json({ error: "Upload session not found or expired" }, 404);
-    try { fs.accessSync(p); } catch { return c.json({ error: "Uploaded file not found on server" }, 404); }
+    if (!p)
+      return c.json({ error: "Upload session not found or expired" }, 404);
+    try {
+      fs.accessSync(p);
+    } catch {
+      return c.json({ error: "Uploaded file not found on server" }, 404);
+    }
     temporaryPath = p;
     filename = path.basename(p).replace(/^[0-9a-f-]{36}-/, "");
     isChunked = true;
@@ -41,14 +35,15 @@ app.post("/metadata", async (c) => {
     try {
       form = await c.req.formData();
     } catch (e) {
-      console.error("[metadata] formData parse failed:", e);
+      systemError("[metadata] formData parse failed:", e);
       return c.json({ error: "Invalid multipart body / file too large" }, 400);
     }
     // also allow uploadId inside multipart (chunked flow)
     const uploadIdField = form.get("uploadId");
     if (typeof uploadIdField === "string" && uploadIdField.trim()) {
       const p = consumeUpload(uploadIdField.trim());
-      if (!p) return c.json({ error: "Upload session not found or expired" }, 404);
+      if (!p)
+        return c.json({ error: "Upload session not found or expired" }, 404);
       temporaryPath = p;
       filename = path.basename(p).replace(/^[0-9a-f-]{36}-/, "");
       isChunked = true;
@@ -81,32 +76,48 @@ app.post("/metadata", async (c) => {
   if (includeFrames) args.push("-show_frames");
   if (includePackets) args.push("-show_packets");
   args.push(temporaryPath);
-  const process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
+  // B5: distinguish "ffprobe binary failed to run" (500, ops problem) from
+  // "ran but rejected the file" (422, media problem) from "valid file but no
+  // video stream" (422, distinct message for the UI).
+  let process: ReturnType<typeof Bun.spawn>;
+  try {
+    process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
+  } catch (e) {
+    if (!isChunked) await Bun.$`rm -f ${temporaryPath}`;
+    systemError("[metadata] ffprobe spawn failed:", e);
+    return c.json({ error: "Video inspector unavailable (spawn failed)" }, 500);
+  }
   const exitCode = await process.exited;
   // Only delete temp file if it was created for this single-shot request; chunked uploads are reused for transcode
   if (!isChunked) await Bun.$`rm -f ${temporaryPath}`;
-  if (exitCode !== 0) return c.json({ error: "Unable to inspect video" }, 422);
-  const result = (await new Response(process.stdout).json()) as FFprobeReport;
-  const format = result.format ?? {};
-  const streams = result.streams ?? [];
-  const video = streams.find((stream) => stream.codec_type === "video");
-  const audio = streams.find((stream) => stream.codec_type === "audio");
-  if (!video) return c.json({ error: "No video stream found" }, 422);
-  const [numerator, denominator] = String(video.r_frame_rate ?? "0/1")
-    .split("/")
-    .map(Number);
-  return c.json({
-    filename,
-    containerFormat: String(format.format_name ?? ""),
-    durationSeconds: Number(format.duration),
-    width: Number(video.width),
-    height: Number(video.height),
-    frameRate: denominator ? numerator / denominator : 0,
-    videoCodec: String(video.codec_name ?? ""),
-    audioCodec: audio?.codec_name ? String(audio.codec_name) : undefined,
-    bitrateKbps: Math.round(Number(format.bit_rate ?? 0) / 1000),
-    ffprobe: result,
-  });
+  if (exitCode !== 0) {
+    const stderr = await new Response(process.stderr as ReadableStream)
+      .text()
+      .catch(() => "");
+    return c.json(
+      {
+        error: "Unable to inspect video — ffprobe rejected the file",
+        ffprobeStderr: stderr.slice(-2000),
+      },
+      422,
+    );
+  }
+  const result = (await new Response(
+    process.stdout as ReadableStream,
+  ).json()) as FFprobeReport;
+  const parsed = extractVideoMetadata(result, filename);
+  if (!parsed.ok) {
+    return c.json(
+      {
+        error:
+          parsed.error === "no-video-stream"
+            ? "No video stream found — file contains no video track"
+            : "Empty ffprobe report — file is not a readable media container",
+      },
+      422,
+    );
+  }
+  return c.json(parsed.metadata);
 });
 
 export default app;

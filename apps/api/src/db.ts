@@ -18,6 +18,7 @@ export interface JobRow {
   alternateOutputPath: string | null;
   error: string | null;
   logTail: string | null;
+  exitCode: number | null;
   temporaryInputPath: string;
   subtitlePaths: string[];
   createdAt: number;
@@ -77,6 +78,15 @@ CREATE TABLE IF NOT EXISTS uploads (
 );
 `);
 
+// B4: numeric ffmpeg exit code (null while pending / spawn failure).
+// ALTER TABLE has no IF NOT EXISTS — guard via PRAGMA so restarts don't crash.
+const jobColumns = db.prepare(`PRAGMA table_info(jobs)`).all() as {
+  name: string;
+}[];
+if (!jobColumns.some((c) => c.name === "exitCode")) {
+  db.exec(`ALTER TABLE jobs ADD COLUMN exitCode INTEGER;`);
+}
+
 function rowToJob(r: Record<string, unknown>): JobRow {
   return {
     jobId: String(r.jobId),
@@ -86,6 +96,7 @@ function rowToJob(r: Record<string, unknown>): JobRow {
     alternateOutputPath: (r.alternateOutputPath as string | null) ?? null,
     error: (r.error as string | null) ?? null,
     logTail: (r.logTail as string | null) ?? null,
+    exitCode: (r.exitCode as number | null) ?? null,
     temporaryInputPath: String(r.temporaryInputPath),
     subtitlePaths: JSON.parse(String(r.subtitlePaths ?? "[]")) as string[],
     createdAt: Number(r.createdAt),
@@ -118,23 +129,32 @@ export function insertJob(job: Omit<JobRow, "updatedAt">): void {
 }
 
 export function getJob(jobId: string): JobRow | null {
-  const r = db.prepare(`SELECT * FROM jobs WHERE jobId = ?`).get(jobId) as
-    | Record<string, unknown>
-    | null;
+  const r = db
+    .prepare(`SELECT * FROM jobs WHERE jobId = ?`)
+    .get(jobId) as Record<string, unknown> | null;
   return r ? rowToJob(r) : null;
 }
 
 export function listJobs(): JobRow[] {
-  const rows = db.prepare(`SELECT * FROM jobs ORDER BY createdAt DESC`).all() as Record<
-    string,
-    unknown
-  >[];
+  const rows = db
+    .prepare(`SELECT * FROM jobs ORDER BY createdAt DESC`)
+    .all() as Record<string, unknown>[];
   return rows.map(rowToJob);
 }
 
 export function updateJob(
   jobId: string,
-  patch: Partial<Pick<JobRow, "status" | "progress" | "error" | "logTail" | "alternateOutputPath">>,
+  patch: Partial<
+    Pick<
+      JobRow,
+      | "status"
+      | "progress"
+      | "error"
+      | "logTail"
+      | "exitCode"
+      | "alternateOutputPath"
+    >
+  >,
 ): void {
   const sets: string[] = [];
   const vals: (string | number | null)[] = [];
@@ -153,6 +173,10 @@ export function updateJob(
   if (patch.logTail !== undefined) {
     sets.push("logTail = ?");
     vals.push(patch.logTail);
+  }
+  if (patch.exitCode !== undefined) {
+    sets.push("exitCode = ?");
+    vals.push(patch.exitCode);
   }
   if (patch.alternateOutputPath !== undefined) {
     sets.push("alternateOutputPath = ?");
@@ -186,9 +210,9 @@ export function insertUpload(u: UploadRow): void {
 }
 
 export function getUpload(uploadId: string): UploadRow | null {
-  const r = db.prepare(`SELECT * FROM uploads WHERE uploadId = ?`).get(uploadId) as
-    | Record<string, unknown>
-    | null;
+  const r = db
+    .prepare(`SELECT * FROM uploads WHERE uploadId = ?`)
+    .get(uploadId) as Record<string, unknown> | null;
   if (!r) return null;
   return {
     uploadId: String(r.uploadId),
@@ -217,7 +241,9 @@ export function updateUpload(
   }
   if (!sets.length) return;
   vals.push(uploadId);
-  db.prepare(`UPDATE uploads SET ${sets.join(", ")} WHERE uploadId = ?`).run(...vals);
+  db.prepare(`UPDATE uploads SET ${sets.join(", ")} WHERE uploadId = ?`).run(
+    ...vals,
+  );
 }
 
 export function deleteUpload(uploadId: string): void {
@@ -225,7 +251,10 @@ export function deleteUpload(uploadId: string): void {
 }
 
 export function listUploads(): UploadRow[] {
-  const rows = db.prepare(`SELECT * FROM uploads`).all() as Record<string, unknown>[];
+  const rows = db.prepare(`SELECT * FROM uploads`).all() as Record<
+    string,
+    unknown
+  >[];
   return rows.map((r) => ({
     uploadId: String(r.uploadId),
     filename: String(r.filename),
@@ -240,7 +269,10 @@ export function listUploads(): UploadRow[] {
 // ---- Startup sweep ----
 // Marks interrupted jobs as failed, deletes partial outputs, removes stale
 // uploads (>6h) and orphan temp files. Runs once at boot.
-export function startupSweep(): { recoveredJobs: number; deletedFiles: number } {
+export function startupSweep(): {
+  recoveredJobs: number;
+  deletedFiles: number;
+} {
   let recoveredJobs = 0;
   let deletedFiles = 0;
   const rm = (p: string) => {
@@ -276,8 +308,7 @@ export function startupSweep(): { recoveredJobs: number; deletedFiles: number } 
     const day = 24 * 60 * 60 * 1000;
     const now = Date.now();
     for (const f of fs.readdirSync(os.tmpdir())) {
-      const isTempOut =
-        f.startsWith("temp_") && /\.(mp4|webm|mov)$/i.test(f);
+      const isTempOut = f.startsWith("temp_") && /\.(mp4|webm|mov)$/i.test(f);
       const isSubPng = /-sub\d+\.png$/.test(f);
       const isJobInput =
         /^[0-9a-f-]{36}-/.test(f) && /\.(mp4|webm|mov|mkv|png)$/i.test(f);

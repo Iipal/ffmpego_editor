@@ -57,7 +57,10 @@ export interface TranscodeOptions {
   speed?: number;
   fps?: number;
   crf?: number;
-  customArgs?: string;
+  /** Pre-parsed extra flags (see parseCustomArgs in validation.ts). */
+  customArgs?: string[];
+  /** -vf values merged into the builder's own video filter chain. */
+  extraVideoFilters?: string[];
   outputPath?: string;
   mobileLayout?: MobileLayoutForFFmpeg | null;
   watermark?: boolean;
@@ -73,8 +76,10 @@ export const OUTPUT_DIRECTORY = ".";
 /**
  * Build encoder-specific FFmpeg args for the selected format.
  *
- * For webm, a fixed command is used: fps=30, scale=512:-1, VP9 code. The CRF value can be overridden from the frontend.
- * Audio is disabled (-an) and no custom args are accepted for this format.
+ * B4: webm no longer silently forces fps=30, scale=512:-1 and -an. It now
+ * respects the requested fps (via -r), keeps full resolution, and encodes
+ * audio as Opus (dropped automatically when the input has no audio track).
+ * The CRF value can be overridden from the frontend.
  *
  * The returned args are inserted after the input arguments and before any
  * filter or output path arguments.
@@ -97,7 +102,8 @@ function buildFormatArgs(
         String(normalizedCrf),
         "-b:v",
         "0",
-        "-an",
+        "-c:a",
+        "libopus",
       ].flat();
     case "mov":
       return [
@@ -212,12 +218,13 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     videoFilters.push(`crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`);
   }
 
-  if (options.format === "webm") {
-    videoFilters.push("fps=30");
-    videoFilters.push("scale=512:-1");
-  }
+  // (B4: webm no longer forces fps=30/scale=512 here — fps comes from -r,
+  // resolution and audio are preserved like every other format.)
 
   // Mobile layout takes precedence - it builds its own filter_complex with speed handled inside
+  // usedComplex tracks -filter_complex usage: user -vf cannot merge into a
+  // labeled complex graph, so routes deny -vf there (defense in depth: throw).
+  let usedComplex = false;
   if (options.mobileLayout) {
     const ml = options.mobileLayout;
     const toCrop = (z: {
@@ -284,8 +291,27 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
         const base = `[0:v]crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=1080:1920:flags=lanczos${setpts}[vbase]`;
         const filterComplex = `${base};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
         const af = getAtempo();
-        if (af) args.push("-filter_complex", filterComplex, "-map", "[v]", "-map", "0:a", "-filter:a", af);
-        else args.push("-filter_complex", filterComplex, "-map", "[v]", "-map", "0:a?");
+        if (af)
+          args.push(
+            "-filter_complex",
+            filterComplex,
+            "-map",
+            "[v]",
+            "-map",
+            "0:a",
+            "-filter:a",
+            af,
+          );
+        else
+          args.push(
+            "-filter_complex",
+            filterComplex,
+            "-map",
+            "[v]",
+            "-map",
+            "0:a?",
+          );
+        usedComplex = true;
         videoFilters.length = 0;
       } else {
         videoFilters.length = 0;
@@ -306,13 +332,51 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       if (wm) {
         const fullComplex = `${baseComplex};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
         const af = getAtempo();
-        if (af) args.push("-filter_complex", fullComplex, "-map", "[v]", "-map", "0:a", "-filter:a", af);
-        else args.push("-filter_complex", fullComplex, "-map", "[v]", "-map", "0:a?");
+        if (af)
+          args.push(
+            "-filter_complex",
+            fullComplex,
+            "-map",
+            "[v]",
+            "-map",
+            "0:a",
+            "-filter:a",
+            af,
+          );
+        else
+          args.push(
+            "-filter_complex",
+            fullComplex,
+            "-map",
+            "[v]",
+            "-map",
+            "0:a?",
+          );
+        usedComplex = true;
       } else {
         const simpleComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[v]`;
         const af = getAtempo();
-        if (af) args.push("-filter_complex", simpleComplex, "-map", "[v]", "-map", "0:a", "-filter:a", af);
-        else args.push("-filter_complex", simpleComplex, "-map", "[v]", "-map", "0:a?");
+        if (af)
+          args.push(
+            "-filter_complex",
+            simpleComplex,
+            "-map",
+            "[v]",
+            "-map",
+            "0:a",
+            "-filter:a",
+            af,
+          );
+        else
+          args.push(
+            "-filter_complex",
+            simpleComplex,
+            "-map",
+            "[v]",
+            "-map",
+            "0:a?",
+          );
+        usedComplex = true;
       }
       videoFilters.length = 0;
     }
@@ -336,14 +400,26 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     }
   }
 
+  // User -vf values merge into our -vf chain (validated by parseCustomArgs).
+  // A labeled -filter_complex graph cannot take a second -vf — routes already
+  // deny -vf there; this throw is defense in depth for direct callers.
+  if (options.extraVideoFilters?.length) {
+    if (usedComplex) {
+      throw new Error(
+        "extraVideoFilters cannot be combined with mobileLayout filter_complex output",
+      );
+    }
+    videoFilters.push(...options.extraVideoFilters);
+  }
+
   if (videoFilters.length) {
     args.push("-vf", videoFilters.join(","));
   }
 
   if (options.fps) args.push("-r", String(options.fps));
 
-  if (options.customArgs)
-    args.push(...options.customArgs.trim().split(/\s+/).filter(Boolean));
+  // Pre-parsed via parseCustomArgs (shell-quote + structural denylist).
+  if (options.customArgs?.length) args.push(...options.customArgs);
 
   // Use the explicit outputPath if provided, otherwise fall back to OUTPUT_DIRECTORY.
   const finalOutputPath =

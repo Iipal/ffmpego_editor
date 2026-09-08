@@ -83,6 +83,7 @@ export interface TranscodeProgress {
   alternateOutputPath?: string;
   error?: string;
   logTail?: string | null;
+  exitCode?: number | null;
   queuePosition?: number | null;
   jobId: string;
 }
