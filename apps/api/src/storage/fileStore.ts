@@ -165,6 +165,7 @@ const MIME_BY_EXT: Record<string, string> = {
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   webp: "image/webp",
+  gif: "image/gif",
   wav: "audio/wav",
   mp3: "audio/mpeg",
   m4a: "audio/mp4",

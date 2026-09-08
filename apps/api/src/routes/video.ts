@@ -1611,7 +1611,9 @@ app.get("/transcode/download/:jobId", async (c) => {
         ? "video/webm"
         : ext === "mov"
           ? "video/quicktime"
-          : "application/octet-stream";
+          : ext === "gif"
+            ? "image/gif"
+            : "application/octet-stream";
   const filename = filePath.split("/").pop() ?? `${id}.mp4`;
   const baseHeaders = {
     "Content-Type": contentType,

@@ -174,6 +174,57 @@ describe("buildFFmpegArgs webm-tg telegram preset", () => {
   });
 });
 
+describe("buildFFmpegArgs gif preview", () => {
+  test("silent gif codec, capped scale, no audio maps or filters", () => {
+    const args = buildFFmpegArgs({
+      ...BASE,
+      format: "gif",
+      fps: 15,
+      audioTrackIndex: 0,
+      audioTracks: [
+        {
+          trackIndex: 0,
+          enabled: true,
+          gainDb: 0,
+          loudnormEnabled: false,
+          loudnormTargetLufs: -14,
+          fadeIn: 0,
+          fadeOut: 0,
+          muteSegments: [],
+        },
+      ],
+    });
+    expect(args).toContain("-c:v");
+    expect(args.slice(args.indexOf("-c:v"), args.indexOf("-c:v") + 2)).toEqual([
+      "-c:v",
+      "gif",
+    ]);
+    expect(args).toContain("-an");
+    expect(vf(args)).toContain("scale=480:-2:flags=lanczos");
+    expect(args).not.toContain("-map");
+    expect(args).not.toContain("-filter:a");
+    expect(args.slice(args.indexOf("-r"), args.indexOf("-r") + 2)).toEqual([
+      "-r",
+      "15",
+    ]);
+    expect(args[args.length - 1]).toMatch(/\.gif$/);
+  });
+
+  test("gif drops the mobile-layout graph", () => {
+    const args = buildFFmpegArgs({
+      ...BASE,
+      format: "gif",
+      mobileLayout: {
+        mode: "full",
+        splitRatio: 0.5,
+        zones: [{ x: 0, y: 0, width: 100, height: 100, zoom: 1 }],
+      } as never,
+    });
+    expect(complex(args)).toBeUndefined();
+    expect(vf(args)).toContain("scale=480:-2:flags=lanczos");
+  });
+});
+
 describe("buildFFmpegArgs speed", () => {
   test("2x emits setpts + single atempo", () => {
     const args = buildFFmpegArgs({ ...BASE, speed: 2 });

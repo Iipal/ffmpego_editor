@@ -2,7 +2,7 @@ import { createStore } from "@tanstack/store";
 import { useSelector } from "@tanstack/react-store";
 
 export interface CutSlice {
-  exportFormat: "mp4" | "webm" | "mov" | "webm-tg";
+  exportFormat: "mp4" | "webm" | "mov" | "webm-tg" | "gif";
   exportFps: number;
   exportFilename: string;
   exportQuality: number;

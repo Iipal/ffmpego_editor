@@ -57,7 +57,7 @@ export interface TranscodeOptions {
   trimRange: [number, number];
   ignoreTrim?: boolean;
   crop: { x: number; y: number; width: number; height: number };
-  format: "mp4" | "webm" | "mov" | "webm-tg";
+  format: "mp4" | "webm" | "mov" | "webm-tg" | "gif";
   outputSuffix?: string;
   speed?: number;
   fps?: number;
@@ -171,8 +171,10 @@ function buildFormatArgs(
         "-c:a",
         "libopus",
       ].flat();
-    case "mov":
-      return [
+    case "gif":
+      // Silent preview GIF: callers cap size via scale + fps via -r.
+      return ["-c:v", "gif", "-an"].flat();
+    case "mov":      return [
         "-c:v",
         "prores_ks",
         "-profile:v",
@@ -325,6 +327,12 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     options.outputPath ??
     `${options.filename}${options.outputSuffix ?? ""}.${options.format}`;
 
+  // GIF previews are silent and small: drop the mobile-layout graph (which
+  // targets 1080x1920 + audio) and skip every audio map/filter (-an is set
+  // in buildFormatArgs; audio filters with no audio streams would fail).
+  const isGif = options.format === "gif";
+  if (isGif) options = { ...options, mobileLayout: null };
+  const noAudio = isGif;
   const watermarkEnabled = !!options.watermark && !!options.mobileLayout;
   let watermarkPath: string | null = null;
   if (watermarkEnabled) {
@@ -351,11 +359,11 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     options.audioTrackIndex !== undefined
       ? `0:a:${options.audioTrackIndex}?`
       : "0:a?";
-  if (!options.mobileLayout && options.audioTracks) {
+  if (!noAudio && !options.mobileLayout && options.audioTracks) {
     args.push("-map", "0:v?");
     for (const track of enabledAudioTracks)
       args.push("-map", `0:a:${track.trackIndex}?`);
-  } else if (!options.mobileLayout && options.audioTrackIndex !== undefined) {
+  } else if (!noAudio && !options.mobileLayout && options.audioTrackIndex !== undefined) {
     args.push("-map", "0:v?", "-map", audioMap);
   }
 
@@ -368,6 +376,9 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   ) {
     videoFilters.push(`crop=${cropWidth}:${cropHeight}:${cropX}:${cropY}`);
   }
+
+  // GIF previews stay small: cap width at 480px (-2 keeps aspect + even dims).
+  if (isGif) videoFilters.push("scale=480:-2:flags=lanczos");
 
   // (B4: webm no longer forces fps=30/scale=512 here — fps comes from -r,
   // resolution and audio are preserved like every other format.)
@@ -522,7 +533,7 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     }
   }
 
-  // Non-mobile speed handling
+  // Non-mobile speed handling (video only for GIF — no audio streams exist).
   if (
     !options.mobileLayout &&
     !options.audioTracks &&
@@ -530,11 +541,14 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     options.speed !== 1
   ) {
     videoFilters.push(buildSetptsFilter(options.speed));
-    const audio = buildAudioFilter(options);
-    if (audio) args.push("-filter:a", audio);
+    if (!noAudio) {
+      const audio = buildAudioFilter(options);
+      if (audio) args.push("-filter:a", audio);
+    }
   }
 
   if (
+    !noAudio &&
     !options.mobileLayout &&
     !options.audioTracks &&
     (!options.speed || options.speed === 1)
@@ -543,7 +557,7 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     if (audio) args.push("-filter:a", audio);
   }
 
-  if (!options.mobileLayout && options.audioTracks) {
+  if (!noAudio && !options.mobileLayout && options.audioTracks) {
     enabledAudioTracks.forEach((track, index) => {
       const audio = buildAudioFilter(options, options.speed, track);
       if (audio) args.push("-filter:a:" + index, audio);

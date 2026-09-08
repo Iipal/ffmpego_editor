@@ -91,7 +91,7 @@ const exportBase = z.object({
 /** POST /transcode — generic crop/trim/speed (+ optional mobile layout). */
 export const genericSettingsSchema = exportBase
   .extend({
-    exportFormat: z.enum(["mp4", "webm", "mov", "webm-tg"]),
+    exportFormat: z.enum(["mp4", "webm", "mov", "webm-tg", "gif"]),
     crop: z
       .object({ x: finite, y: finite, width: finite, height: finite })
       .optional(),
