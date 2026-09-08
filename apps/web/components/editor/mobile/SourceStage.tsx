@@ -21,8 +21,6 @@ export const SourceStage = memo(function SourceStage({
   onZoom,
   videoRef,
   mediaUrl,
-  volume,
-  isMuted,
 }: SourceStageProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -33,18 +31,10 @@ export const SourceStage = memo(function SourceStage({
     oy: number;
   } | null>(null);
 
-  const volumeRef = useRef(volume);
-  const mutedRef = useRef(isMuted);
-  useEffect(() => {
-    volumeRef.current = volume;
-    mutedRef.current = isMuted;
-  }, [volume, isMuted]);
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.volume = volumeRef.current;
-    v.muted = mutedRef.current;
-  }, [volume, isMuted]);
+  // Element transport sync (volume/muted/rate/loop/time) is owned solely by
+  // useVideoPlayer so every slider reads the same live playhead. (volume /
+  // isMuted remain on SourceStageProps for API stability but are applied
+  // centrally, including the mute-while-audio-preview rule.)
 
   const onMoveRef = useRef(onMove);
   const onResizeRef = useRef(onResize);

@@ -32,6 +32,11 @@ export function useCutPlayback({
   }, [playAll, sorted]);
 
   const player = useVideoPlayer(videoRef, {
+    mediaUrl,
+    // 20 Hz throttled snapshots + rAF smooth sync while playing (parity with
+    // the crop/mobile players so seek slider, cut markers and audio
+    // waveforms track the same live playhead).
+    throttleMs: 50,
     onTime: (v) => {
       if (!playAllRef.current || sortedRef.current.length === 0) return;
       const cuts = sortedRef.current;
@@ -113,7 +118,13 @@ export function useSeekTo(
     (t: number) => {
       const v = videoRef.current;
       if (!v) return;
-      v.currentTime = clamp(t, 0, Math.max(0.01, v.duration || duration || 0));
+      const next = clamp(t, 0, Math.max(0.01, v.duration || duration || 0));
+      v.currentTime = next;
+      setSourceState((previous) =>
+        previous.currentTime === next
+          ? previous
+          : { ...previous, currentTime: next },
+      );
     },
     [duration, videoRef],
   );

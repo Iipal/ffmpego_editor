@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clamp } from "@/lib/mobile-layout";
 import { NOOP } from "./heavy-modules";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { mobileStore, setMobileState } from "@/store/mobileSlice";
+import { audioStore } from "@/store/audioSlice";
+import { cutStore } from "@/store/cutSlice";
+import { useAudioPreview } from "@/hooks/useAudioPreview";
 
 export type UseVideoPlaybackArgs = {
   mediaUrl: string | null;
@@ -22,19 +28,21 @@ export function useVideoPlayback({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // rerender-use-ref-transient-values: transient currentTime via ref to avoid 60fps parent re-renders
-  const currentTimeRef = useRef(0);
-  const [currentTimeTick, setCurrentTimeTick] = useState(0);
+  const currentTimeRef = useRef(sourceStore.state.currentTime);
   // read current time via ref for handlers, tick for render
-  const currentTime = currentTimeRef.current;
+  const currentTime = useSelector(sourceStore).currentTime;
 
   // Effect 2: duration/display sync — separate from font loading
-  const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  const [volume, setVolumeState] = useState(1);
-  const [muted, setMuted] = useState(false);
+  const source = useSelector(sourceStore);
+  const { duration, isPlaying, volume, isMuted: muted } = source;
+  const isLooping = useSelector(mobileStore).isLoopEnabled;
   const [previewHeight, setPreviewHeight] = useState(560);
   const previewWrapRef = useRef<HTMLDivElement>(null);
+  const { file } = source;
+  const { tracks } = useSelector(audioStore);
+  const trackCount = tracks.length;
+  const { playbackSpeed } = useSelector(cutStore);
+  useAudioPreview({ file, mediaUrl, videoRef, tracks, volume, muted });
 
   const effectiveDuration = duration || srcDuration || 0;
 
@@ -85,7 +93,7 @@ export function useVideoPlayback({
     const onLoadedMetadata = () => {
       const d = v.duration;
       if (Number.isFinite(d)) {
-        setDuration(d);
+        setSourceState((previous) => ({ ...previous, duration: d }));
       }
     };
     const onTimeUpdate = () => {
@@ -97,13 +105,13 @@ export function useVideoPlayback({
         if (t >= e - 0.02) {
           v.currentTime = s;
           currentTimeRef.current = s;
-          setCurrentTimeTick((x) => (x + 1) % 1000000);
+          setSourceState((previous) => ({ ...previous, currentTime: s }));
           return;
         }
         if (t < s - 0.01) {
           v.currentTime = s;
           currentTimeRef.current = s;
-          setCurrentTimeTick((x) => (x + 1) % 1000000);
+          setSourceState((previous) => ({ ...previous, currentTime: s }));
           return;
         }
       } else {
@@ -111,16 +119,21 @@ export function useVideoPlayback({
           v.pause();
           v.currentTime = e;
           currentTimeRef.current = e;
-          setIsPlaying(false);
-          setCurrentTimeTick((x) => (x + 1) % 1000000);
+          setSourceState((previous) => ({
+            ...previous,
+            isPlaying: false,
+            currentTime: e,
+          }));
           return;
         }
       }
       currentTimeRef.current = t;
-      setCurrentTimeTick((x) => (x + 1) % 1000000);
+      setSourceState((previous) => ({ ...previous, currentTime: t }));
     };
-    const onPlay = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
+    const onPlay = () =>
+      setSourceState((previous) => ({ ...previous, isPlaying: true }));
+    const onPause = () =>
+      setSourceState((previous) => ({ ...previous, isPlaying: false }));
     const onEnded = () => {
       const s = trimStartRef.current;
       const e = trimEndRef.current;
@@ -129,7 +142,7 @@ export function useVideoPlayback({
         currentTimeRef.current = s;
         v.play().catch(NOOP);
       } else {
-        setIsPlaying(false);
+        setSourceState((previous) => ({ ...previous, isPlaying: false }));
       }
     };
     v.addEventListener("loadedmetadata", onLoadedMetadata);
@@ -145,7 +158,7 @@ export function useVideoPlayback({
       Number.isFinite(v.duration) &&
       v.duration !== duration
     ) {
-      setDuration(v.duration);
+      setSourceState((previous) => ({ ...previous, duration: v.duration }));
     }
     return () => {
       v.removeEventListener("loadedmetadata", onLoadedMetadata);
@@ -165,17 +178,21 @@ export function useVideoPlayback({
     const loop = () => {
       const v = videoRef.current;
       if (v && !v.paused) {
-        const t = v.currentTime;
         const s = trimStartRef.current;
         const e = trimEndRef.current;
-        if (isLoopingRef.current && e > s && t >= e - 0.02) {
+        if (isLoopingRef.current && e > s && v.currentTime >= e - 0.02) {
           v.currentTime = s;
         }
-        currentTimeRef.current = v.currentTime;
+        const t = v.currentTime;
+        currentTimeRef.current = t;
         const now = performance.now();
         if (now - lastTick > 100) {
           lastTick = now;
-          setCurrentTimeTick((x) => (x + 1) % 1000000);
+          setSourceState((previous) =>
+            previous.currentTime === t
+              ? previous
+              : { ...previous, currentTime: t },
+          );
         }
       }
       raf = requestAnimationFrame(loop);
@@ -188,28 +205,49 @@ export function useVideoPlayback({
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (isPlaying) v.play().catch(() => setIsPlaying(false));
+    if (isPlaying)
+      v.play().catch(() =>
+        setSourceState((previous) => ({ ...previous, isPlaying: false })),
+      );
     else v.pause();
   }, [isPlaying]);
 
-  // shared transport: keep element volume/muted in sync
+  // shared transport: keep element volume/muted/rate in sync (parity with
+  // the main VideoPlayer — mute the element while WebAudio preview tracks
+  // exist so audio isn't doubled; never set video.loop here, the JS
+  // trim-loop / pause-at-end logic above owns looping)
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     v.volume = volume;
-    v.muted = muted;
-  }, [volume, muted]);
+    v.muted = trackCount > 0 ? true : muted;
+  }, [volume, muted, trackCount]);
+
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.playbackRate = playbackSpeed;
+  }, [playbackSpeed, mediaUrl]);
 
   const setVolume = useCallback((v: number) => {
     const next = clamp(v, 0, 1);
-    setVolumeState(next);
-    if (next > 0) setMuted(false);
+    setSourceState((previous) => ({
+      ...previous,
+      volume: next,
+      isMuted: next > 0 ? false : previous.isMuted,
+    }));
   }, []);
 
-  const toggleMute = useCallback(() => setMuted((m) => !m), []);
+  const toggleMute = useCallback(
+    () =>
+      setSourceState((previous) => ({
+        ...previous,
+        isMuted: !previous.isMuted,
+      })),
+    [],
+  );
 
   // rerender-derived-state: derived staleness hint (no effect)
-  void currentTimeTick;
 
   const playFromTrimStart = useCallback(() => {
     const v = videoRef.current;
@@ -224,8 +262,11 @@ export function useVideoPlayback({
       v.currentTime = s;
       currentTimeRef.current = s;
     }
-    setCurrentTimeTick((x) => (x + 1) % 1000000);
-    setIsPlaying(true);
+    setSourceState((previous) => ({
+      ...previous,
+      currentTime: s,
+      isPlaying: true,
+    }));
   }, [effectiveDuration]);
 
   const togglePlayback = useCallback(() => {
@@ -238,15 +279,22 @@ export function useVideoPlayback({
       if (cur < s || cur >= e) {
         v.currentTime = s;
         currentTimeRef.current = s;
-        setCurrentTimeTick((x) => (x + 1) % 1000000);
+        setSourceState((previous) => ({ ...previous, currentTime: s }));
       }
-      setIsPlaying(true);
+      setSourceState((previous) => ({ ...previous, isPlaying: true }));
     } else {
-      setIsPlaying(false);
+      setSourceState((previous) => ({ ...previous, isPlaying: false }));
     }
   }, [isPlaying]);
 
-  const toggleLoop = useCallback(() => setIsLooping((v) => !v), []);
+  const toggleLoop = useCallback(
+    () =>
+      setMobileState((previous) => ({
+        ...previous,
+        isLoopEnabled: !previous.isLoopEnabled,
+      })),
+    [],
+  );
 
   const handleProgressSeek = useCallback(
     (value: number) => {
@@ -255,7 +303,7 @@ export function useVideoPlayback({
       const t = clamp(value, trimStartRef.current, trimEndRef.current);
       v.currentTime = t;
       currentTimeRef.current = t;
-      setCurrentTimeTick((x) => (x + 1) % 1000000);
+      setSourceState((previous) => ({ ...previous, currentTime: t }));
     },
     [effectiveDuration],
   );
@@ -267,7 +315,7 @@ export function useVideoPlayback({
       const t = clamp(time, 0, effectiveDuration);
       v.currentTime = t;
       currentTimeRef.current = t;
-      setCurrentTimeTick((x) => (x + 1) % 1000000);
+      setSourceState((previous) => ({ ...previous, currentTime: t }));
     },
     [effectiveDuration],
   );
