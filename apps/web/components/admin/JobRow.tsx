@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import type { JobRowProps } from "./types";
 import { JOB_ID_RE, formatAge, statusBadge } from "./helpers";
@@ -12,11 +13,16 @@ import { preloadHeavyProgress } from "./heavy";
 // js-batch-dom-css via single className toggle (no per-prop style thrash)
 export const JobRow = memo(function JobRow({
   job,
+  entry,
   onDelete,
   onCancel,
   onDownload,
+  onCompare,
+  onRetry,
+  onRename,
   deletePending,
   cancelPending,
+  renamePending,
 }: JobRowProps) {
   // rerender-simple-expression-in-memo: simple expression inside memo, no useMemo needed
   // B2: queued jobs wait for a worker slot; flag only exaggerated waits.
@@ -55,6 +61,38 @@ export const JobRow = memo(function JobRow({
   const handleDownload = useCallback(() => {
     onDownload(job);
   }, [job, onDownload]);
+
+  const handleCompare = useCallback(() => {
+    onCompare?.(job);
+  }, [job, onCompare]);
+
+  const handleRetry = useCallback(() => {
+    if (entry) onRetry?.(entry);
+  }, [entry, onRetry]);
+
+  // Inline rename (server PATCH + local history label).
+  const [renaming, setRenaming] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const startRename = useCallback(() => {
+    setDraftName(job.filename || job.outputFile?.name || "");
+    setRenaming(true);
+  }, [job.filename, job.outputFile]);
+  const submitRename = useCallback(() => {
+    if (!onRename) return;
+    void onRename(job.jobId, draftName)
+      .then(() => {
+        setRenaming(false);
+        toast.success("Renamed");
+      })
+      .catch((e: unknown) =>
+        toast.error(e instanceof Error ? e.message : "Rename failed"),
+      );
+  }, [onRename, job.jobId, draftName]);
+
+  const canRetry =
+    !!entry &&
+    (entry.kind === "audio-extract" || !!entry.settingsJson) &&
+    !isActive;
 
   const badgeClass = statusBadge(status);
   const progressRounded = Math.round(prog);
@@ -103,6 +141,38 @@ export const JobRow = memo(function JobRow({
               </span>
             ) : null}
           </div>
+          {renaming ? (
+            <form
+              className="mt-1.5 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                submitRename();
+              }}
+            >
+              <Input
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                className="h-7 text-xs"
+                autoFocus
+                aria-label="Job name"
+              />
+              <Button
+                type="submit"
+                size="xs"
+                disabled={renamePending}
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                onClick={() => setRenaming(false)}
+              >
+                Cancel
+              </Button>
+            </form>
+          ) : null}
           {job.error ? (
             <p className="mt-1 text-xs text-red-600 wrap-break-word">
               {typeof job.exitCode === "number"
@@ -129,13 +199,35 @@ export const JobRow = memo(function JobRow({
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {isCompleted ? (
+            <>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={handleDownload}
+                title="Re-download output (kept server-side until deleted)"
+              >
+                Download
+              </Button>
+              {onCompare ? (
+                <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={handleCompare}
+                  title="Side-by-side source/output comparison"
+                >
+                  Compare
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+          {canRetry && onRetry ? (
             <Button
               variant="outline"
               size="xs"
-              onClick={handleDownload}
-              title="Re-download output (kept server-side until deleted)"
+              onClick={handleRetry}
+              title="Re-queue with the stored settings"
             >
-              Download
+              Retry
             </Button>
           ) : null}
           {isActive ? (
@@ -147,6 +239,11 @@ export const JobRow = memo(function JobRow({
               title="Cancel transcode but keep the job row + logs"
             >
               Cancel
+            </Button>
+          ) : null}
+          {onRename && !renaming ? (
+            <Button variant="ghost" size="xs" onClick={startRename} title="Rename job">
+              Rename
             </Button>
           ) : null}
           <Button

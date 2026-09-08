@@ -12,6 +12,8 @@ import {
   throwTranscodeHttpError,
 } from "@/lib/transcode-jobs";
 import { assertMobileSettings } from "@/lib/validate-settings";
+import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { openComparison } from "@/store/compareSlice";
 
 export type UseBulkExportArgs = {
   itemsRef: { current: BulkItem[] };
@@ -133,6 +135,14 @@ export function useBulkExport({
           progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
         }
         patchItem(id, { status: "processing", progress: 50 });
+        trackHistoryEntry({
+          jobId,
+          endpoint: "/api/transcode/mobile",
+          kind: "transcode",
+          label: outName,
+          createdAt: Date.now(),
+          settingsJson,
+        });
         await awaitTranscodeCompletion(progressUrl, (progress, info) => {
           // B2: reflect server queue state per item instead of jumping to 50%+.
           if (info?.status === "queued") {
@@ -159,6 +169,13 @@ export function useBulkExport({
           await saveBlobFile(blob, outName);
         }
         patchItem(id, { status: "completed", progress: 100 });
+        openComparison({
+          title: outName,
+          sourceUrl: null,
+          outputUrl: URL.createObjectURL(blob),
+          outputKind: "video",
+          meta: "Bulk export",
+        });
         done++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Export failed";

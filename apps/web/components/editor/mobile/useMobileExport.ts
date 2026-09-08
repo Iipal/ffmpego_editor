@@ -9,6 +9,8 @@ import { NOOP } from "@/lib/utils";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
 import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
 import { assertMobileSettings } from "@/lib/validate-settings";
+import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { openJobComparison } from "@/lib/export-history";
 import { stripExtension } from "@/lib/video-file";
 import { useSelector } from "@tanstack/react-store";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
@@ -143,6 +145,14 @@ export function useMobileExport(args: ExportArgs) {
         throwTranscodeHttpError(res, payload);
       }
       const j = (await res.json()) as { jobId: string; progressUrl: string };
+      trackHistoryEntry({
+        jobId: j.jobId,
+        endpoint: "/api/transcode/mobile",
+        kind: "transcode",
+        label: outName,
+        createdAt: Date.now(),
+        settingsJson,
+      });
       const progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
       await awaitTranscodeCompletion(progressUrl, (progress, info) => {
         toast.loading(
@@ -158,6 +168,7 @@ export function useMobileExport(args: ExportArgs) {
         id: "mobile-export",
         description: savedName,
       });
+      void openJobComparison(j.jobId, outName, "Mobile video saved");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Export failed";
       if ((e as DOMException)?.name === "AbortError") {

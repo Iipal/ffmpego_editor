@@ -7,6 +7,7 @@ import {
   subscribeToTrimPersistence,
 } from "@/store/sourceSlice";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { CompareDialog } from "@/components/export/CompareDialog";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>{children}</TooltipProvider>
+        <CompareDialog />
       </QueryClientProvider>
     </ThemeProvider>
   );

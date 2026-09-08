@@ -179,6 +179,7 @@ export function updateJob(
       | "exitCode"
       | "alternateOutputPath"
       | "alternateFileId"
+      | "filename"
     >
   >,
 ): void {
@@ -211,6 +212,10 @@ export function updateJob(
   if (patch.alternateFileId !== undefined) {
     sets.push("alternateFileId = ?");
     vals.push(patch.alternateFileId);
+  }
+  if (patch.filename !== undefined) {
+    sets.push("filename = ?");
+    vals.push(patch.filename);
   }
   if (!sets.length) return;
   sets.push("updatedAt = ?");

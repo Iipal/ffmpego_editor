@@ -12,6 +12,9 @@ import {
   throwTranscodeHttpError,
 } from "@/lib/transcode-jobs";
 import { assertMobileSettings } from "@/lib/validate-settings";
+import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { openComparison } from "@/store/compareSlice";
+import { sourceStore } from "@/store/sourceSlice";
 import { stripExtension } from "@/lib/video-file";
 
 export type UseSubtitleExportArgs = {
@@ -154,6 +157,14 @@ export function useSubtitleExport({
         throwTranscodeHttpError(res, payload);
       }
       const j = (await res.json()) as { jobId: string; progressUrl: string };
+      trackHistoryEntry({
+        jobId: j.jobId,
+        endpoint: "/api/transcode/mobile/subtitles",
+        kind: "transcode",
+        label: outName,
+        createdAt: Date.now(),
+        settingsJson,
+      });
       const progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
       await awaitTranscodeCompletion(progressUrl, (progress, info) => {
         toast.loading(
@@ -171,6 +182,13 @@ export function useSubtitleExport({
         toast.success("Video saved", {
           id: "subtitles-export",
           description: savedName,
+        });
+        openComparison({
+          title: outName,
+          sourceUrl: sourceStore.state.mediaUrl,
+          outputUrl: URL.createObjectURL(blob),
+          outputKind: "video",
+          meta: "Subtitles export",
         });
       } catch (e) {
         if ((e as DOMException)?.name === "AbortError") {

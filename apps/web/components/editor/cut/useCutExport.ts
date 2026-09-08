@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { setSourceState } from "@/store/sourceSlice";
+import { setSourceState, sourceStore } from "@/store/sourceSlice";
 import { sortCuts } from "./helpers";
 import type { Cut, CutMode } from "./types";
 import type { MobileLayout } from "@/lib/mobile-layout";
@@ -10,6 +10,8 @@ import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
 import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
 import { assertCutSettings } from "@/lib/validate-settings";
+import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { openComparison } from "@/store/compareSlice";
 import { stripExtension } from "@/lib/video-file";
 import { useSelector } from "@tanstack/react-store";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
@@ -154,6 +156,14 @@ export function useCutExport({
         throwTranscodeHttpError(res, payload);
       }
       const j = (await res.json()) as { jobId: string; progressUrl: string };
+      trackHistoryEntry({
+        jobId: j.jobId,
+        endpoint: "/api/transcode/cut",
+        kind: "transcode",
+        label: outName,
+        createdAt: Date.now(),
+        settingsJson,
+      });
       const progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
       await awaitTranscodeCompletion(progressUrl, (progress, info) => {
         toast.loading(
@@ -172,6 +182,13 @@ export function useCutExport({
         toast.success("Cuts video saved", {
           id: "cut-export",
           description: savedName,
+        });
+        openComparison({
+          title: outName,
+          sourceUrl: sourceStore.state.mediaUrl,
+          outputUrl: URL.createObjectURL(blob),
+          outputKind: "video",
+          meta: "Cuts export",
         });
       } catch (e) {
         if ((e as DOMException)?.name === "AbortError") {

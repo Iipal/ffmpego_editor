@@ -18,6 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AdminHeader } from "@/components/admin/AdminHeader";
+import { ExtractRows } from "@/components/admin/ExtractRows";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { JobsArea } from "@/components/admin/JobsArea";
 import { JobsList } from "@/components/admin/JobsList";
@@ -67,6 +68,13 @@ export default function PageAdmin() {
     handleDeleteOne,
     handleCancelOne,
     handleDownloadOne,
+    handleCompareOne,
+    handleRetryEntry,
+    handleRenameOne,
+    handleExtractRename,
+    handleExtractDelete,
+    entryById,
+    extractEntries,
   } = admin;
 
   // rendering-usetransition-loading: useTransition pending as loading signal (not manual isLoading alone)
@@ -77,7 +85,7 @@ export default function PageAdmin() {
   // server-* NA doc: this is "use client" local-only admin; no RSC auth/cache required (see below)
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-3">
       {/* resource hints already via ensurePreconnect; bundle-preload via hover handlers below */}
       <AdminHeader
         isFilterStale={isFilterStale}
@@ -138,12 +146,39 @@ export default function PageAdmin() {
             hasJobs={hasJobs}
             deletePending={deletePending}
             cancelPending={cancelPending}
+            entryById={entryById}
             onDelete={handleDeleteOne}
             onCancel={handleCancelOne}
             onDownload={handleDownloadOne}
+            onCompare={handleCompareOne}
+            onRetry={handleRetryEntry}
+            onRename={handleRenameOne}
           />
         </CardContent>
       </Card>
+
+      {extractEntries.length > 0 ? (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">
+              Audio extracts · {extractEntries.length} local
+            </CardTitle>
+            <CardDescription>
+              Audio-only pulls have no server job — the bytes were downloaded
+              when created. Retry re-runs the pull against the current source
+              file. These records live in this browser only.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ExtractRows
+              entries={extractEntries}
+              onRetry={handleRetryEntry}
+              onRename={handleExtractRename}
+              onDelete={handleExtractDelete}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       {TipsHoisted}
 

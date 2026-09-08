@@ -55,11 +55,17 @@ export type GlobalHandler = (e: Event) => void;
 
 export type JobRowProps = {
   job: JobEntry;
+  /** Local history linkage (stored settingsJson enables Retry). */
+  entry?: import("@/store/exportHistorySlice").HistoryEntry | null;
   onDelete: (id: string) => void;
   onCancel: (id: string) => void;
   onDownload: (job: JobEntry) => void;
+  onCompare?: (job: JobEntry) => void;
+  onRetry?: (entry: import("@/store/exportHistorySlice").HistoryEntry) => void;
+  onRename?: (jobId: string, name: string) => Promise<void>;
   deletePending: boolean;
   cancelPending: boolean;
+  renamePending?: boolean;
 };
 
 export type JobsAreaProps = {

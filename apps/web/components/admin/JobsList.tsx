@@ -2,6 +2,7 @@
 
 import { memo } from "react";
 import { Activity, ViewTransition } from "react";
+import type { HistoryEntry } from "@/store/exportHistorySlice";
 import type { JobEntry } from "./types";
 import { JobRow } from "./JobRow";
 import { LoadingPlaceholder, NoJobsForAll } from "./placeholders";
@@ -15,9 +16,13 @@ type JobsListProps = {
   hasJobs: boolean;
   deletePending: boolean;
   cancelPending: boolean;
+  entryById?: Map<string, HistoryEntry>;
   onDelete: (id: string) => void;
   onCancel: (id: string) => void;
   onDownload: (job: JobEntry) => void;
+  onCompare?: (job: JobEntry) => void;
+  onRetry?: (entry: HistoryEntry) => void;
+  onRename?: (jobId: string, name: string) => Promise<void>;
 };
 
 export const JobsList = memo(function JobsList({
@@ -29,9 +34,13 @@ export const JobsList = memo(function JobsList({
   hasJobs,
   deletePending,
   cancelPending,
+  entryById,
   onDelete,
   onCancel,
   onDownload,
+  onCompare,
+  onRetry,
+  onRename,
 }: JobsListProps) {
   // rendering-conditional-render: explicit ternary (not &&) for each branch
   // rendering-content-visibility: applied per JobRow li via style prop
@@ -59,9 +68,13 @@ export const JobsList = memo(function JobsList({
             <ViewTransition key={job.jobId}>
               <JobRow
                 job={job}
+                entry={entryById?.get(job.jobId) ?? null}
                 onDelete={onDelete}
                 onCancel={onCancel}
                 onDownload={onDownload}
+                onCompare={onCompare}
+                onRetry={onRetry}
+                onRename={onRename}
                 deletePending={deletePending}
                 cancelPending={cancelPending}
               />

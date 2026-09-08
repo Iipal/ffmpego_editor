@@ -10,6 +10,7 @@ import {
   useTransition,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   FILTER_SET,
   type Filter,
@@ -21,6 +22,20 @@ import { preloadHeavyCard } from "./heavy";
 import { useLatest } from "./hooks";
 import { useAdminMutations } from "./mutations";
 import { useJobsLiveSync } from "./useJobsLiveSync";
+import {
+  hydrateHistoryStore,
+  renameHistoryEntry,
+  trackHistoryEntry,
+  untrackHistoryEntry,
+  useHistoryStore,
+  type HistoryEntry,
+} from "@/store/exportHistorySlice";
+import {
+  openJobComparison,
+  retryAudioExtract,
+  retryHistoryEntry,
+  renameJob,
+} from "@/lib/export-history";
 
 let didPreloadHeavyCard = false;
 
@@ -129,6 +144,7 @@ export function useAdminJobs() {
 
   const handleDeleteOne = useCallback(
     (id: string) => {
+      untrackHistoryEntry(id); // drop any local retry/compare linkage
       deleteOneMutation.mutate(id);
     },
     [deleteOneMutation],
@@ -187,6 +203,103 @@ export function useAdminJobs() {
         toast.error(e instanceof Error ? e.message : "Download failed");
       }
     })();
+  }, []);
+
+  // --- Merged export-history actions (were /editor/exports) ---
+  // History store hydrates once; entries link live rows to stored
+  // settingsJson (retry) and local-only audio-extract records.
+  useEffect(() => {
+    hydrateHistoryStore();
+  }, []);
+  const { entries } = useHistoryStore();
+  const entryById = useMemo(
+    () => new Map<string, HistoryEntry>(entries.map((e) => [e.jobId, e])),
+    [entries],
+  );
+  // Local-only audio pulls have no server job row — surfaced in their own
+  // section below the jobs list.
+  const extractEntries = useMemo(
+    () => entries.filter((e) => e.kind === "audio-extract"),
+    [entries],
+  );
+
+  const invalidateJobs = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+  }, [queryClient]);
+
+  const handleCompareOne = useCallback((job: JobEntry) => {
+    void openJobComparison(
+      job.jobId,
+      job.filename || job.outputFile?.name || job.jobId,
+      "Admin",
+    );
+  }, []);
+
+  const handleRetryEntry = useCallback(
+    async (entry: HistoryEntry) => {
+      try {
+        if (entry.kind === "audio-extract" && entry.audioFormat) {
+          const blob = await retryAudioExtract(entry.audioFormat, entry.label);
+          const { openComparison } = await import("@/store/compareSlice");
+          const { sourceStore } = await import("@/store/sourceSlice");
+          openComparison({
+            title: entry.label,
+            sourceUrl: sourceStore.state.mediaUrl,
+            outputUrl: URL.createObjectURL(blob),
+            outputKind: "audio",
+            meta: "Audio-only pull (re-run)",
+          });
+          toast.success("Audio re-extracted", { description: entry.label });
+          return;
+        }
+        if (!entry.settingsJson) {
+          toast.error("Retry unavailable — original settings were not stored.");
+          return;
+        }
+        const jobId = await retryHistoryEntry(entry);
+        toast.success("Retry queued", { description: jobId });
+        invalidateJobs();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Retry failed");
+      }
+    },
+    [invalidateJobs],
+  );
+
+  const handleRenameOne = useCallback(
+    async (jobId: string, name: string) => {
+      const clean = name.trim();
+      if (!clean) throw new Error("Name cannot be empty.");
+      await renameJob(jobId, clean); // server PATCH
+      renameHistoryEntry(jobId, clean);
+      if (!entryById.has(jobId)) {
+        // Adopt untracked server job so the rename sticks across navigation.
+        trackHistoryEntry({
+          jobId,
+          endpoint: "/api/transcode",
+          kind: "transcode",
+          label: clean,
+          createdAt: Date.now(),
+        });
+      }
+      invalidateJobs();
+    },
+    [entryById, invalidateJobs],
+  );
+
+  const handleExtractRename = useCallback((jobId: string, name: string) => {
+    const clean = name.trim();
+    if (!clean) {
+      toast.error("Name cannot be empty.");
+      return;
+    }
+    renameHistoryEntry(jobId, clean);
+    toast.success("Renamed");
+  }, []);
+
+  const handleExtractDelete = useCallback((jobId: string) => {
+    untrackHistoryEntry(jobId);
+    toast.success("Record removed");
   }, []);
 
   // -----------------------------------------------------------------------
@@ -353,6 +466,13 @@ export function useAdminJobs() {
     handleDeleteOne,
     handleCancelOne,
     handleDownloadOne,
+    handleCompareOne,
+    handleRetryEntry,
+    handleRenameOne,
+    handleExtractRename,
+    handleExtractDelete,
+    entryById,
+    extractEntries,
   };
 }
 

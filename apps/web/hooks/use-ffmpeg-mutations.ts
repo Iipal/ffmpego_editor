@@ -20,6 +20,8 @@ import {
   withLogTail,
 } from "@/lib/transcode-jobs";
 import { assertGenericSettings } from "@/lib/validate-settings";
+import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { openJobComparison } from "@/lib/export-history";
 import type { CropSlice } from "@/store/cropSlice";
 import type { AudioTrackRenderSettings } from "@/store/audioSlice";
 
@@ -198,6 +200,14 @@ export function useTranscodeMutation() {
         );
       }
       // Mark upload done before switching to FFmpeg SSE progress
+      trackHistoryEntry({
+        jobId: response.jobId,
+        endpoint: "/api/transcode",
+        kind: "transcode",
+        label: request.exportFilename.trim() || request.file.name,
+        createdAt: Date.now(),
+        settingsJson,
+      });
       setSourceState((p) => ({
         ...p,
         uploadProgress: 100,
@@ -315,6 +325,7 @@ export function useTranscodeMutation() {
         transcodeProgress: 100,
         transcodeOutputPath: savedName ?? filename,
       }));
+      void openJobComparison(result.jobId, savedName ?? filename, "Export complete");
     },
     onError: (error) => {
       if ((error as DOMException)?.name === "AbortError") {

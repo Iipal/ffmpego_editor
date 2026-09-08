@@ -1561,6 +1561,25 @@ app.delete("/transcode/jobs/:jobId", async (c) => {
   return c.json({ deleted: id, status: prevStatus });
 });
 
+app.patch("/transcode/jobs/:jobId", async (c) => {
+  const id = c.req.param("jobId");
+  const job = getJob(id);
+  if (!job) return err(c, "JOB_NOT_FOUND", { message: "Job not found." });
+  const body = (await c.req.json().catch(() => null)) as {
+    filename?: unknown;
+  } | null;
+  const raw = typeof body?.filename === "string" ? body.filename.trim() : "";
+  if (!raw || raw.length > 128) {
+    return err(c, "VALIDATION_FAILED", {
+      message: "filename must be a non-empty string up to 128 characters.",
+      issues: ["filename: required, max 128 characters"],
+    });
+  }
+  const filename = safeFilename(raw, "export");
+  updateJob(id, { filename });
+  return c.json({ jobId: id, filename });
+});
+
 /**
  * GET /transcode/download/:jobId
  *
