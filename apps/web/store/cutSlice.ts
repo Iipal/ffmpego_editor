@@ -12,6 +12,9 @@ export interface CutSlice {
   watermark: boolean;
   ignoreTrim: boolean;
   audioTrackIndex: number;
+  /** Active preset target: video job vs direct audio extraction. */
+  presetTarget: "transcode" | "audio-extract";
+  audioFormat: "mp3" | "wav";
   isSidebarOpen: boolean;
   transcodeStatus:
     | "idle"
@@ -39,6 +42,8 @@ export const initialCutSlice: CutSlice = {
   watermark: false,
   ignoreTrim: false,
   audioTrackIndex: 0,
+  presetTarget: "transcode",
+  audioFormat: "mp3",
   isSidebarOpen: true,
   transcodeStatus: "idle",
   transcodeProgress: 0,

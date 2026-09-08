@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   PanelRightClose,
@@ -66,6 +66,21 @@ import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
+import { API_BASE_URL } from "@/lib/api-client";
+import { serverErrorMessage } from "@/lib/transcode-jobs";
+import { saveBlobFile } from "@/lib/save-blob-file";
+import {
+  allPresets,
+  deleteCustomPreset,
+  isBuiltinPreset,
+  newCustomId,
+  presetToPatch,
+  saveCustomPreset,
+  type ExportPreset,
+} from "@/lib/export-presets";
+import { preflightExport, probeApiConnectivity } from "@/lib/preflight";
+import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { openComparison } from "@/store/compareSlice";
 
 export function SidebarToggle() {
   const isSidebarOpen = useSelector(cutStore, (state) => state.isSidebarOpen);
@@ -264,8 +279,171 @@ export function Sidebar() {
       crop: { x, y, width: w, height: h },
     });
   };
-  const startExport = () => {
+  // Named presets (builtins + localStorage customs) + preflight gate.
+  const [presetId, setPresetId] = useState("");
+  const [customPresetName, setCustomPresetName] = useState("");
+  const [presetsTick, setPresetsTick] = useState(0);
+  const presets = useMemo(() => allPresets(), [presetsTick]);
+  const selectedPreset = presets.find((p) => p.id === presetId);
+
+  const preflight = preflightExport({
+    hasFile: !!state.file,
+    sourceWidth: state.sourceWidth,
+    sourceHeight: state.sourceHeight,
+    duration: state.duration,
+    trimRange: state.trimRange,
+    ignoreTrim: state.ignoreTrim,
+    exportFormat: state.exportFormat,
+    exportFps: state.exportFps,
+    exportSpeed: state.exportSpeed,
+    watermark: state.watermark,
+    hasMobileLayout: false,
+    presetTarget: state.presetTarget,
+    bitrateKbps: state.bitrateKbps,
+  });
+
+  const gatePreflight = async (): Promise<boolean> => {
+    const errors = preflight.issues.filter((i) => i.level === "error");
+    if (errors.length) {
+      toast.error("Export blocked by preflight.", {
+        description: errors.map((i) => i.message).join("\n"),
+      });
+      return false;
+    }
+    const conn = await probeApiConnectivity();
+    if (conn) {
+      toast.error("Export blocked.", { description: conn });
+      return false;
+    }
+    return true;
+  };
+
+  const applyPreset = (id: string) => {
+    setPresetId(id);
+    const preset = presets.find((p) => p.id === id);
+    if (!preset) return;
+    update(presetToPatch(preset, state.exportFilename, basename));
+    toast.success(`Preset applied: ${preset.name}`, {
+      description:
+        preset.target === "audio-extract"
+          ? "Audio-only pull — video settings are ignored."
+          : "Review the export fields, then Export.",
+    });
+  };
+
+  const saveCurrentAsPreset = () => {
+    const name = customPresetName.trim();
+    if (!name) {
+      toast.error("Name the preset before saving.");
+      return;
+    }
+    const preset: ExportPreset = {
+      version: 1,
+      id: newCustomId(),
+      name,
+      target: state.presetTarget,
+      settings:
+        state.presetTarget === "audio-extract"
+          ? {}
+          : {
+              exportFormat: state.exportFormat,
+              exportFps: state.exportFps,
+              exportQuality: state.exportQuality,
+              exportSpeed: state.exportSpeed,
+              watermark: state.watermark,
+              customFFmpegArgs: state.customFFmpegArgs || undefined,
+              ignoreTrim: state.ignoreTrim || undefined,
+            },
+      ...(state.presetTarget === "audio-extract"
+        ? { audioFormat: state.audioFormat }
+        : {}),
+    };
+    saveCustomPreset(preset);
+    setPresetsTick((t) => t + 1);
+    setPresetId(preset.id);
+    setCustomPresetName("");
+    toast.success(`Preset saved: ${name}`);
+  };
+
+  const deleteSelectedPreset = () => {
+    if (!selectedPreset || isBuiltinPreset(selectedPreset.id)) return;
+    deleteCustomPreset(selectedPreset.id);
+    setPresetsTick((t) => t + 1);
+    setPresetId("");
+    toast.success(`Preset deleted: ${selectedPreset.name}`);
+  };
+
+  const runAudioExtract = async () => {
     if (!state.file) return;
+    if (!(await gatePreflight())) return;
+    toast.loading("Extracting audio...", { id: "transcode" });
+    setCutState((p) => ({
+      ...p,
+      transcodeStatus: "processing",
+      transcodeProgress: 50,
+      transcodeError: null,
+    }));
+    try {
+      const form = new FormData();
+      form.append("file", state.file);
+      const res = await fetch(
+        `${API_BASE_URL}/api/audio/extract?format=${state.audioFormat}`,
+        { method: "POST", body: form },
+      );
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as unknown;
+        throw new Error(
+          serverErrorMessage(j) ?? `Extract failed: ${res.status}`,
+        );
+      }
+      const blob = await res.blob();
+      const name = `${state.exportFilename || basename || "audio"}.${state.audioFormat}`;
+      const saved = await saveBlobFile(blob, name);
+      trackHistoryEntry({
+        jobId: `extract-${Date.now()}`,
+        endpoint: "/api/audio/extract",
+        kind: "audio-extract",
+        label: saved,
+        createdAt: Date.now(),
+        audioFormat: state.audioFormat,
+      });
+      openComparison({
+        title: saved,
+        sourceUrl: source.mediaUrl,
+        outputUrl: URL.createObjectURL(blob),
+        outputKind: "audio",
+        meta: "Audio-only pull",
+      });
+      setCutState((p) => ({
+        ...p,
+        transcodeStatus: "completed",
+        transcodeProgress: 100,
+        transcodeOutputPath: saved,
+      }));
+      toast.success("Audio extracted.", {
+        id: "transcode",
+        description: saved,
+      });
+    } catch (error) {
+      setCutState((p) => ({
+        ...p,
+        transcodeStatus: "failed",
+        transcodeError:
+          error instanceof Error ? error.message : "Extract failed.",
+      }));
+      toast.error("Audio extract failed.", {
+        id: "transcode",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    }
+  };
+  const startExport = async () => {
+    if (!state.file) return;
+    if (state.presetTarget === "audio-extract") {
+      await runAudioExtract();
+      return;
+    }
+    if (!(await gatePreflight())) return;
 
     console.log(state);
 
@@ -623,12 +801,88 @@ export function Sidebar() {
             Export <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>
           <CollapsibleContent className="space-y-4 pt-3">
+            <div className="space-y-2">
+              <Label>Preset</Label>
+              <div className="flex gap-2">
+                <Select
+                  value={presetId}
+                  onValueChange={(v) => v && applyPreset(v)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Custom settings" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {presets.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedPreset && !isBuiltinPreset(selectedPreset.id) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={deleteSelectedPreset}
+                    aria-label="Delete preset"
+                  >
+                    Delete
+                  </Button>
+                )}
+              </div>
+              {selectedPreset?.description && (
+                <p className="text-[11px] leading-4 text-kumo-subtle">
+                  {selectedPreset.description}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={customPresetName}
+                  onChange={(e) => setCustomPresetName(e.target.value)}
+                  placeholder="Save current as preset…"
+                  aria-label="New preset name"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={saveCurrentAsPreset}
+                >
+                  Save
+                </Button>
+              </div>
+            </div>
+            {state.presetTarget === "audio-extract" && (
+              <div className="space-y-2">
+                <p className="text-[11px] leading-4 text-kumo-subtle">
+                  Audio-only pull — video format, quality and trim pacing are
+                  ignored; the trimmed range sets the audio length.
+                </p>
+                <Label>Audio format</Label>
+                <Select
+                  value={state.audioFormat}
+                  onValueChange={(value) =>
+                    value && update({ audioFormat: value as "mp3" | "wav" })
+                  }
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mp3">MP3</SelectItem>
+                    <SelectItem value="wav">WAV</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Label>Output format</Label>
             <Select
               value={state.exportFormat}
               onValueChange={(value) =>
                 value &&
-                update({ exportFormat: value as typeof state.exportFormat })
+                update({
+                  exportFormat: value as typeof state.exportFormat,
+                  presetTarget: "transcode",
+                })
               }
             >
               <SelectTrigger className="w-full">
@@ -639,12 +893,13 @@ export function Sidebar() {
                 <SelectItem value="webm">WebM</SelectItem>
                 <SelectItem value="mov">MOV</SelectItem>
                 <SelectItem value="webm-tg">WebM Telegram (sticker)</SelectItem>
+                <SelectItem value="gif">GIF preview</SelectItem>
               </SelectContent>
             </Select>
-            {state.exportFormat === "webm-tg" && (
+            {state.exportFormat === "gif" && (
               <p className="text-[11px] leading-4 text-kumo-subtle">
-                Telegram sticker preset: 30fps, width 512px, VP9, no audio, up
-                to 3s. Trim, crop, filename and quality apply.
+                Silent GIF preview: scaled to 480px wide, no audio, custom
+                framerate applies. Mobile layout and watermark are skipped.
               </p>
             )}
             <div className="space-y-2 pt-2">
@@ -657,7 +912,7 @@ export function Sidebar() {
                 placeholder="output-file-name"
               />
             </div>
-            {state.exportFormat !== "mov" && (
+            {state.exportFormat !== "mov" && state.exportFormat !== "gif" && (
               <div className="flex flex-col space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>
@@ -794,20 +1049,43 @@ export function Sidebar() {
                 {state.transcodeError}
               </p>
             )}
+            <div className="space-y-1 text-[11px] leading-4" aria-live="polite">
+              {preflight.summary.map((line) => (
+                <p key={line} className="text-kumo-subtle">
+                  {line}
+                </p>
+              ))}
+              {preflight.issues.map((issue) => (
+                <p
+                  key={issue.message}
+                  className={
+                    issue.level === "error"
+                      ? "text-red-600"
+                      : "text-amber-600 dark:text-amber-400"
+                  }
+                >
+                  {issue.level === "error" ? "Blocked: " : "Note: "}
+                  {issue.message}
+                </p>
+              ))}
+            </div>
             <Button
               className="w-full"
               onClick={startExport}
               disabled={
                 transcodeMutation.isPending ||
                 state.sourceWidth === 0 ||
-                state.sourceHeight === 0
+                state.sourceHeight === 0 ||
+                !preflight.ok
               }
             >
-              {transcodeMutation.isPending
-                ? state.transcodeStatus === "queued"
-                  ? "Queued for export…"
-                  : `Exporting ${Math.round(state.transcodeProgress)}%`
-                : "Export video"}
+              {state.presetTarget === "audio-extract"
+                ? "Extract audio"
+                : transcodeMutation.isPending
+                  ? state.transcodeStatus === "queued"
+                    ? "Queued for export…"
+                    : `Exporting ${Math.round(state.transcodeProgress)}%`
+                  : "Export video"}
             </Button>
           </CollapsibleContent>
         </Collapsible>
