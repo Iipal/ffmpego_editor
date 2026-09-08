@@ -58,6 +58,30 @@ export interface VideoMetadata {
   ffprobe: FFprobeReport;
 }
 
+export interface AudioAnalysis {
+  duration: number;
+  sampleRate: number;
+  peaks: number[];
+  rms: number[];
+  tracks: Array<{
+    trackIndex: number;
+    streamIndex: number;
+    codec: string | null;
+    codecLongName: string | null;
+    language: string | null;
+    title: string | null;
+    channels: number;
+    sampleRate: number;
+  }>;
+  selectedTrack: number;
+  loudness: {
+    inputIntegratedLufs: number;
+    inputTruePeak: number;
+    inputLra: number;
+    targetIntegratedLufs: number;
+  } | null;
+}
+
 export type {
   FFprobeReport,
   TranscodeProgress,

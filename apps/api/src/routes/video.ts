@@ -468,8 +468,14 @@ app.post("/transcode/mobile", async (c) => {
     customArgs: custom.args,
     outputPath: originalOutputPath,
     mobileLayout: mobileLayout as never,
+    gainDb: settings.gainDb,
+    loudnormTargetLufs: settings.loudnormTargetLufs,
+    fadeInSeconds: settings.fadeInSeconds,
+    fadeOutSeconds: settings.fadeOutSeconds,
+    muteSegments: settings.muteSegments,
     speed: settings.exportSpeed,
     watermark: !!settings.watermark,
+    audioTracks: settings.audioTracks,
   });
   jobLog(jobId, "mobile ffmpeg args:", originalArgs.join(" "));
   createQueuedJob({
@@ -892,6 +898,8 @@ app.post("/transcode", async (c) => {
     extraVideoFilters: custom.extraVf,
     outputPath: originalOutputPath,
     mobileLayout: mobileLayout as never,
+    audioTrackIndex: settings.audioTrackIndex,
+    audioTracks: settings.audioTracks,
   });
 
   jobLog(jobId, "ffmpeg args:", originalArgs.join(" "));
@@ -935,6 +943,13 @@ app.post("/transcode", async (c) => {
         extraVideoFilters: custom.extraVf,
         outputPath: alternateOutputPath,
         mobileLayout: mobileLayout as never,
+        gainDb: settings.gainDb,
+        loudnormTargetLufs: settings.loudnormTargetLufs,
+        fadeInSeconds: settings.fadeInSeconds,
+        fadeOutSeconds: settings.fadeOutSeconds,
+        muteSegments: settings.muteSegments,
+        audioTrackIndex: settings.audioTrackIndex,
+        audioTracks: settings.audioTracks,
       });
       updateJob(jobId, { alternateOutputPath, progress: 0 });
       await runTranscode(jobId, speedArgs, duration);

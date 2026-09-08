@@ -64,6 +64,7 @@ import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 import { UploadProgress } from "@/components/editor/UploadProgress";
+import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
 
 export function SidebarToggle() {
   const isSidebarOpen = useSelector(cutStore, (state) => state.isSidebarOpen);
@@ -97,6 +98,7 @@ export function Sidebar() {
   const source = useSelector(sourceStore);
   const crop = useSelector(cropStore);
   const cut = useSelector(cutStore);
+  const audio = useSelector(audioStore);
   const state = { ...source, ...crop, ...cut };
   const metadataMutation = useVideoMetadataMutation();
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
@@ -280,6 +282,9 @@ export function Sidebar() {
         sourceHeight: state.sourceHeight,
         sourceWidth: state.sourceWidth,
         trimRange: state.trimRange,
+        audioTracks: audio.tracks.length
+          ? getAudioRenderSettings(audio.tracks)
+          : undefined,
       },
       {
         onSuccess: (result) =>

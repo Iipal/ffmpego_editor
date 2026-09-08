@@ -10,6 +10,8 @@ import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
 import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
 import { stripExtension } from "@/lib/video-file";
+import { useSelector } from "@tanstack/react-store";
+import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
 
 export function useCutExport({
   file,
@@ -37,6 +39,7 @@ export function useCutExport({
   singleLayout: MobileLayout;
 }) {
   const [isExporting, setIsExporting] = useState(false);
+  const audio = useSelector(audioStore);
 
   const onExport = useCallback(async () => {
     if (!file) {
@@ -80,6 +83,9 @@ export function useCutExport({
           : mode === "2-stack"
             ? stackedLayout.zones
             : singleLayout.zones,
+      audioTracks: audio.tracks.length
+        ? getAudioRenderSettings(audio.tracks)
+        : undefined,
     });
 
     setIsExporting(true);
@@ -189,6 +195,7 @@ export function useCutExport({
     activeWatermark,
     stackedLayout,
     singleLayout,
+    audio,
   ]);
 
   return { isExporting, exportName, setExportName, onExport };

@@ -69,6 +69,67 @@ export interface TranscodeOptions {
   outputPath?: string;
   mobileLayout?: MobileLayoutForFFmpeg | null;
   watermark?: boolean;
+  gainDb?: number;
+  loudnormTargetLufs?: number;
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
+  muteSegments?: Array<{ start: number; end: number }>;
+  audioTrackIndex?: number;
+  audioTracks?: Array<{
+    trackIndex: number;
+    enabled: boolean;
+    gainDb: number;
+    loudnormEnabled: boolean;
+    loudnormTargetLufs: number;
+    fadeInSeconds: number;
+    fadeOutSeconds: number;
+    muteSegments: Array<{ start: number; end: number }>;
+  }>;
+}
+
+function buildAudioFilter(
+  options: TranscodeOptions,
+  speed?: number,
+  track?: NonNullable<TranscodeOptions["audioTracks"]>[number],
+) {
+  const filters: string[] = [];
+  const rate = speed ?? options.speed;
+  if (rate !== undefined && rate !== 1) {
+    filters.push(
+      rate > 0 && rate < 0.5
+        ? buildAtempoFilter(rate)
+        : `atempo=${rate.toFixed(6)}`,
+    );
+  }
+  const settings = track ?? {
+    gainDb: options.gainDb ?? 0,
+    loudnormEnabled: options.loudnormTargetLufs !== undefined,
+    loudnormTargetLufs: options.loudnormTargetLufs ?? -14,
+    fadeInSeconds: options.fadeInSeconds ?? 0,
+    fadeOutSeconds: options.fadeOutSeconds ?? 0,
+    muteSegments: options.muteSegments ?? [],
+  };
+  if (settings.gainDb) filters.push(`volume=${settings.gainDb.toFixed(3)}dB`);
+  if (settings.loudnormEnabled)
+    filters.push(
+      `loudnorm=I=${settings.loudnormTargetLufs}:print_format=summary`,
+    );
+  if (settings.fadeInSeconds > 0)
+    filters.push(`afade=t=in:st=0:d=${settings.fadeInSeconds}`);
+  if (settings.fadeOutSeconds > 0) {
+    const end = Math.max(
+      0,
+      options.trimRange[1] - options.trimRange[0] - settings.fadeOutSeconds,
+    );
+    filters.push(`afade=t=out:st=${end}:d=${settings.fadeOutSeconds}`);
+  }
+  for (const segment of settings.muteSegments) {
+    if (segment.end > segment.start)
+      filters.push(
+        `volume=0:enable='between(t,${segment.start},${segment.end})'`,
+      );
+  }
+  return filters.length ? filters.join(",") : null;
 }
 
 /**
@@ -189,6 +250,19 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     args.push("-loop", "1", "-framerate", "30", "-i", watermarkPath);
   }
   args.push(...buildFormatArgs(options.format, options.crf));
+  const enabledAudioTracks =
+    options.audioTracks?.filter((track) => track.enabled) ?? [];
+  const audioMap =
+    options.audioTrackIndex !== undefined
+      ? `0:a:${options.audioTrackIndex}?`
+      : "0:a?";
+  if (!options.mobileLayout && options.audioTracks) {
+    args.push("-map", "0:v?");
+    for (const track of enabledAudioTracks)
+      args.push("-map", `0:a:${track.trackIndex}?`);
+  } else if (!options.mobileLayout && options.audioTrackIndex !== undefined) {
+    args.push("-map", "0:v?", "-map", audioMap);
+  }
 
   const videoFilters: string[] = [];
 
@@ -251,13 +325,20 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       ? `,${buildSetptsFilter(options.speed as number)}`
       : "";
     const wm = watermarkEnabled;
-    const getAtempo = (): string | null => {
-      if (!hasSpeed) return null;
-      const atempo = options.speed as number;
-      if (atempo > 0 && atempo < 0.5) {
-        return buildAtempoFilter(atempo);
+    const getAudio = (): string | null =>
+      buildAudioFilter(options, undefined, enabledAudioTracks[0]);
+    const audioArgs = (fallback: string | null) => {
+      if (options.audioTracks) {
+        return enabledAudioTracks.flatMap((track, index) => {
+          const filter = buildAudioFilter(options, undefined, track);
+          return [
+            "-map",
+            `0:a:${track.trackIndex}?`,
+            ...(filter ? [`-filter:a:${index}`, filter] : []),
+          ];
+        });
       }
-      return `atempo=${atempo.toFixed(6)}`;
+      return ["-map", audioMap, ...(fallback ? ["-filter:a", fallback] : [])];
     };
     if (ml.mode === "full" && ml.zones[0]) {
       const c = toCrop(ml.zones[0] as never);
@@ -265,17 +346,14 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
         // use filter_complex for watermark overlay on top of cropped/scaled video
         const base = `[0:v]crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=1080:1920:flags=lanczos${setpts}[vbase]`;
         const filterComplex = `${base};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
-        const af = getAtempo();
+        const af = getAudio();
         if (af)
           args.push(
             "-filter_complex",
             filterComplex,
             "-map",
             "[v]",
-            "-map",
-            "0:a",
-            "-filter:a",
-            af,
+            ...audioArgs(af),
           );
         else
           args.push(
@@ -283,8 +361,7 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
             filterComplex,
             "-map",
             "[v]",
-            "-map",
-            "0:a?",
+            ...audioArgs(null),
           );
         usedComplex = true;
         videoFilters.length = 0;
@@ -294,8 +371,9 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
           `crop=${c.cw}:${c.ch}:${c.cx}:${c.cy}`,
           `scale=1080:1920:flags=lanczos${setpts}`,
         );
-        const af = getAtempo();
-        if (af) args.push("-filter:a", af);
+        const af = getAudio();
+        if (options.audioTracks) args.push(...audioArgs(af));
+        else if (af) args.push("-filter:a", af);
       }
     } else if (ml.mode === "stacked" && ml.zones.length >= 2) {
       const a = toCrop(ml.zones[0] as never);
@@ -306,17 +384,14 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       const baseComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[vbase]`;
       if (wm) {
         const fullComplex = `${baseComplex};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
-        const af = getAtempo();
+        const af = getAudio();
         if (af)
           args.push(
             "-filter_complex",
             fullComplex,
             "-map",
             "[v]",
-            "-map",
-            "0:a",
-            "-filter:a",
-            af,
+            ...audioArgs(af),
           );
         else
           args.push(
@@ -324,23 +399,19 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
             fullComplex,
             "-map",
             "[v]",
-            "-map",
-            "0:a?",
+            ...audioArgs(null),
           );
         usedComplex = true;
       } else {
         const simpleComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[v]`;
-        const af = getAtempo();
+        const af = getAudio();
         if (af)
           args.push(
             "-filter_complex",
             simpleComplex,
             "-map",
             "[v]",
-            "-map",
-            "0:a",
-            "-filter:a",
-            af,
+            ...audioArgs(af),
           );
         else
           args.push(
@@ -348,8 +419,7 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
             simpleComplex,
             "-map",
             "[v]",
-            "-map",
-            "0:a?",
+            ...audioArgs(null),
           );
         usedComplex = true;
       }
@@ -358,14 +428,31 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   }
 
   // Non-mobile speed handling
-  if (!options.mobileLayout && options.speed && options.speed !== 1) {
+  if (
+    !options.mobileLayout &&
+    !options.audioTracks &&
+    options.speed &&
+    options.speed !== 1
+  ) {
     videoFilters.push(buildSetptsFilter(options.speed));
-    const atempo = options.speed;
-    if (atempo > 0 && atempo < 0.5) {
-      args.push("-filter:a", buildAtempoFilter(atempo));
-    } else {
-      args.push("-filter:a", `atempo=${atempo.toFixed(6)}`);
-    }
+    const audio = buildAudioFilter(options);
+    if (audio) args.push("-filter:a", audio);
+  }
+
+  if (
+    !options.mobileLayout &&
+    !options.audioTracks &&
+    (!options.speed || options.speed === 1)
+  ) {
+    const audio = buildAudioFilter(options);
+    if (audio) args.push("-filter:a", audio);
+  }
+
+  if (!options.mobileLayout && options.audioTracks) {
+    enabledAudioTracks.forEach((track, index) => {
+      const audio = buildAudioFilter(options, options.speed, track);
+      if (audio) args.push("-filter:a:" + index, audio);
+    });
   }
 
   // User -vf values merge into our -vf chain (validated by parseCustomArgs).

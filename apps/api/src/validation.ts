@@ -55,6 +55,20 @@ const mobileLayoutSchema = z
     }
   });
 
+const audioTrackSchema = z.object({
+  trackIndex: finite.int().min(0),
+  enabled: z.boolean(),
+  gainDb: finite.min(-60).max(24).default(0),
+  loudnormEnabled: z.boolean().default(false),
+  loudnormTargetLufs: finite.min(-70).max(-5).default(-14),
+  fadeInSeconds: finite.min(0).max(3600).default(0),
+  fadeOutSeconds: finite.min(0).max(3600).default(0),
+  muteSegments: z
+    .array(z.object({ start: finite, end: finite }))
+    .max(500)
+    .default([]),
+});
+
 const exportBase = z.object({
   sourceWidth: finite,
   sourceHeight: finite,
@@ -65,8 +79,19 @@ const exportBase = z.object({
   exportFilename: z.string().min(1),
   customFFmpegArgs: z.string().optional().default(""),
   watermark: z.boolean().optional(),
+  audioTrackIndex: finite.int().min(0).optional().default(0),
+  audioTracks: z.array(audioTrackSchema).max(32).optional(),
   ignoreTrim: z.boolean().optional(),
   ignoreTrimSettings: z.boolean().optional(),
+  gainDb: finite.min(-60).max(24).optional().default(0),
+  loudnormTargetLufs: finite.min(-70).max(-5).optional(),
+  fadeInSeconds: finite.min(0).max(3600).optional().default(0),
+  fadeOutSeconds: finite.min(0).max(3600).optional().default(0),
+  muteSegments: z
+    .array(z.object({ start: finite, end: finite }))
+    .max(500)
+    .optional()
+    .default([]),
 });
 
 /** POST /transcode — generic crop/trim/speed (+ optional mobile layout). */
@@ -116,6 +141,8 @@ export const cutSettingsSchema = z
     exportFilename: z.string().optional().default(""),
     customFFmpegArgs: z.string().optional().default(""),
     watermark: z.boolean().optional(),
+    audioTrackIndex: finite.int().min(0).optional().default(0),
+    audioTracks: z.array(audioTrackSchema).max(32).optional(),
     splitRatio: finite.min(0.2).max(0.8).optional(),
     zones: z.array(cutZoneSchema).optional(),
   })

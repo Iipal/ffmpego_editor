@@ -65,6 +65,17 @@ export interface CutTranscodeOptions {
   customArgs?: string[];
   outputPath?: string;
   watermark?: boolean;
+  audioTrackIndex?: number;
+  audioTracks?: Array<{
+    trackIndex: number;
+    enabled: boolean;
+    gainDb: number;
+    loudnormEnabled: boolean;
+    loudnormTargetLufs: number;
+    fadeInSeconds: number;
+    fadeOutSeconds: number;
+    muteSegments: Array<{ start: number; end: number }>;
+  }>;
 }
 
 function toPixels(
@@ -132,6 +143,56 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
       })()
     : null;
   const vSpeed = hasSpeed ? `,${buildSetptsFilter(speed)}` : "";
+  const enabledAudioTracks =
+    options.audioTracks?.filter((track) => track.enabled) ?? [];
+  const tracksForRender = options.audioTracks
+    ? enabledAudioTracks
+    : [
+        {
+          trackIndex: options.audioTrackIndex ?? 0,
+          enabled: true,
+          gainDb: 0,
+          loudnormEnabled: false,
+          loudnormTargetLufs: -14,
+          fadeInSeconds: 0,
+          fadeOutSeconds: 0,
+          muteSegments: [],
+        },
+      ];
+  const audioLabelsForCut = (cut: CutSegment, cutIndex: number) =>
+    tracksForRender.map((track, trackIndex) => {
+      const source =
+        options.audioTracks === undefined &&
+        options.audioTrackIndex === undefined
+          ? "[0:a]"
+          : `[0:a:${track.trackIndex}]`;
+      const filters = [
+        `atrim=${fmt(cut.start)}:${fmt(cut.end)}`,
+        "asetpts=PTS-STARTPTS",
+      ];
+      if (atempo) filters.push(atempo);
+      if (track.gainDb) filters.push(`volume=${track.gainDb.toFixed(3)}dB`);
+      if (track.loudnormEnabled)
+        filters.push(
+          `loudnorm=I=${track.loudnormTargetLufs}:print_format=summary`,
+        );
+      if (track.fadeInSeconds > 0)
+        filters.push(`afade=t=in:st=0:d=${track.fadeInSeconds}`);
+      if (track.fadeOutSeconds > 0)
+        filters.push(
+          `afade=t=out:st=${Math.max(0, cut.end - cut.start - track.fadeOutSeconds)}:d=${track.fadeOutSeconds}`,
+        );
+      for (const segment of track.muteSegments)
+        if (segment.end > segment.start)
+          filters.push(
+            `volume=0:enable='between(t,${segment.start},${segment.end})'`,
+          );
+      return {
+        label: `[a${trackIndex}_${cutIndex}]`,
+        filter: `${source}${filters.join(",")}${`[a${trackIndex}_${cutIndex}]`}`,
+      };
+    });
+  const audioCount = tracksForRender.length;
 
   const chains: string[] = [];
   const concatInputs: string[] = [];
@@ -141,13 +202,12 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
       chains.push(
         `[0:v]trim=${fmt(cut.start)}:${fmt(cut.end)},setpts=PTS-STARTPTS${vSpeed}[v${i}]`,
       );
-      chains.push(
-        `[0:a]atrim=${fmt(cut.start)}:${fmt(cut.end)},asetpts=PTS-STARTPTS[a${i}]`,
-      );
-      concatInputs.push(`[v${i}][a${i}]`);
+      const audio = audioLabelsForCut(cut, i);
+      chains.push(...audio.map((item) => item.filter));
+      concatInputs.push(`[v${i}]${audio.map((item) => item.label).join("")}`);
     });
     chains.push(
-      `${concatInputs.join("")}concat=n=${cuts.length}:v=1:a=1[vcat][acat]`,
+      `${concatInputs.join("")}concat=n=${cuts.length}:v=1:a=${audioCount}[vcat]${Array.from({ length: audioCount }, (_, index) => `[acat${index}]`).join("")}`,
     );
   } else if (options.mode === "1-stack") {
     const z = (options.zones as CutZone[])[0];
@@ -156,13 +216,12 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
       chains.push(
         `[0:v]trim=${fmt(cut.start)}:${fmt(cut.end)},setpts=PTS-STARTPTS,crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=1080:1920:flags=lanczos${vSpeed}[v${i}]`,
       );
-      chains.push(
-        `[0:a]atrim=${fmt(cut.start)}:${fmt(cut.end)},asetpts=PTS-STARTPTS[a${i}]`,
-      );
-      concatInputs.push(`[v${i}][a${i}]`);
+      const audio = audioLabelsForCut(cut, i);
+      chains.push(...audio.map((item) => item.filter));
+      concatInputs.push(`[v${i}]${audio.map((item) => item.label).join("")}`);
     });
     chains.push(
-      `${concatInputs.join("")}concat=n=${cuts.length}:v=1:a=1[vcat][acat]`,
+      `${concatInputs.join("")}concat=n=${cuts.length}:v=1:a=${audioCount}[vcat]${Array.from({ length: audioCount }, (_, index) => `[acat${index}]`).join("")}`,
     );
   } else {
     // 2-stack: per cut, trim twice (top/bottom), crop+scale each half, vstack.
@@ -180,13 +239,12 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
         `[0:v]trim=${fmt(cut.start)}:${fmt(cut.end)},setpts=PTS-STARTPTS,crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${vSpeed}[v${i}b]`,
       );
       chains.push(`[v${i}t][v${i}b]vstack=inputs=2[v${i}]`);
-      chains.push(
-        `[0:a]atrim=${fmt(cut.start)}:${fmt(cut.end)},asetpts=PTS-STARTPTS[a${i}]`,
-      );
-      concatInputs.push(`[v${i}][a${i}]`);
+      const audio = audioLabelsForCut(cut, i);
+      chains.push(...audio.map((item) => item.filter));
+      concatInputs.push(`[v${i}]${audio.map((item) => item.label).join("")}`);
     });
     chains.push(
-      `${concatInputs.join("")}concat=n=${cuts.length}:v=1:a=1[vcat][acat]`,
+      `${concatInputs.join("")}concat=n=${cuts.length}:v=1:a=${audioCount}[vcat]${Array.from({ length: audioCount }, (_, index) => `[acat${index}]`).join("")}`,
     );
   }
 
@@ -194,12 +252,14 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
     // Overlay full-canvas watermark PNG on top of concatenated video.
     chains.push(`[vcat][1:v]overlay=0:0:format=auto:shortest=1[v]`);
     args.push("-filter_complex", chains.join(";"));
-    args.push("-map", "[v]", "-map", "[acat]");
-    if (atempo) args.push("-filter:a", atempo);
+    args.push("-map", "[v]");
+    for (let index = 0; index < audioCount; index++)
+      args.push("-map", `[acat${index}]`);
   } else {
     args.push("-filter_complex", chains.join(";"));
-    args.push("-map", "[vcat]", "-map", "[acat]");
-    if (atempo) args.push("-filter:a", atempo);
+    args.push("-map", "[vcat]");
+    for (let index = 0; index < audioCount; index++)
+      args.push("-map", `[acat${index}]`);
   }
 
   if (options.fps) args.push("-r", String(options.fps));

@@ -9,6 +9,8 @@ import { NOOP } from "@/lib/utils";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
 import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
 import { stripExtension } from "@/lib/video-file";
+import { useSelector } from "@tanstack/react-store";
+import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
 
 type ExportArgs = {
   file: File | null;
@@ -35,6 +37,7 @@ export function useMobileExport(args: ExportArgs) {
     ignoreTrim,
   } = args;
   const [isExporting, setIsExporting] = useState(false);
+  const audio = useSelector(audioStore);
 
   const onExport = useCallback(async () => {
     if (!file) {
@@ -97,6 +100,9 @@ export function useMobileExport(args: ExportArgs) {
         exportSpeed: 1,
         customFFmpegArgs: "",
         watermark: useWatermark,
+        audioTracks: audio.tracks.length
+          ? getAudioRenderSettings(audio.tracks)
+          : undefined,
       });
       let res: Response;
       if (shouldUseChunked(file)) {
@@ -176,6 +182,7 @@ export function useMobileExport(args: ExportArgs) {
     layout,
     useWatermark,
     ignoreTrim,
+    audio,
   ]);
 
   return { onExport, isExporting };

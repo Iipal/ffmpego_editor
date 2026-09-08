@@ -12,10 +12,10 @@ Conventions: `- [ ]` = pending. Priority `P0` (critical) → `P2` (nice-to-have)
 - [ ] UI: Transcribe button + progress + editable word list in `/editor/mobile/subtitles`
 
 ### 2. [P1] Audio track: waveform + loudness + fades
-- [ ] Backend: `ffprobe loudnorm` + waveform JSON endpoint (`apps/api/src/routes/metadata.ts` or new `audio.ts`)
-- [ ] Frontend: canvas waveform in `apps/web/components/editor/Timeline.tsx` + shared `TrimControls`
-- [ ] Controls: gain, `loudnorm -14 LUFS`, fade in/out, mute-segment, extract `mp3/wav` in `Sidebar.tsx` / `ffmpegBuilder.ts`
-- [ ] Preview audio gain live via `<video>` / WebAudio without re-encode
+- [x] Backend: loudness + waveform JSON endpoint (`apps/api/src/routes/audio.ts`)
+- [x] Frontend: canvas waveform in `apps/web/components/editor/Timeline.tsx` over the shared trim slider
+- [x] Controls: gain, `loudnorm -14 LUFS`, fade in/out, mute segments, extract `mp3/wav`
+- [x] Preview audio gain live via `<video>` without re-encode
 
 ### 3. [P1] Projects + export presets + persistent history
 - [ ] Define `.vfproj.json` = `useVideoStore` snapshot; save/load via file + `localStorage recent`

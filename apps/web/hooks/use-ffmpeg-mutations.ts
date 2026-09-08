@@ -20,6 +20,7 @@ import {
   withLogTail,
 } from "@/lib/transcode-jobs";
 import type { CropSlice } from "@/store/cropSlice";
+import type { AudioTrackRenderSettings } from "@/store/audioSlice";
 
 type TranscodeRequest = Pick<
   SourceSlice & CutSlice & CropSlice,
@@ -33,7 +34,7 @@ type TranscodeRequest = Pick<
   | "sourceHeight"
   | "sourceWidth"
   | "trimRange"
-> & { file: File };
+> & { file: File; audioTracks?: AudioTrackRenderSettings[] };
 
 /**
  * Download the transcode output file and prompt the user to save it using
@@ -124,6 +125,7 @@ export function useTranscodeMutation() {
         sourceHeight: request.sourceHeight,
         sourceWidth: request.sourceWidth,
         trimRange: request.trimRange,
+        audioTracks: request.audioTracks,
       });
 
       const setUpload = (sent: number, total: number) => {
