@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import os from "node:os";
 import videoRoutes, { getQueueStats } from "./routes/video.js";
 import metadataRoutes from "./routes/metadata.js";
+import audioRoutes from "./routes/audio.js";
 import uploadRoutes from "./routes/upload.js";
 import { startupSweep } from "./db.js";
 import {
@@ -68,6 +69,7 @@ app.get("/health", (c) => {
 app.route("/api", uploadRoutes);
 app.route("/api", videoRoutes);
 app.route("/api", metadataRoutes);
+app.route("/api", audioRoutes);
 
 const PORT = Number(Bun.env.PORT ?? 3100);
 
