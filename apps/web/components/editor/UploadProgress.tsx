@@ -2,7 +2,8 @@
 
 import { Progress } from "@/components/ui/progress";
 import { formatFileSize } from "@/lib/video-file";
-import { useVideoState } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore } from "@/store/sourceSlice";
 
 export function UploadProgress({ className }: { className?: string }) {
   const {
@@ -11,7 +12,7 @@ export function UploadProgress({ className }: { className?: string }) {
     uploadStage,
     uploadBytesSent,
     uploadBytesTotal,
-  } = useVideoState();
+  } = useSelector(sourceStore);
 
   if (uploadStatus !== "uploading" && uploadStatus !== "error") {
     // Hide when idle/done; keep visible briefly after done is handled by callers if needed

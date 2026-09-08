@@ -1,0 +1,105 @@
+export interface FFprobeReport {
+  format?: Record<string, unknown>;
+  streams?: Array<Record<string, unknown>>;
+  programs?: Array<Record<string, unknown>>;
+  chapters?: Array<Record<string, unknown>>;
+  frames?: Array<Record<string, unknown>>;
+  packets?: Array<Record<string, unknown>>;
+  packets_and_frames?: Array<Record<string, unknown>>;
+  program_version?: Record<string, unknown>;
+  library_versions?: Array<Record<string, unknown>>;
+  error?: Record<string, unknown>;
+}
+
+export interface SubtitleStyle {
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  outlineEnabled: boolean;
+  outlineThickness: number;
+  outlineColor: string;
+  shadowEnabled: boolean;
+  shadowSize: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  shadowColor: string;
+  backgroundEnabled: boolean;
+  backgroundColor: string;
+  backgroundPadding: number;
+  backgroundBorderRadius: number;
+}
+
+export interface Subtitle {
+  id: string;
+  text: string;
+  startTime: number;
+  endTime: number;
+  track: number;
+  position: { x: number; y: number };
+  style: SubtitleStyle;
+}
+
+export interface SubtitleTemplate {
+  id: string;
+  name: string;
+  style: SubtitleStyle;
+}
+
+export type MobileLayoutMode = "full" | "stacked";
+export type CropZoneId = "zone-1" | "zone-2";
+export type CropRole = "camera" | "gameplay" | "content" | "custom";
+
+export interface CropZone {
+  id: CropZoneId;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+  role?: CropRole;
+  locked?: boolean;
+}
+
+export interface MobileLayout {
+  version: 1;
+  sourceAspectRatio: number;
+  outputAspectRatio: number;
+  mode: MobileLayoutMode;
+  zones: CropZone[];
+  splitRatio: number;
+  background:
+    | { type: "blur"; intensity: number }
+    | { type: "solid"; value: string }
+    | { type: "none" };
+}
+
+export interface CutSegment {
+  start: number;
+  end: number;
+}
+
+export interface CutZone {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+}
+
+export interface TranscodeResponse {
+  jobId: string;
+  progressUrl: string;
+}
+
+export interface TranscodeProgress {
+  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
+  progress: number;
+  outputPath: string;
+  alternateOutputPath?: string;
+  error?: string;
+  logTail?: string | null;
+  exitCode?: number | null;
+  queuePosition?: number | null;
+  jobId: string;
+}

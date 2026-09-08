@@ -60,7 +60,7 @@ Local-only video editor for trimming, cropping, reframing (16:9 → 9:16), subti
 | Monorepo | Turborepo (`turbo.json`), Bun workspaces (`apps/*`, `packages/*`) |
 | Frontend | Next.js 16 (App Router, Turbopack) + React 19 + Tailwind CSS 4 |
 | UI kit | shadcn (`packages/ui`), Lucide icons, Kumo design tokens (`@cloudflare/kumo`) |
-| Client state | TanStack Store (single `useVideoStore` source of truth) |
+ | Client state | TanStack Store (`useVideoStore` composed from domain slices) |
 | Server state | TanStack Query (metadata/transcode mutations, admin polling) |
 | Backend | Hono on Bun (`Bun.serve`, port 3100) |
 | Media engine | Local `ffmpeg` via `Bun.spawn` (non-blocking), `ffprobe` for metadata |
@@ -253,8 +253,12 @@ ffmpeg_editor/
 │   │   │   ├── ui/                   # shadcn primitives (button, slider, dialog…)
 │   │   │   └── view-transition/      # AppHeader, AppNav, DirectionalTransition
 │   │   ├── store/
-│   │   │   ├── useVideoStore.ts      # Global TanStack Store (source of truth)
-│   │   │   └── ffmpeg-store.tsx      # Legacy, unused
+│   │   │   ├── useVideoStore.ts      # Composed TanStack Store
+│   │   │   ├── sourceSlice.ts        # Source, metadata, playback, upload
+│   │   │   ├── cropSlice.ts          # Crop workspace state
+│   │   │   ├── cutSlice.ts           # Export and transcode state
+│   │   │   ├── mobileSlice.ts        # Mobile workspace state
+│   │   │   └── subtitleSlice.ts      # Subtitle editor state
 │   │   ├── hooks/                    # useVideoMetadata, use-ffmpeg-mutations…
 │   │   └── lib/                      # api-client, upload-chunked, video-file…
 │   └── api/                          # Hono backend on Bun (:3100)
@@ -269,7 +273,9 @@ ffmpeg_editor/
 │               ├── cutBuilder.ts         # Multi-cut concat graphs
 │               └── mobileSubtitlesBuilder.ts  # Subtitle overlay graphs
 ├── packages/
-│   ├── ui/                           # Shared shadcn components
+│   ├── ui/                           # Shared UI utilities and shadcn boundary
+│   ├── types/                        # Shared media and editor types
+│   ├── ffmpeg-filters/               # Shared filter math and expressions
 │   └── config/                       # Shared TS / Tailwind / ESLint configs
 ├── PLAN.md                           # Original feature plan (all phases complete)
 ├── turbo.json                        # build / dev / lint pipelines
@@ -279,7 +285,7 @@ ffmpeg_editor/
 ## Notes & Limitations
 
 - **Local-only by design** — CORS is wide open, bodies up to 10 GB, no auth/rate limits. Never expose port 3100 publicly.
-- **Render outputs are ephemeral** — transcoded files land in the OS temp dir and are deleted right after download; save the file when the browser prompts.
+- **Render outputs use the OS temp dir** — transcoded files remain available until the job is explicitly deleted.
 - **Cut export** is fixed to 60 fps / CRF 10 / `mp4`; Crop/Mobile expose full quality controls.
 - **Bulk mode** reads only top-level folder files (subfolders ignored): `mp4` / `webm` / `mov` / `mkv`.
 - Browsers cache favicons aggressively — hard-refresh if the tab icon looks stale after changes.

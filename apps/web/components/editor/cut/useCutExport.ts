@@ -2,19 +2,14 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { useVideoStore } from "@/store/useVideoStore";
+import { setSourceState } from "@/store/sourceSlice";
 import { sortCuts } from "./helpers";
 import type { Cut, CutMode } from "./types";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
 import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
-import {
-  queuedLabel,
-  throwTranscodeHttpError,
-} from "@/lib/transcode-jobs";
+import { queuedLabel, throwTranscodeHttpError } from "@/lib/transcode-jobs";
 import { stripExtension } from "@/lib/video-file";
-
-type VideoStore = ReturnType<typeof useVideoStore>;
 
 export function useCutExport({
   file,
@@ -28,7 +23,6 @@ export function useCutExport({
   activeWatermark,
   stackedLayout,
   singleLayout,
-  videoStore,
 }: {
   file: File | null;
   cuts: Cut[];
@@ -41,7 +35,6 @@ export function useCutExport({
   activeWatermark: boolean;
   stackedLayout: MobileLayout;
   singleLayout: MobileLayout;
-  videoStore: VideoStore;
 }) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -98,9 +91,8 @@ export function useCutExport({
       ]);
       const { shouldUseChunked, uploadFileChunked, uploadFormWithProgress } =
         chunkedMod;
-      const vs = videoStore;
       const setUpload = (sent: number, total: number) =>
-        vs.setState((p) => ({
+        setSourceState((p) => ({
           ...p,
           uploadStage: "transcode",
           uploadStatus: "uploading",
@@ -108,7 +100,7 @@ export function useCutExport({
           uploadBytesSent: sent,
           uploadBytesTotal: total,
         }));
-      vs.setState((p) => ({
+      setSourceState((p) => ({
         ...p,
         uploadStage: "transcode",
         uploadStatus: "uploading",
@@ -140,7 +132,11 @@ export function useCutExport({
         }>("/api/transcode/cut", fd, { onUploadProgress: setUpload });
         res = new Response(JSON.stringify(json), { status: 200 });
       }
-      vs.setState((p) => ({ ...p, uploadProgress: 100, uploadStatus: "done" }));
+      setSourceState((p) => ({
+        ...p,
+        uploadProgress: 100,
+        uploadStatus: "done",
+      }));
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as {
           error?: string;
@@ -178,7 +174,7 @@ export function useCutExport({
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Export failed";
       toast.error(msg, { id: "cut-export" });
-      videoStore.setState((p) => ({ ...p, uploadStatus: "error" }));
+      setSourceState((p) => ({ ...p, uploadStatus: "error" }));
     } finally {
       setIsExporting(false);
     }
@@ -193,7 +189,6 @@ export function useCutExport({
     activeWatermark,
     stackedLayout,
     singleLayout,
-    videoStore,
   ]);
 
   return { isExporting, exportName, setExportName, onExport };

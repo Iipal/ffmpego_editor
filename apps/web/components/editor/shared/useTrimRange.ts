@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useTransition } from "react";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { clamp } from "@/lib/mobile-layout";
 
 export const TRIM_MIN_GAP_DEFAULT = 0.2;
@@ -36,10 +37,7 @@ export function useTrimRange({
   overshoot = "clamp",
   onTrimChange,
 }: UseTrimRangeOptions) {
-  const videoStore = useVideoStore();
-  const { trimRange } = useVideoState() as unknown as {
-    trimRange: TrimRangeTuple;
-  };
+  const { trimRange } = useSelector(sourceStore);
   const [, startTransition] = useTransition();
 
   const onTrimChangeRef = useRef(onTrimChange);
@@ -58,10 +56,8 @@ export function useTrimRange({
   useEffect(() => {
     if (duration <= 0) return;
     if (trimEnd === 0) {
-      videoStore.setState((prev) => {
-        const cur =
-          (prev as unknown as { trimRange?: TrimRangeTuple }).trimRange ??
-          ([0, 0] as TrimRangeTuple);
+      setSourceState((prev) => {
+        const cur = prev.trimRange;
         if (cur[1] === 0)
           return {
             ...prev,
@@ -71,15 +67,13 @@ export function useTrimRange({
       });
     } else if (trimEnd > duration) {
       if (overshoot === "reset") {
-        videoStore.setState((prev) => ({
+        setSourceState((prev) => ({
           ...prev,
           trimRange: [0, duration] as TrimRangeTuple,
         }));
       } else {
-        videoStore.setState((prev) => {
-          const cur =
-            (prev as unknown as { trimRange?: TrimRangeTuple }).trimRange ??
-            ([0, 0] as TrimRangeTuple);
+        setSourceState((prev) => {
+          const cur = prev.trimRange;
           const ns = Math.min(cur[0], Math.max(0, duration - initClampMargin));
           return {
             ...prev,
@@ -88,14 +82,12 @@ export function useTrimRange({
         });
       }
     }
-  }, [duration, trimEnd, initClampMargin, overshoot, videoStore]);
+  }, [duration, trimEnd, initClampMargin, overshoot]);
 
   const setTrimRange = useCallback(
     (updater: TrimRangeUpdater) => {
       const d = duration;
-      const cur =
-        (videoStore.state as unknown as { trimRange?: TrimRangeTuple })
-          .trimRange ?? ([0, 0] as TrimRangeTuple);
+      const cur = sourceStore.state.trimRange;
       const [rs, re] =
         typeof updater === "function"
           ? (updater as (p: TrimRangeTuple) => TrimRangeTuple)(cur)
@@ -110,11 +102,11 @@ export function useTrimRange({
       if (s === cur[0] && e === cur[1]) return;
       const next: TrimRangeTuple = [s, e];
       startTransition(() => {
-        videoStore.setState((prev) => ({ ...prev, trimRange: next }));
+        setSourceState((prev) => ({ ...prev, trimRange: next }));
       });
       onTrimChangeRef.current?.(s, e);
     },
-    [duration, minGap, videoStore, startTransition],
+    [duration, minGap, startTransition],
   );
 
   const handleTrimChange = useCallback(
@@ -126,27 +118,23 @@ export function useTrimRange({
 
   const setStartToCurrentTime = useCallback(
     (t: number) => {
-      const cur =
-        (videoStore.state as unknown as { trimRange?: TrimRangeTuple })
-          .trimRange ?? ([0, 0] as TrimRangeTuple);
+      const cur = sourceStore.state.trimRange;
       const ns = clamp(t, 0, cur[1] - minGap);
       setTrimRange([ns, cur[1]]);
       return ns;
     },
-    [minGap, setTrimRange, videoStore],
+    [minGap, setTrimRange],
   );
 
   const setEndToCurrentTime = useCallback(
     (t: number) => {
-      const cur =
-        (videoStore.state as unknown as { trimRange?: TrimRangeTuple })
-          .trimRange ?? ([0, 0] as TrimRangeTuple);
+      const cur = sourceStore.state.trimRange;
       const dur = duration || TRIM_SLIDER_MAX_FALLBACK;
       const ne = clamp(t, cur[0] + minGap, dur);
       setTrimRange([cur[0], ne]);
       return ne;
     },
-    [duration, minGap, setTrimRange, videoStore],
+    [duration, minGap, setTrimRange],
   );
 
   return {

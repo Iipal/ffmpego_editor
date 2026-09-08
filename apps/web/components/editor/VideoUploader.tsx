@@ -8,7 +8,11 @@ import { Input } from "@/components/ui/input";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { cn } from "@/lib/utils";
-import { useVideoStore, useVideoState } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { setCutState } from "@/store/cutSlice";
+import { setCropState } from "@/store/cropSlice";
+import { setSubtitleState } from "@/store/subtitleSlice";
 import {
   ACCEPTED_VIDEO_INPUT_ATTR,
   ACCEPTED_VIDEO_LABEL,
@@ -23,8 +27,7 @@ import { toast } from "sonner";
 export function VideoUploader() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const videoStore = useVideoStore();
-  const { uploadStatus } = useVideoState();
+  const { uploadStatus } = useSelector(sourceStore);
   const metadataMutation = useVideoMetadataMutation();
 
   const selectFile = useCallback(
@@ -43,7 +46,7 @@ export function VideoUploader() {
 
       const mediaUrl = URL.createObjectURL(file);
       const defaultFilename = stripExtension(file.name);
-      videoStore.setState((previous) => {
+      setSourceState((previous) => {
         if (previous.mediaUrl) {
           URL.revokeObjectURL(previous.mediaUrl);
         }
@@ -55,12 +58,6 @@ export function VideoUploader() {
           currentTime: 0,
           duration: 0,
           isPlaying: false,
-          exportFilename: defaultFilename,
-          exportQuality: 23,
-          playbackSpeed: 1,
-          exportSpeed: 1,
-          canvasZoom: 1,
-          canvasOffset: { x: 0, y: 0 },
           sourceAspectRatio: 1,
           sourceWidth: 0,
           sourceHeight: 0,
@@ -70,18 +67,33 @@ export function VideoUploader() {
           audioCodec: null,
           bitrateKbps: 0,
           ffprobeReport: null,
-          transcodeStatus: "idle",
-          transcodeProgress: 0,
-          transcodeOutputPath: null,
-          transcodeError: null,
-          subtitles: [],
-          selectedSubtitleId: null,
-          subtitleTrackCountExplicit: 1,
         };
       });
+      setCutState((previous) => ({
+        ...previous,
+        exportFilename: defaultFilename,
+        exportQuality: 23,
+        playbackSpeed: 1,
+        exportSpeed: 1,
+        transcodeStatus: "idle",
+        transcodeProgress: 0,
+        transcodeOutputPath: null,
+        transcodeError: null,
+      }));
+      setCropState((previous) => ({
+        ...previous,
+        canvasZoom: 1,
+        canvasOffset: { x: 0, y: 0 },
+      }));
+      setSubtitleState((previous) => ({
+        ...previous,
+        subtitles: [],
+        selectedSubtitleId: null,
+        subtitleTrackCountExplicit: 1,
+      }));
       metadataMutation.mutate(file);
     },
-    [metadataMutation, videoStore],
+    [metadataMutation],
   );
 
   return (

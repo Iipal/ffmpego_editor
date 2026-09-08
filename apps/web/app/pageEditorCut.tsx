@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef } from "react";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore } from "@/store/sourceSlice";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { CutEmptyState } from "@/components/editor/cut/CutEmptyState";
 import { CutHeader } from "@/components/editor/cut/CutHeader";
@@ -25,21 +26,14 @@ import { stripExtension } from "@/lib/video-file";
 export type { CutMode } from "@/components/editor/cut/types";
 
 export default function CutEditorPage() {
-  const { file, mediaUrl, uploadStatus } = useVideoState() as unknown as {
-    file: File | null;
-    mediaUrl: string | null;
-    uploadStatus: string;
-  };
   const {
+    file,
+    mediaUrl,
+    uploadStatus,
     duration: srcDuration,
     sourceWidth,
     sourceHeight,
-  } = useVideoState() as unknown as {
-    duration: number;
-    sourceWidth: number;
-    sourceHeight: number;
-  };
-  const videoStore = useVideoStore();
+  } = useSelector(sourceStore);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const duration = srcDuration || 0;
@@ -92,7 +86,6 @@ export default function CutEditorPage() {
   } = useCutPlayback({
     videoRef,
     mediaUrl,
-    videoStore,
     duration,
     sorted,
     seekTo,
@@ -112,7 +105,6 @@ export default function CutEditorPage() {
     activeWatermark,
     stackedLayout,
     singleLayout,
-    videoStore,
   });
 
   if (!hasVideo) {

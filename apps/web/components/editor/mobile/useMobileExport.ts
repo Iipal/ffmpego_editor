@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { useVideoStore } from "@/store/useVideoStore";
+import { setSourceState } from "@/store/sourceSlice";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { FILENAME_SANITIZE_RE, downloadAndSaveMobile } from "./mobile-helpers";
 import { NOOP } from "@/lib/utils";
@@ -34,7 +34,6 @@ export function useMobileExport(args: ExportArgs) {
     useWatermark,
     ignoreTrim,
   } = args;
-  const videoStore = useVideoStore();
   const [isExporting, setIsExporting] = useState(false);
 
   const onExport = useCallback(async () => {
@@ -65,12 +64,11 @@ export function useMobileExport(args: ExportArgs) {
     ]);
     const { shouldUseChunked, uploadFileChunked, uploadFormWithProgress } =
       chunkedMod;
-    const vs = videoStore;
     setIsExporting(true);
     toast.loading("Exporting mobile mp4 (CRF 10)...", { id: "mobile-export" });
     try {
       const setUpload = (sent: number, total: number) =>
-        vs.setState((p) => ({
+        setSourceState((p) => ({
           ...p,
           uploadStage: "transcode",
           uploadStatus: "uploading",
@@ -78,7 +76,7 @@ export function useMobileExport(args: ExportArgs) {
           uploadBytesSent: sent,
           uploadBytesTotal: total,
         }));
-      vs.setState((p) => ({
+      setSourceState((p) => ({
         ...p,
         uploadStage: "transcode",
         uploadStatus: "uploading",
@@ -123,7 +121,11 @@ export function useMobileExport(args: ExportArgs) {
         }>("/api/transcode/mobile", fd, { onUploadProgress: setUpload });
         res = new Response(JSON.stringify(json), { status: 200 });
       }
-      vs.setState((p) => ({ ...p, uploadProgress: 100, uploadStatus: "done" }));
+      setSourceState((p) => ({
+        ...p,
+        uploadProgress: 100,
+        uploadStatus: "done",
+      }));
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as {
           error?: string;
@@ -151,10 +153,14 @@ export function useMobileExport(args: ExportArgs) {
       const msg = e instanceof Error ? e.message : "Export failed";
       if ((e as DOMException)?.name === "AbortError") {
         toast.dismiss("mobile-export");
-        vs.setState((p) => ({ ...p, uploadStatus: "idle", uploadStage: null }));
+        setSourceState((p) => ({
+          ...p,
+          uploadStatus: "idle",
+          uploadStage: null,
+        }));
       } else {
         toast.error(msg, { id: "mobile-export" });
-        vs.setState((p) => ({ ...p, uploadStatus: "error" }));
+        setSourceState((p) => ({ ...p, uploadStatus: "error" }));
         navigator.clipboard?.writeText(filterString).catch(NOOP);
       }
     } finally {
@@ -167,7 +173,6 @@ export function useMobileExport(args: ExportArgs) {
     sourceWidth,
     sourceHeight,
     filterString,
-    videoStore,
     layout,
     useWatermark,
     ignoreTrim,

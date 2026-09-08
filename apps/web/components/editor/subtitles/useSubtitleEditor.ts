@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useDeferredValue, useEffect, useMemo } from "react";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore } from "@/store/sourceSlice";
+import { subtitleStore, setSubtitleState } from "@/store/subtitleSlice";
 import { clamp } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
 import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
@@ -22,10 +24,11 @@ export function useSubtitleEditor() {
     initAppOnce();
   }, []);
 
-  const videoStore = useVideoStore();
   // rerender-defer-reads + rerender-derived-state: subscribe narrowly to primitives only
-  const videoState =
-    useVideoState() as typeof useVideoState extends () => infer R ? R : never;
+  const videoState = {
+    ...useSelector(sourceStore),
+    ...useSelector(subtitleStore),
+  };
   const rawState = videoState as unknown as {
     mediaUrl: string | null;
     duration: number;
@@ -88,12 +91,10 @@ export function useSubtitleEditor() {
     srcDuration,
     trimStart,
     trimEnd,
-    videoStore,
   });
   const { effectiveDuration, currentTime } = playback;
 
   const mutations = useSubtitleMutations({
-    videoStore,
     selectedId,
     hasVideo,
     effectiveDuration,
@@ -114,32 +115,15 @@ export function useSubtitleEditor() {
   // Migrate old store instances (HMR) — advanced-init-once guard not needed, keep stable callback
   // server-* rules: NA for client-only editor (documented inline below) — server-auth-actions, server-cache-react, etc. not applicable (local-only, no RSC/auth)
   useEffect(() => {
-    const s = (videoStore.state ??
-      (videoStore as unknown as { get: () => unknown }).get?.()) as unknown as {
-      subtitles?: Subtitle[];
-      selectedSubtitleId?: string | null;
-      subtitleTrackCountExplicit?: number;
-    };
-    if (
-      s.subtitles === undefined ||
-      s.selectedSubtitleId === undefined ||
-      s.subtitleTrackCountExplicit === undefined
-    ) {
-      videoStore.setState((prev) => {
-        const p = prev as unknown as {
-          subtitles?: Subtitle[];
-          selectedSubtitleId?: string | null;
-          subtitleTrackCountExplicit?: number;
-        };
-        return {
-          ...prev,
-          subtitles: p.subtitles ?? [],
-          selectedSubtitleId: p.selectedSubtitleId ?? null,
-          subtitleTrackCountExplicit: p.subtitleTrackCountExplicit ?? 1,
-        };
-      });
+    if (subtitleStore.state.subtitles === undefined) {
+      setSubtitleState((prev) => ({
+        ...prev,
+        subtitles: [],
+        selectedSubtitleId: null,
+        subtitleTrackCountExplicit: 1,
+      }));
     }
-  }, [videoStore]);
+  }, []);
 
   // Split combined effects — rerender-split-combined-hooks
   // Effect 1: load Google Fonts for current subtitles (live preview) — flatMap + Set dedup

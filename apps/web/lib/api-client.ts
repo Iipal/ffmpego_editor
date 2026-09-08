@@ -58,32 +58,13 @@ export interface VideoMetadata {
   ffprobe: FFprobeReport;
 }
 
-export interface FFprobeReport {
-  format?: Record<string, unknown>;
-  streams?: Array<Record<string, unknown>>;
-  programs?: Array<Record<string, unknown>>;
-  chapters?: Array<Record<string, unknown>>;
-  frames?: Array<Record<string, unknown>>;
-  packets?: Array<Record<string, unknown>>;
-  packets_and_frames?: Array<Record<string, unknown>>;
-  program_version?: Record<string, unknown>;
-  library_versions?: Array<Record<string, unknown>>;
-  error?: Record<string, unknown>;
-}
-
-export interface TranscodeResponse {
-  jobId: string;
-  progressUrl: string;
-}
-
-export interface TranscodeProgress {
-  status: "queued" | "processing" | "completed" | "failed" | "cancelled";
-  progress: number;
-  outputPath: string;
-  alternateOutputPath?: string;
-  error?: string;
-  logTail?: string | null;
-  exitCode?: number | null;
-  queuePosition?: number | null;
-  jobId: string;
-}
+export type {
+  FFprobeReport,
+  TranscodeProgress,
+  TranscodeResponse,
+} from "@repo/types";
+import type {
+  FFprobeReport,
+  TranscodeProgress,
+  TranscodeResponse,
+} from "@repo/types";

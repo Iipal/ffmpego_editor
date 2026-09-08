@@ -2,7 +2,8 @@
 
 import { Button } from "@/components/ui/button";
 import { formatTime } from "@/lib/format-time";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { ArrowLeft, ArrowRight, SkipBack, SkipForward } from "lucide-react";
 import type { RefObject } from "react";
 import { TrimSlider } from "@/components/editor/shared/TrimSlider";
@@ -13,8 +14,7 @@ interface TimelineProps {
 }
 
 export function Timeline({ playerRef }: TimelineProps) {
-  const videoStore = useVideoStore();
-  const { currentTime, duration } = useVideoState();
+  const { currentTime, duration } = useSelector(sourceStore);
   const boundedCurrentTime = Math.min(Math.max(currentTime, 0), duration);
 
   // Shared trim-range state: store tuple, init/clamp on duration, raw commits
@@ -46,7 +46,7 @@ export function Timeline({ playerRef }: TimelineProps) {
     if (!player) return;
     const time = Math.max(trimRange[0], 0);
     player.currentTime = time;
-    videoStore.setState((previous) =>
+    setSourceState((previous) =>
       previous.currentTime === time
         ? previous
         : { ...previous, currentTime: time },
@@ -58,7 +58,7 @@ export function Timeline({ playerRef }: TimelineProps) {
     if (!player) return;
     const time = Math.min(trimRange[1], duration);
     player.currentTime = time;
-    videoStore.setState((previous) =>
+    setSourceState((previous) =>
       previous.currentTime === time
         ? previous
         : { ...previous, currentTime: time },

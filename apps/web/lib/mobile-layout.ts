@@ -1,30 +1,19 @@
-export type MobileLayoutMode = "full" | "stacked";
-export type CropZoneId = "zone-1" | "zone-2";
-export type CropRole = "camera" | "gameplay" | "content" | "custom";
+import type {
+  CropRole,
+  CropZone,
+  CropZoneId,
+  MobileLayout,
+  MobileLayoutMode,
+} from "@repo/types";
+import { zoneToPixels } from "@repo/ffmpeg-filters";
 
-export interface CropZone {
-  id: CropZoneId;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  zoom: number;
-  role?: CropRole;
-  locked?: boolean;
-}
-
-export interface MobileLayout {
-  version: 1;
-  sourceAspectRatio: number;
-  outputAspectRatio: number;
-  mode: MobileLayoutMode;
-  zones: CropZone[];
-  splitRatio: number;
-  background:
-    | { type: "blur"; intensity: number }
-    | { type: "solid"; value: string }
-    | { type: "none" };
-}
+export type {
+  CropRole,
+  CropZone,
+  CropZoneId,
+  MobileLayout,
+  MobileLayoutMode,
+} from "@repo/types";
 
 export const MIN_SPLIT = 0.2;
 export const MAX_SPLIT = 0.8;
@@ -382,11 +371,7 @@ export function autoSuggest(mode: MobileLayoutMode, split = 0.5): MobileLayout {
 }
 
 export function zoneToFilter(z: CropZone, sw: number, sh: number) {
-  const cw = Math.max(1, Math.round(z.width * sw));
-  const ch = Math.max(1, Math.round(z.height * sh));
-  const cx = Math.max(0, Math.min(sw - cw, Math.round(z.x * sw)));
-  const cy = Math.max(0, Math.min(sh - ch, Math.round(z.y * sh)));
-  return { cw, ch, cx, cy };
+  return zoneToPixels(z, sw, sh);
 }
 
 export function buildMobileFilter(

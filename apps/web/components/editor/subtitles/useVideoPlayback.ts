@@ -2,17 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clamp } from "@/lib/mobile-layout";
-import { useVideoStore } from "@/store/useVideoStore";
 import { NOOP } from "./heavy-modules";
-
-type VideoStore = ReturnType<typeof useVideoStore>;
 
 export type UseVideoPlaybackArgs = {
   mediaUrl: string | null;
   srcDuration: number;
   trimStart: number;
   trimEnd: number;
-  videoStore: VideoStore;
 };
 
 // Video element sync + transport state for the subtitles editor.
@@ -22,7 +18,6 @@ export function useVideoPlayback({
   srcDuration,
   trimStart,
   trimEnd,
-  videoStore,
 }: UseVideoPlaybackArgs) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -160,7 +155,7 @@ export function useVideoPlayback({
       v.removeEventListener("ended", onEnded);
     };
     // rerender-dependencies: only primitives/mediaUrl, videoRef omitted (stable ref)
-  }, [mediaUrl, duration, videoStore]);
+  }, [mediaUrl, duration]);
 
   // RAF sync for smooth playhead — throttled, uses ref to avoid 60fps re-renders of parent (rerender-use-ref-transient-values)
   useEffect(() => {

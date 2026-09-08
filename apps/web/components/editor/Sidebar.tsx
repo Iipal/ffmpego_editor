@@ -55,16 +55,18 @@ import {
   stripExtension,
 } from "@/lib/video-file";
 import {
-  useVideoState,
-  useVideoStore,
-  type VideoState,
-} from "@/store/useVideoStore";
+  sourceStore,
+  setSourceState,
+  type SourceSlice,
+} from "@/store/sourceSlice";
+import { useSelector } from "@tanstack/react-store";
+import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
+import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 
 export function SidebarToggle() {
-  const store = useVideoStore();
-  const { isSidebarOpen } = useVideoState();
+  const isSidebarOpen = useSelector(cutStore, (state) => state.isSidebarOpen);
   const label = isSidebarOpen ? "Hide sidebar" : "Show sidebar";
 
   return (
@@ -76,7 +78,7 @@ export function SidebarToggle() {
             variant="ghost"
             aria-label={label}
             onClick={() =>
-              store.setState((previous) => ({
+              setCutState((previous) => ({
                 ...previous,
                 isSidebarOpen: !previous.isSidebarOpen,
               }))
@@ -92,14 +94,46 @@ export function SidebarToggle() {
 }
 
 export function Sidebar() {
-  const store = useVideoStore();
-  const state = useVideoState();
+  const source = useSelector(sourceStore);
+  const crop = useSelector(cropStore);
+  const cut = useSelector(cutStore);
+  const state = { ...source, ...crop, ...cut };
   const metadataMutation = useVideoMetadataMutation();
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
   const transcodeMutation = useTranscodeMutation();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const update = (value: Partial<VideoState>) =>
-    store.setState((previous) => ({ ...previous, ...value }));
+  const update = (value: Partial<SourceSlice & CropSlice & CutSlice>) => {
+    const sourceKeys = new Set<keyof SourceSlice>(
+      Object.keys(source) as Array<keyof SourceSlice>,
+    );
+    const cropKeys = new Set<keyof CropSlice>(
+      Object.keys(crop) as Array<keyof CropSlice>,
+    );
+    const cutKeys = new Set<keyof CutSlice>(
+      Object.keys(cut) as Array<keyof CutSlice>,
+    );
+    const sourceValue = Object.fromEntries(
+      Object.entries(value).filter(([key]) =>
+        sourceKeys.has(key as keyof SourceSlice),
+      ),
+    ) as Partial<SourceSlice>;
+    const cropValue = Object.fromEntries(
+      Object.entries(value).filter(([key]) =>
+        cropKeys.has(key as keyof CropSlice),
+      ),
+    ) as Partial<CropSlice>;
+    const cutValue = Object.fromEntries(
+      Object.entries(value).filter(([key]) =>
+        cutKeys.has(key as keyof CutSlice),
+      ),
+    ) as Partial<CutSlice>;
+    if (Object.keys(sourceValue).length)
+      setSourceState((previous) => ({ ...previous, ...sourceValue }));
+    if (Object.keys(cropValue).length)
+      setCropState((previous) => ({ ...previous, ...cropValue }));
+    if (Object.keys(cutValue).length)
+      setCutState((previous) => ({ ...previous, ...cutValue }));
+  };
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
   const filename = state.file
@@ -131,7 +165,7 @@ export function Sidebar() {
     }
     const mediaUrl = URL.createObjectURL(file);
     const defaultFilename = stripExtension(file.name);
-    store.setState((previous) => {
+    setSourceState((previous) => {
       if (previous.mediaUrl) URL.revokeObjectURL(previous.mediaUrl);
       return {
         ...previous,
@@ -140,12 +174,6 @@ export function Sidebar() {
         currentTime: 0,
         duration: 0,
         isPlaying: false,
-        trimRange: [0, 0],
-        crop: { x: 0, y: 0, width: 100, height: 100 },
-        aspectRatio: "custom",
-        isCropMode: false,
-        canvasZoom: 1,
-        canvasOffset: { x: 0, y: 0 },
         sourceAspectRatio: 1,
         sourceWidth: 0,
         sourceHeight: 0,
@@ -155,13 +183,24 @@ export function Sidebar() {
         audioCodec: null,
         bitrateKbps: 0,
         ffprobeReport: null,
-        exportFilename: defaultFilename,
-        transcodeStatus: "idle",
-        transcodeProgress: 0,
-        transcodeOutputPath: null,
-        transcodeError: null,
       };
     });
+    setCropState((previous) => ({
+      ...previous,
+      crop: { x: 0, y: 0, width: 100, height: 100 },
+      aspectRatio: "custom",
+      isCropMode: false,
+      canvasZoom: 1,
+      canvasOffset: { x: 0, y: 0 },
+    }));
+    setCutState((previous) => ({
+      ...previous,
+      exportFilename: defaultFilename,
+      transcodeStatus: "idle",
+      transcodeProgress: 0,
+      transcodeOutputPath: null,
+      transcodeError: null,
+    }));
     metadataMutation.mutate(file);
     extendedMetadataMutation.reset();
   };

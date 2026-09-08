@@ -37,6 +37,7 @@ export default function RootLayout({
     >
       <body className="min-h-full antialiased bg-background text-foreground">
         <Providers>
+          <Toaster />
           <div className="flex min-h-screen items-stretch bg-kumo-canvas">
             <AppSidebar />
             <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
@@ -44,12 +45,6 @@ export default function RootLayout({
                 {children}
               </div>
             </main>
-          </div>
-          <div
-            style={{ viewTransitionName: "toaster" } as React.CSSProperties}
-            className="pointer-events-none fixed inset-0"
-          >
-            <Toaster />
           </div>
         </Providers>
       </body>

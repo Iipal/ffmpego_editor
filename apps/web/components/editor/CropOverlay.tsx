@@ -1,7 +1,9 @@
 "use client";
 
 import { useRef } from "react";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { cropStore, setCropState } from "@/store/cropSlice";
+import { sourceStore } from "@/store/sourceSlice";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -212,8 +214,8 @@ function clampToBounds(r: Rect): Rect {
 
 export function CropOverlay() {
   const overlayRef = useRef<HTMLDivElement>(null);
-  const store = useVideoStore();
-  const { crop, aspectRatio, sourceAspectRatio } = useVideoState();
+  const { crop, aspectRatio } = useSelector(cropStore);
+  const { sourceAspectRatio } = useSelector(sourceStore);
 
   const beginDrag = (e: React.PointerEvent<HTMLDivElement>, handle: Handle) => {
     e.preventDefault();
@@ -249,7 +251,7 @@ export function CropOverlay() {
         lockedRatio,
       });
 
-      store.setState((prev) => ({ ...prev, crop: next }));
+      setCropState((prev) => ({ ...prev, crop: next }));
     };
 
     const onEnd = (ev: PointerEvent) => {

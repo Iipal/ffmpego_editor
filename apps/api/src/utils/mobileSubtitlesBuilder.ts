@@ -1,4 +1,5 @@
 import path from "node:path";
+import { buildAtempoFilter, buildSetptsFilter } from "@repo/ffmpeg-filters";
 
 export interface MobileLayoutForSubtitles {
   mode: "full" | "stacked";
@@ -117,7 +118,7 @@ export function buildMobileSubtitlesArgs(
   const trimEnd = options.trimRange[1];
   const speed = options.speed ?? 1;
   const hasSpeed = speed !== 1 && Number.isFinite(speed) && speed > 0;
-  const setpts = hasSpeed ? `,setpts=${(1 / speed).toFixed(6)}*PTS` : "";
+  const setpts = hasSpeed ? `,${buildSetptsFilter(speed)}` : "";
 
   const toCrop = (z: {
     x: number;
@@ -202,14 +203,7 @@ export function buildMobileSubtitlesArgs(
       const atempo = speed;
       let afilter = "";
       if (atempo > 0 && atempo < 0.5) {
-        const factors: string[] = [];
-        let remaining = atempo;
-        while (remaining < 0.5) {
-          factors.push("atempo=0.5");
-          remaining *= 2;
-        }
-        factors.push(`atempo=${remaining.toFixed(6)}`);
-        afilter = factors.join(",");
+        afilter = buildAtempoFilter(atempo);
       } else {
         afilter = `atempo=${atempo.toFixed(6)}`;
       }
@@ -264,14 +258,7 @@ export function buildMobileSubtitlesArgs(
       const atempo = speed;
       let afilter = "";
       if (atempo > 0 && atempo < 0.5) {
-        const factors: string[] = [];
-        let remaining = atempo;
-        while (remaining < 0.5) {
-          factors.push("atempo=0.5");
-          remaining *= 2;
-        }
-        factors.push(`atempo=${remaining.toFixed(6)}`);
-        afilter = factors.join(",");
+        afilter = buildAtempoFilter(atempo);
       } else {
         afilter = `atempo=${atempo.toFixed(6)}`;
       }

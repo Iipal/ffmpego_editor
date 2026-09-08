@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  buildAtempoFilter,
+  buildSetptsFilter,
+  cropPercentToPixels,
+} from "@repo/ffmpeg-filters";
 
 // server-hoist-static-io: candidate list is static — build once, cache resolved path
 const WATERMARK_CANDIDATES = [
@@ -151,38 +156,15 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   // Convert crop rectangle percentages to absolute pixel values.
   // Values are clamped to the source dimensions so FFmpeg never receives
   // invalid crop coordinates.
-  const cropWidth = Math.max(
-    1,
-    Math.min(
-      options.sourceWidth,
-      Math.round((options.crop.width / 100) * options.sourceWidth),
-    ),
+  const crop = cropPercentToPixels(
+    options.crop,
+    options.sourceWidth,
+    options.sourceHeight,
   );
-  const cropHeight = Math.max(
-    1,
-    Math.min(
-      options.sourceHeight,
-      Math.round((options.crop.height / 100) * options.sourceHeight),
-    ),
-  );
+  const { cw: cropWidth, ch: cropHeight, cx: cropX, cy: cropY } = crop;
 
   // Crop top-left coordinates are also scaled from percentage to pixels and
   // clamped to ensure the crop window stays fully inside the source frame.
-  const cropX = Math.max(
-    0,
-    Math.min(
-      options.sourceWidth - cropWidth,
-      Math.round((options.crop.x / 100) * options.sourceWidth),
-    ),
-  );
-  const cropY = Math.max(
-    0,
-    Math.min(
-      options.sourceHeight - cropHeight,
-      Math.round((options.crop.y / 100) * options.sourceHeight),
-    ),
-  );
-
   const outputName =
     options.outputPath ??
     `${options.filename}${options.outputSuffix ?? ""}.${options.format}`;
@@ -266,21 +248,14 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     };
     const hasSpeed = options.speed !== undefined && options.speed !== 1;
     const setpts = hasSpeed
-      ? `,setpts=${(1 / (options.speed as number)).toFixed(6)}*PTS`
+      ? `,${buildSetptsFilter(options.speed as number)}`
       : "";
     const wm = watermarkEnabled;
     const getAtempo = (): string | null => {
       if (!hasSpeed) return null;
       const atempo = options.speed as number;
       if (atempo > 0 && atempo < 0.5) {
-        const factors: string[] = [];
-        let remaining = atempo;
-        while (remaining < 0.5) {
-          factors.push("atempo=0.5");
-          remaining *= 2;
-        }
-        factors.push(`atempo=${remaining.toFixed(6)}`);
-        return factors.join(",");
+        return buildAtempoFilter(atempo);
       }
       return `atempo=${atempo.toFixed(6)}`;
     };
@@ -384,17 +359,10 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
 
   // Non-mobile speed handling
   if (!options.mobileLayout && options.speed && options.speed !== 1) {
-    videoFilters.push(`setpts=${(1 / options.speed).toFixed(6)}*PTS`);
+    videoFilters.push(buildSetptsFilter(options.speed));
     const atempo = options.speed;
     if (atempo > 0 && atempo < 0.5) {
-      const factors: string[] = [];
-      let remaining = atempo;
-      while (remaining < 0.5) {
-        factors.push("atempo=0.5");
-        remaining *= 2;
-      }
-      factors.push(`atempo=${remaining.toFixed(6)}`);
-      args.push("-filter:a", factors.join(","));
+      args.push("-filter:a", buildAtempoFilter(atempo));
     } else {
       args.push("-filter:a", `atempo=${atempo.toFixed(6)}`);
     }

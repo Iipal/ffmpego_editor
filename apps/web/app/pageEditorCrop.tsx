@@ -1,15 +1,13 @@
 "use client";
 
-import { useVideoState } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore } from "@/store/sourceSlice";
 import { CropEmptyState } from "@/components/editor/crop/CropEmptyState";
 import { CropEditorHeader } from "@/components/editor/crop/CropEditorHeader";
 import { CropWorkspace } from "@/components/editor/crop/CropWorkspace";
 
 const PageEditorCrop: React.FC = () => {
-  const { file, mediaUrl } = useVideoState() as unknown as {
-    file: File | null;
-    mediaUrl: string | null;
-  };
+  const { file, mediaUrl } = useSelector(sourceStore);
 
   const hasVideo = !!file && !!mediaUrl;
 

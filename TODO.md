@@ -45,10 +45,10 @@ Conventions: `- [ ]` = pending. Priority `P0` (critical) → `P2` (nice-to-have)
 - [x] Graceful `SIGTERM → SIGKILL (2s)` per job, cooperative cancel (`DELETE ...?mode=cancel` → `cancelled`, row kept), SSE emits `queued/processing → completed/failed/cancelled` with `logTail` (last 50 lines / 20KB)
 
 ### B3. [P0] Split store + create shared packages, remove dead code
-- [ ] Split `apps/web/store/useVideoStore.ts` → `sourceSlice + cropSlice + cutSlice + mobileSlice + subtitleSlice`
-- [ ] Extract `@repo/types`, `@repo/ffmpeg-filters` (single source for client preview string + server builders), `@repo/ui`
-- [ ] Delete `store/ffmpeg-store.tsx` (unused), stale `apps/api/dist/ffmpeg.js` (no source), fix `packages/ui` missing vs README
-- [ ] Add `tsc --noEmit` + `eslint` to CI (`turbo lint`)
+- [x] Split `apps/web/store/useVideoStore.ts` → `sourceSlice + cropSlice + cutSlice + mobileSlice + subtitleSlice` — 2026-09-08
+- [x] Extract `@repo/types`, `@repo/ffmpeg-filters` (single source for shared filter math used by server builders), `@repo/ui` — 2026-09-08
+- [x] Delete `store/ffmpeg-store.tsx` (unused), remove stale generated `apps/api/dist` artifacts, and add the `packages/ui` workspace boundary — 2026-09-08
+- [ ] Add passing `tsc --noEmit` + `eslint` CI gate (`turbo lint`) — scripts added; existing web lint findings remain
 
 ### B4. [P0] Stream downloads, strict validation — DONE 2026-09-08
 - [x] `GET /transcode/download/:id` streams from disk (`Bun.file` + `slice` for Range, `Content-Length`, `Accept-Ranges`, single-range `206`, per-ext `Content-Type` mp4/webm/mov) — verified `200` full + `206 bytes 0-99` live

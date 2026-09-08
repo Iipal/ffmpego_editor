@@ -5,27 +5,27 @@ import { Card } from "@/components/ui/card";
 import { PlayerControls } from "@/components/editor/PlayerControls";
 import { Timeline } from "@/components/editor/Timeline";
 import { CropOverlay } from "@/components/editor/CropOverlay";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { cropStore } from "@/store/cropSlice";
+import { cutStore } from "@/store/cutSlice";
+import { mobileStore } from "@/store/mobileSlice";
 import { cn } from "@/lib/utils";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const videoStore = useVideoStore();
   const {
     mediaUrl,
     volume,
     isMuted,
     currentTime,
     trimRange,
-    isCropMode,
-    canvasZoom,
-    canvasOffset,
     sourceAspectRatio,
-    playbackSpeed,
-    isLoopEnabled,
-  } = useVideoState();
-
+  } = useSelector(sourceStore);
+  const { isCropMode, canvasZoom, canvasOffset } = useSelector(cropStore);
+  const { playbackSpeed } = useSelector(cutStore);
+  const { isLoopEnabled } = useSelector(mobileStore);
   const manualTransform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
 
   // Zoom/pan applies in and outside crop mode. CropOverlay's pointer math
@@ -67,7 +67,7 @@ export function VideoPlayer() {
     if (!video) return;
     let animationFrame = 0;
     const syncCurrentTime = () => {
-      videoStore.setState((previous) =>
+      setSourceState((previous) =>
         previous.currentTime === video.currentTime
           ? previous
           : { ...previous, currentTime: video.currentTime },
@@ -89,7 +89,7 @@ export function VideoPlayer() {
       video.removeEventListener("pause", stopSync);
       video.removeEventListener("ended", stopSync);
     };
-  }, [mediaUrl, videoStore]);
+  }, [mediaUrl]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -108,7 +108,7 @@ export function VideoPlayer() {
       offset: canvasOffset,
     };
     const onMove = (moveEvent: PointerEvent) => {
-      videoStore.setState((previous) => ({
+      setSourceState((previous) => ({
         ...previous,
         canvasOffset: {
           x: start.offset.x + moveEvent.clientX - start.x,
@@ -154,7 +154,7 @@ export function VideoPlayer() {
                   const d = event.currentTarget.duration;
                   // Trim init/clamp is owned by useTrimRange (Timeline below),
                   // which reacts to this duration update.
-                  videoStore.setState((previous) => {
+                  setSourceState((previous) => {
                     return {
                       ...previous,
                       duration:
@@ -170,7 +170,7 @@ export function VideoPlayer() {
                   });
                 }}
                 onTimeUpdate={(event) => {
-                  videoStore.setState((previous) => ({
+                  setSourceState((previous) => ({
                     ...previous,
                     currentTime: event.currentTarget.currentTime,
                   }));
@@ -181,13 +181,13 @@ export function VideoPlayer() {
                     event.currentTarget.currentTime > trimRange[1]
                   )
                     event.currentTarget.currentTime = trimRange[0];
-                  videoStore.setState((previous) => ({
+                  setSourceState((previous) => ({
                     ...previous,
                     isPlaying: true,
                   }));
                 }}
                 onPause={() =>
-                  videoStore.setState((previous) => ({
+                  setSourceState((previous) => ({
                     ...previous,
                     isPlaying: false,
                   }))

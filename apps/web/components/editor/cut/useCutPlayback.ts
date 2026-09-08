@@ -4,23 +4,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
 import { clamp } from "@/lib/mobile-layout";
-import { useVideoStore } from "@/store/useVideoStore";
+import { setSourceState } from "@/store/sourceSlice";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
 import type { Cut } from "./types";
-
-type VideoStore = ReturnType<typeof useVideoStore>;
 
 export function useCutPlayback({
   videoRef,
   mediaUrl,
-  videoStore,
   duration,
   sorted,
   seekTo,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   mediaUrl: string | null;
-  videoStore: VideoStore;
   duration: number;
   sorted: Cut[];
   seekTo: (t: number) => void;
@@ -54,7 +50,7 @@ export function useCutPlayback({
     onMetadata: (v) => {
       const d = v.duration;
       if (Number.isFinite(d)) {
-        videoStore.setState((prev) =>
+        setSourceState((prev) =>
           prev.duration !== d
             ? ({ ...prev, duration: d } as typeof prev)
             : prev,

@@ -6,11 +6,9 @@
  * without spawning binaries.
  */
 
-export interface FFprobeReport {
-  format?: Record<string, unknown>;
-  streams?: Array<Record<string, unknown>>;
-  error?: Record<string, unknown>;
-}
+import type { FFprobeReport } from "@repo/types";
+
+export type { FFprobeReport } from "@repo/types";
 
 export interface VideoMetadata {
   filename: string;

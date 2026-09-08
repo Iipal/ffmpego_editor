@@ -1,16 +1,14 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useSelector } from "@tanstack/react-store";
 import {
   API_BASE_URL,
   type TranscodeProgress,
   type TranscodeResponse,
 } from "@/lib/api-client";
-import {
-  useVideoStore,
-  useVideoState,
-  type VideoState,
-} from "@/store/useVideoStore";
+import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
+import { setSourceState, type SourceSlice } from "@/store/sourceSlice";
 import {
   shouldUseChunked,
   uploadFileChunked,
@@ -21,9 +19,10 @@ import {
   throwTranscodeHttpError,
   withLogTail,
 } from "@/lib/transcode-jobs";
+import type { CropSlice } from "@/store/cropSlice";
 
 type TranscodeRequest = Pick<
-  VideoState,
+  SourceSlice & CutSlice & CropSlice,
   | "crop"
   | "customFFmpegArgs"
   | "exportFormat"
@@ -110,8 +109,7 @@ async function downloadAndSaveFile(jobId: string, filename: string) {
 }
 
 export function useTranscodeMutation() {
-  const videoStore = useVideoStore();
-  const { exportFilename, exportFormat } = useVideoState();
+  const { exportFilename, exportFormat } = useSelector(cutStore);
 
   return useMutation({
     mutationFn: async (request: TranscodeRequest) => {
@@ -130,7 +128,7 @@ export function useTranscodeMutation() {
 
       const setUpload = (sent: number, total: number) => {
         const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
-        videoStore.setState((p) => ({
+        setSourceState((p) => ({
           ...p,
           uploadBytesSent: sent,
           uploadBytesTotal: total,
@@ -177,7 +175,7 @@ export function useTranscodeMutation() {
         );
       }
       // Mark upload done before switching to FFmpeg SSE progress
-      videoStore.setState((p) => ({
+      setSourceState((p) => ({
         ...p,
         uploadProgress: 100,
         uploadStatus: "done",
@@ -191,13 +189,13 @@ export function useTranscodeMutation() {
       // B1: track the job id — outputs persist server-side until deleted,
       // so the user can re-download / cancel from Admin even after this tab's
       // auto-download. B2: SSE emits queued → processing → terminal.
-      videoStore.setState((p) => ({ ...p, transcodeJobId: response.jobId }));
+      setCutState((p) => ({ ...p, transcodeJobId: response.jobId }));
       return new Promise<TranscodeProgress>((resolve, reject) => {
         const source = new EventSource(progressUrl);
         source.onmessage = (event) => {
           const progress = JSON.parse(event.data) as TranscodeProgress;
           if (progress.status === "queued") {
-            videoStore.setState((previous) => ({
+            setCutState((previous) => ({
               ...previous,
               transcodeStatus: "queued",
               transcodeProgress: progress.progress,
@@ -205,7 +203,7 @@ export function useTranscodeMutation() {
             }));
             return;
           }
-          videoStore.setState((previous) => ({
+          setCutState((previous) => ({
             ...previous,
             transcodeStatus: "processing",
             transcodeProgress: progress.progress,
@@ -218,9 +216,7 @@ export function useTranscodeMutation() {
           }
           if (progress.status === "failed") {
             source.close();
-            reject(
-              new Error(withLogTail(progress.error, progress.logTail)),
-            );
+            reject(new Error(withLogTail(progress.error, progress.logTail)));
           }
           if (progress.status === "cancelled") {
             source.close();
@@ -238,7 +234,7 @@ export function useTranscodeMutation() {
       });
     },
     onMutate: (vars: TranscodeRequest) => {
-      videoStore.setState((previous) => ({
+      setCutState((previous) => ({
         ...previous,
         transcodeStatus: "processing",
         transcodeProgress: 0,
@@ -247,6 +243,9 @@ export function useTranscodeMutation() {
         transcodeJobId: null,
         transcodeQueuePosition: null,
         transcodeLogTail: null,
+      }));
+      setSourceState((previous) => ({
+        ...previous,
         uploadStage: "transcode",
         uploadStatus: "uploading",
         uploadProgress: 0,
@@ -256,7 +255,7 @@ export function useTranscodeMutation() {
     },
     onSuccess: async (result) => {
       // Use fresh store state to avoid stale closure on exportFilename/format
-      const fresh = (videoStore as unknown as { state: VideoState }).state;
+      const fresh = cutStore.state;
       const freshName = fresh?.exportFilename;
       const freshFormat = fresh?.exportFormat;
       const filename = `${freshName || exportFilename}.${freshFormat || exportFormat}`;
@@ -267,7 +266,7 @@ export function useTranscodeMutation() {
       } catch (error) {
         if ((error as DOMException)?.name === "AbortError") {
           // User cancelled picker – treat as success, keep file available via download endpoint
-          videoStore.setState((previous) => ({
+          setCutState((previous) => ({
             ...previous,
             transcodeStatus: "completed",
             transcodeProgress: 100,
@@ -275,7 +274,7 @@ export function useTranscodeMutation() {
           }));
           return;
         }
-        videoStore.setState((previous) => ({
+        setCutState((previous) => ({
           ...previous,
           transcodeStatus: "failed",
           transcodeError:
@@ -284,7 +283,7 @@ export function useTranscodeMutation() {
         return;
       }
 
-      videoStore.setState((previous) => ({
+      setCutState((previous) => ({
         ...previous,
         transcodeStatus: "completed",
         transcodeProgress: 100,
@@ -293,12 +292,15 @@ export function useTranscodeMutation() {
     },
     onError: (error) => {
       if ((error as DOMException)?.name === "AbortError") {
-        videoStore.setState((previous) => ({
+        setCutState((previous) => ({
           ...previous,
           transcodeStatus: "idle",
           transcodeProgress: 0,
           transcodeJobId: null,
           transcodeQueuePosition: null,
+        }));
+        setSourceState((previous) => ({
+          ...previous,
           uploadStatus: "idle",
           uploadStage: null,
         }));
@@ -307,23 +309,26 @@ export function useTranscodeMutation() {
       // B2: cooperative cancel lands here as TranscodeCancelledError — the
       // job row (with logTail) is kept server-side, surfaced via Admin.
       if (error instanceof TranscodeCancelledError) {
-        videoStore.setState((previous) => ({
+        setCutState((previous) => ({
           ...previous,
           transcodeStatus: "cancelled",
           transcodeError: error.message,
           transcodeQueuePosition: null,
+        }));
+        setSourceState((previous) => ({
+          ...previous,
           uploadStatus: "idle",
           uploadStage: null,
         }));
         return;
       }
-      videoStore.setState((previous) => ({
+      setCutState((previous) => ({
         ...previous,
         transcodeStatus: "failed",
         transcodeError:
           error instanceof Error ? error.message : "Export failed.",
-        uploadStatus: "error",
       }));
+      setSourceState((previous) => ({ ...previous, uploadStatus: "error" }));
     },
   });
 }

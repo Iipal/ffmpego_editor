@@ -1,17 +1,14 @@
 "use client";
 
 import { useCallback, useTransition } from "react";
-import { useVideoStore } from "@/store/useVideoStore";
+import { setSubtitleState } from "@/store/subtitleSlice";
 import { clamp } from "@/lib/mobile-layout";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
 import { DEFAULT_SUBTITLE_STYLE } from "@/lib/subtitles/subtitleDefaults";
 import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 import { findFirstFreeTrack, generateId } from "./subtitle-helpers";
 
-type VideoStore = ReturnType<typeof useVideoStore>;
-
 export type UseSubtitleMutationsArgs = {
-  videoStore: VideoStore;
   selectedId: string | null;
   hasVideo: boolean;
   effectiveDuration: number;
@@ -25,7 +22,6 @@ export type UseSubtitleMutationsArgs = {
 // Memoized store updaters + subtitle mutations — rerender-functional-setstate
 // for stable callbacks, non-urgent updates in transitions.
 export function useSubtitleMutations({
-  videoStore,
   selectedId,
   hasVideo,
   effectiveDuration,
@@ -43,9 +39,8 @@ export function useSubtitleMutations({
   const setSubtitles = useCallback(
     (updater: Subtitle[] | ((prev: Subtitle[]) => Subtitle[])) => {
       startTransition(() => {
-        videoStore.setState((prev) => {
-          const p = prev as unknown as { subtitles?: Subtitle[] };
-          const cur = p.subtitles ?? [];
+        setSubtitleState((prev) => {
+          const cur = prev.subtitles;
           return {
             ...prev,
             subtitles:
@@ -56,13 +51,12 @@ export function useSubtitleMutations({
         });
       });
     },
-    [videoStore],
+    [],
   );
   const setSelectedId = useCallback(
     (id: string | null | ((prev: string | null) => string | null)) => {
-      videoStore.setState((prev) => {
-        const p = prev as unknown as { selectedSubtitleId?: string | null };
-        const cur = p.selectedSubtitleId ?? null;
+      setSubtitleState((prev) => {
+        const cur = prev.selectedSubtitleId;
         return {
           ...prev,
           selectedSubtitleId:
@@ -72,13 +66,12 @@ export function useSubtitleMutations({
         };
       });
     },
-    [videoStore],
+    [],
   );
   const setTrackCountExplicit = useCallback(
     (value: number | ((prev: number) => number)) => {
-      videoStore.setState((prev) => {
-        const p = prev as unknown as { subtitleTrackCountExplicit?: number };
-        const cur = p.subtitleTrackCountExplicit ?? 1;
+      setSubtitleState((prev) => {
+        const cur = prev.subtitleTrackCountExplicit;
         return {
           ...prev,
           subtitleTrackCountExplicit:
@@ -88,7 +81,7 @@ export function useSubtitleMutations({
         };
       });
     },
-    [videoStore],
+    [],
   );
 
   // Keep selected update stable — rerender-functional-setstate + useTransition

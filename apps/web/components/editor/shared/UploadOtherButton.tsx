@@ -3,7 +3,23 @@
 import { memo, useCallback, useRef } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useVideoStore, type VideoState } from "@/store/useVideoStore";
+import {
+  sourceStore,
+  setSourceState,
+  type SourceSlice,
+} from "@/store/sourceSlice";
+import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
+import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
+import {
+  mobileStore,
+  setMobileState,
+  type MobileSlice,
+} from "@/store/mobileSlice";
+import {
+  subtitleStore,
+  setSubtitleState,
+  type SubtitleSlice,
+} from "@/store/subtitleSlice";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { toast } from "sonner";
 import {
@@ -19,10 +35,10 @@ import {
 // Each feature passes its own reset; behavior is preserved verbatim.
 
 export type VideoReset = (
-  prev: VideoState,
+  prev: SourceSlice & CropSlice & CutSlice & MobileSlice & SubtitleSlice,
   file: File,
   mediaUrl: string,
-) => Partial<VideoState>;
+) => Partial<SourceSlice & CropSlice & CutSlice & MobileSlice & SubtitleSlice>;
 
 export function validateVideoFile(file: File | undefined): file is File {
   if (!file) return false;
@@ -51,7 +67,6 @@ export const UploadOtherButton = memo(function UploadOtherButton({
   label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const videoStore = useVideoStore();
   const metadataMutation = useVideoMetadataMutation();
 
   const onPick = useCallback(
@@ -63,13 +78,25 @@ export const UploadOtherButton = memo(function UploadOtherButton({
           localStorage.removeItem("ffmpeg_editor_trimRange_v1");
         } catch {}
       }
-      videoStore.setState((prev) => {
+      const previous = {
+        ...sourceStore.state,
+        ...cropStore.state,
+        ...cutStore.state,
+        ...mobileStore.state,
+        ...subtitleStore.state,
+      };
+      const resetState = reset(previous, file, mediaUrl);
+      setSourceState((prev) => {
         if (prev.mediaUrl) URL.revokeObjectURL(prev.mediaUrl);
-        return { ...prev, file, mediaUrl, ...reset(prev, file, mediaUrl) };
+        return { ...prev, file, mediaUrl, ...resetState };
       });
+      setCropState((prev) => ({ ...prev, ...resetState }));
+      setCutState((prev) => ({ ...prev, ...resetState }));
+      setMobileState((prev) => ({ ...prev, ...resetState }));
+      setSubtitleState((prev) => ({ ...prev, ...resetState }));
       metadataMutation.mutate(file);
     },
-    [videoStore, metadataMutation, reset, clearTrimCache],
+    [metadataMutation, reset, clearTrimCache],
   );
 
   return (

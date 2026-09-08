@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  buildAtempoFilter,
+  buildSetptsFilter,
+  zoneToPixels,
+} from "@repo/ffmpeg-filters";
 
 // server-hoist-static-io: candidate list is static — build once, cache resolved path
 const WATERMARK_CANDIDATES = [
@@ -68,22 +73,8 @@ function toPixels(
   sourceHeight: number,
 ): { cw: number; ch: number; cx: number; cy: number } {
   // Accept either 0-1 normalized or 0-100 percent (mobile endpoint multiplies by 100 before builder).
-  const scale = z.width > 1 || z.height > 1 || z.x > 1 || z.y > 1 ? 100 : 1;
-  const nx = z.x / scale;
-  const ny = z.y / scale;
-  const nw = z.width / scale;
-  const nh = z.height / scale;
-  const cw = Math.max(1, Math.min(sourceWidth, Math.round(nw * sourceWidth)));
-  const ch = Math.max(1, Math.min(sourceHeight, Math.round(nh * sourceHeight)));
-  const cx = Math.max(
-    0,
-    Math.min(sourceWidth - cw, Math.round(nx * sourceWidth)),
-  );
-  const cy = Math.max(
-    0,
-    Math.min(sourceHeight - ch, Math.round(ny * sourceHeight)),
-  );
-  return { cw, ch, cx, cy };
+  const normalized = !(z.width > 1 || z.height > 1 || z.x > 1 || z.y > 1);
+  return zoneToPixels(z, sourceWidth, sourceHeight, normalized);
 }
 
 function fmt(n: number): string {
@@ -135,19 +126,12 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
   const atempo = hasSpeed
     ? (() => {
         if (speed > 0 && speed < 0.5) {
-          const factors: string[] = [];
-          let remaining = speed;
-          while (remaining < 0.5) {
-            factors.push("atempo=0.5");
-            remaining *= 2;
-          }
-          factors.push(`atempo=${remaining.toFixed(6)}`);
-          return factors.join(",");
+          return buildAtempoFilter(speed);
         }
         return `atempo=${speed.toFixed(6)}`;
       })()
     : null;
-  const vSpeed = hasSpeed ? `,setpts=${(1 / speed).toFixed(6)}*PTS` : "";
+  const vSpeed = hasSpeed ? `,${buildSetptsFilter(speed)}` : "";
 
   const chains: string[] = [];
   const concatInputs: string[] = [];

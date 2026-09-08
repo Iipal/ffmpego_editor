@@ -8,6 +8,10 @@
   ],
   "private": true,
   "packageManager": "bun@1.4.2",
+  "scripts": {
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "turbo": "^2.10.12"

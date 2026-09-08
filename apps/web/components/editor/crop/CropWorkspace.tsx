@@ -5,19 +5,16 @@ import { ArrowUpRight, Crop } from "lucide-react";
 import { Sidebar } from "@/components/editor/Sidebar";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { Button } from "@/components/ui/button";
-import { useVideoState } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore } from "@/store/sourceSlice";
+import { cutStore } from "@/store/cutSlice";
 import { cn } from "@/lib/utils";
 import { CropArea } from "./CropArea";
 import { DynamicVideoPlayer } from "./VideoPlayerLazy";
 
 export function CropWorkspace() {
-  const { isSidebarOpen, file, mediaUrl, uploadStatus } =
-    useVideoState() as unknown as {
-      isSidebarOpen: boolean;
-      file: File | null;
-      mediaUrl: string | null;
-      uploadStatus: string;
-    };
+  const { file, mediaUrl, uploadStatus } = useSelector(sourceStore);
+  const { isSidebarOpen } = useSelector(cutStore);
 
   const hasVideo = !!file && !!mediaUrl;
 

@@ -9,7 +9,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { mobileStore, setMobileState } from "@/store/mobileSlice";
 
 interface PlayerControlsProps {
   playerRef: RefObject<HTMLVideoElement | null>;
@@ -19,21 +21,17 @@ interface PlayerControlsProps {
 // Store-backed adapter over the shared transport bar. Used by the main
 // VideoPlayer (and crop, which renders it lazily).
 export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
-  const videoStore = useVideoStore();
-  const {
-    currentTime,
-    duration,
-    isMuted,
-    isPlaying,
-    volume,
-    isLoopEnabled,
-    trimRange,
-  } = useVideoState();
+  const { currentTime, duration, isMuted, isPlaying, volume, trimRange } =
+    useSelector(sourceStore);
+  const isLoopEnabled = useSelector(
+    mobileStore,
+    (state) => state.isLoopEnabled,
+  );
 
   const toggleLoop = () => {
     const next = !isLoopEnabled;
     if (playerRef.current) playerRef.current.loop = next;
-    videoStore.setState((previous) => ({ ...previous, isLoopEnabled: next }));
+    setMobileState((previous) => ({ ...previous, isLoopEnabled: next }));
   };
 
   const setTime = (nextTime: number) => {
@@ -41,7 +39,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
     if (player) {
       player.currentTime = nextTime;
     }
-    videoStore.setState((previous) => ({ ...previous, currentTime: nextTime }));
+    setSourceState((previous) => ({ ...previous, currentTime: nextTime }));
   };
 
   const playFromTrimStart = async () => {
@@ -61,7 +59,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   const toggleMute = () => {
     const muted = !isMuted;
     if (playerRef.current) playerRef.current.muted = muted;
-    videoStore.setState((previous) => ({ ...previous, isMuted: muted }));
+    setSourceState((previous) => ({ ...previous, isMuted: muted }));
   };
 
   const setVolume = (nextVolume: number) => {
@@ -69,7 +67,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
       playerRef.current.volume = nextVolume;
       playerRef.current.muted = nextVolume === 0;
     }
-    videoStore.setState((previous) => ({
+    setSourceState((previous) => ({
       ...previous,
       volume: nextVolume,
       isMuted: nextVolume === 0,

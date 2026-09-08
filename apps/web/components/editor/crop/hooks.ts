@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect } from "react";
 import { toast } from "sonner";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { cropStore, setCropState } from "@/store/cropSlice";
+import { sourceStore } from "@/store/sourceSlice";
 import { CROP_STORAGE_KEY, formatPct, isValidPersistedCrop } from "./helpers";
 import type {
   CropAspect,
@@ -26,15 +28,8 @@ export interface CropControls {
 }
 
 export function useCropControls(): CropControls {
-  const store = useVideoStore();
-  const { crop, aspectRatio, sourceWidth, sourceHeight, isCropMode } =
-    useVideoState() as {
-      crop: CropRect;
-      aspectRatio: CropAspect;
-      sourceWidth: number;
-      sourceHeight: number;
-      isCropMode: boolean;
-    };
+  const { crop, aspectRatio, isCropMode } = useSelector(cropStore);
+  const { sourceWidth, sourceHeight } = useSelector(sourceStore);
 
   const hasSource = sourceWidth > 0 && sourceHeight > 0;
 
@@ -73,7 +68,7 @@ export function useCropControls(): CropControls {
         return;
       }
       const p = parsed as PersistedCrop & { isCropMode?: boolean };
-      store.setState((prev) => ({
+      setCropState((prev) => ({
         ...prev,
         crop: p.crop,
         aspectRatio: p.aspectRatio,
@@ -86,11 +81,11 @@ export function useCropControls(): CropControls {
     } catch {
       toast.error("Failed to restore crop settings");
     }
-  }, [store]);
+  }, []);
 
   const toggleCropMode = useCallback(() => {
-    store.setState((prev) => ({ ...prev, isCropMode: !prev.isCropMode }));
-  }, [store]);
+    setCropState((prev) => ({ ...prev, isCropMode: !prev.isCropMode }));
+  }, []);
 
   // Hydrate saved crop once on mount — keeps Save meaningful across reloads.
   useEffect(() => {
@@ -100,7 +95,7 @@ export function useCropControls(): CropControls {
       const parsed = JSON.parse(raw) as unknown;
       if (!isValidPersistedCrop(parsed)) return;
       const p = parsed as PersistedCrop & { isCropMode?: boolean };
-      store.setState((prev) => {
+      setCropState((prev) => {
         // Don't clobber an active edit session; only restore if still at defaults.
         const isDefault =
           prev.crop.x === 0 &&
@@ -119,7 +114,7 @@ export function useCropControls(): CropControls {
         };
       });
     } catch {}
-  }, [store]);
+  }, []);
 
   const saveCrop = useCallback(() => {
     try {

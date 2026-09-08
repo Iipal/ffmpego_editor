@@ -9,7 +9,8 @@ import {
   useState,
   useTransition,
 } from "react";
-import { useVideoState, useVideoStore } from "@/store/useVideoStore";
+import { useSelector } from "@tanstack/react-store";
+import { sourceStore } from "@/store/sourceSlice";
 import { formatTime } from "@/lib/format-time";
 import {
   createDefaultLayout,
@@ -36,23 +37,15 @@ export function useMobilePageState() {
     ensureAppInitOnce();
   }, []);
 
-  const { file, mediaUrl, uploadStatus } = useVideoState() as unknown as {
-    file: File | null;
-    mediaUrl: string | null;
-    uploadStatus: string;
-  };
   const {
+    file,
+    mediaUrl,
+    uploadStatus,
     duration: srcDuration,
     sourceWidth,
     sourceHeight,
     trimRange,
-  } = useVideoState() as unknown as {
-    duration: number;
-    sourceWidth: number;
-    sourceHeight: number;
-    trimRange: [number, number];
-  };
-  const videoStore = useVideoStore();
+  } = useSelector(sourceStore);
   const ed = useMobileEditor();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -124,7 +117,7 @@ export function useMobilePageState() {
     };
     v.addEventListener("loadedmetadata", onMeta);
     return () => v.removeEventListener("loadedmetadata", onMeta);
-  }, [mediaUrl, videoStore, ed]);
+  }, [mediaUrl, ed]);
 
   const handleSeekStart = useCallback(() => {
     if (!duration) return;
@@ -173,7 +166,6 @@ export function useMobilePageState() {
   return {
     ed,
     videoRef,
-    videoStore,
     file,
     fileName,
     mediaUrl,

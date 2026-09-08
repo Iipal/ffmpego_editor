@@ -2,20 +2,17 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { API_BASE_URL, type VideoMetadata } from "@/lib/api-client";
-import { useVideoStore } from "@/store/useVideoStore";
+import { setSourceState } from "@/store/sourceSlice";
+import { setCutState } from "@/store/cutSlice";
 import {
   shouldUseChunked,
   uploadFileChunked,
   uploadFormWithProgress,
 } from "@/lib/upload-chunked";
 
-function setUploadProgress(
-  videoStore: ReturnType<typeof useVideoStore>,
-  sent: number,
-  total: number,
-) {
+function setUploadProgress(sent: number, total: number) {
   const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
-  videoStore.setState((p) => ({
+  setSourceState((p) => ({
     ...p,
     uploadBytesSent: sent,
     uploadBytesTotal: total,
@@ -25,11 +22,9 @@ function setUploadProgress(
 }
 
 export function useVideoMetadataMutation() {
-  const videoStore = useVideoStore();
-
   return useMutation({
     onMutate: (file: File) => {
-      videoStore.setState((p) => ({
+      setSourceState((p) => ({
         ...p,
         uploadStage: "metadata",
         uploadStatus: "uploading",
@@ -41,8 +36,7 @@ export function useVideoMetadataMutation() {
     mutationFn: async (file: File) => {
       if (shouldUseChunked(file)) {
         const { uploadId } = await uploadFileChunked(file, {
-          onProgress: (sent, total) =>
-            setUploadProgress(videoStore, sent, total),
+          onProgress: (sent, total) => setUploadProgress(sent, total),
         });
         const res = await fetch(`${API_BASE_URL}/api/metadata`, {
           method: "POST",
@@ -59,8 +53,7 @@ export function useVideoMetadataMutation() {
       const form = new FormData();
       form.append("file", file);
       return uploadFormWithProgress<VideoMetadata>("/api/metadata", form, {
-        onUploadProgress: (sent, total) =>
-          setUploadProgress(videoStore, sent, total),
+        onUploadProgress: (sent, total) => setUploadProgress(sent, total),
       });
     },
     onSuccess: (metadata, file) => {
@@ -77,7 +70,7 @@ export function useVideoMetadataMutation() {
             ? "mp4"
             : "mp4";
 
-      videoStore.setState((previous) => {
+      setSourceState((previous) => {
         if (previous.file !== file) return previous;
         return {
           ...previous,
@@ -91,26 +84,27 @@ export function useVideoMetadataMutation() {
           audioCodec: metadata.audioCodec ?? null,
           bitrateKbps: metadata.bitrateKbps,
           ffprobeReport: metadata.ffprobe,
-          exportFormat,
-          exportFps: frameRate,
           uploadProgress: 100,
           uploadStatus: "done",
           uploadStage: null,
         };
       });
+      setCutState((previous) => ({
+        ...previous,
+        exportFormat,
+        exportFps: frameRate,
+      }));
     },
     onError: () => {
-      videoStore.setState((p) => ({ ...p, uploadStatus: "error" }));
+      setSourceState((p) => ({ ...p, uploadStatus: "error" }));
     },
   });
 }
 
 export function useExtendedVideoMetadataMutation() {
-  const videoStore = useVideoStore();
-
   return useMutation({
     onMutate: (file: File) => {
-      videoStore.setState((p) => ({
+      setSourceState((p) => ({
         ...p,
         uploadStage: "metadata",
         uploadStatus: "uploading",
@@ -122,8 +116,7 @@ export function useExtendedVideoMetadataMutation() {
     mutationFn: async (file: File) => {
       if (shouldUseChunked(file)) {
         const { uploadId } = await uploadFileChunked(file, {
-          onProgress: (sent, total) =>
-            setUploadProgress(videoStore, sent, total),
+          onProgress: (sent, total) => setUploadProgress(sent, total),
         });
         const res = await fetch(
           `${API_BASE_URL}/api/metadata?includeFrames=false&includePackets=false`,
@@ -143,13 +136,12 @@ export function useExtendedVideoMetadataMutation() {
         "/api/metadata?includeFrames=false&includePackets=false",
         form,
         {
-          onUploadProgress: (sent, total) =>
-            setUploadProgress(videoStore, sent, total),
+          onUploadProgress: (sent, total) => setUploadProgress(sent, total),
         },
       );
     },
     onSuccess: (metadata, file) => {
-      videoStore.setState((previous) =>
+      setSourceState((previous) =>
         previous.file === file
           ? {
               ...previous,
@@ -162,7 +154,7 @@ export function useExtendedVideoMetadataMutation() {
       );
     },
     onError: () => {
-      videoStore.setState((p) => ({ ...p, uploadStatus: "error" }));
+      setSourceState((p) => ({ ...p, uploadStatus: "error" }));
     },
   });
 }
