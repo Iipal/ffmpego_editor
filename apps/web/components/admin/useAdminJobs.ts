@@ -155,8 +155,33 @@ export function useAdminJobs() {
         const blob = await fetchDownloadBlob(
           `${API_BASE_URL}/api/transcode/download/${job.jobId}`,
         );
-        const fallback = job.outputPath.split("/").pop() || `${job.jobId}.mp4`;
-        const saved = await saveBlobFile(blob, job.filename || fallback);
+        // The stored job.filename is a bare export name (or the source file
+        // name) — the real output extension lives on the server outputPath
+        // (temp_<jobId>.<ext>). Re-attach it so webm/mov/webm-tg jobs don't
+        // save with a wrong .mp4 extension, and offer the matching picker
+        // filter instead of the MP4-only default.
+        const serverName =
+          job.outputPath.split("/").pop() || `${job.jobId}.mp4`;
+        const serverExt =
+          serverName.split(".").pop()?.toLowerCase() || "mp4";
+        const rawBase =
+          (job.filename || serverName).split("/").pop() || job.jobId;
+        const base = rawBase.replace(/\.(mp4|webm|mov|mkv|m4v|avi)$/i, "");
+        const filename = `${base}.${serverExt}`;
+        const mimeType =
+          serverExt === "mp4"
+            ? "video/mp4"
+            : serverExt === "webm"
+              ? "video/webm"
+              : serverExt === "mov"
+                ? "video/quicktime"
+                : "application/octet-stream";
+        const saved = await saveBlobFile(blob, filename, [
+          {
+            description: `${serverExt.toUpperCase()} video`,
+            accept: { [mimeType]: [`.${serverExt}`] },
+          },
+        ]);
         toast.success("Download saved", { description: saved });
       } catch (e) {
         if ((e as DOMException)?.name === "AbortError") return;

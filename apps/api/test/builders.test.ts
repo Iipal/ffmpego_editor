@@ -92,6 +92,88 @@ describe("buildFFmpegArgs formats (B4 webm fix)", () => {
   });
 });
 
+describe("buildFFmpegArgs webm-tg telegram preset", () => {
+  test("honors trim + crop, ignores everything else", () => {
+    const args = buildFFmpegArgs({
+      ...BASE,
+      format: "webm-tg",
+      trimRange: [10, 50],
+      crop: { x: 25, y: 25, width: 50, height: 50 },
+      fps: 60,
+      speed: 2,
+      crf: 10,
+      customArgs: ["-b:v", "2M"],
+      extraVideoFilters: ["eq=contrast=1.2"],
+      audioTracks: [
+        {
+          trackIndex: 0,
+          enabled: true,
+          gainDb: 5,
+          loudnormEnabled: true,
+          loudnormTargetLufs: -14,
+          fadeInSeconds: 1,
+          fadeOutSeconds: 1,
+          muteSegments: [],
+        },
+      ],
+      watermark: true,
+    });
+    expect(args).toEqual([
+      "-y",
+      "-ss",
+      "10",
+      "-i",
+      "/tmp/in.mp4",
+      "-t",
+      "3",
+      "-vf",
+      "crop=960:540:480:270,fps=30,scale=512:-1",
+      "-c:v",
+      "libvpx-vp9",
+      "-crf",
+      "10",
+      "-b:v",
+      "0",
+      "-an",
+      "-progress",
+      "pipe:2",
+      "-nostats",
+      "out.webm",
+    ]);
+  });
+
+  test("short trim caps duration, full-frame crop emits no crop filter", () => {
+    const args = buildFFmpegArgs({
+      ...BASE,
+      format: "webm-tg",
+      trimRange: [1, 2.5],
+    });
+    expect(args).toContain("-ss");
+    expect(args).toContain("1");
+    const t = args.indexOf("-t");
+    expect(args.slice(t, t + 2)).toEqual(["-t", "1.5"]);
+    expect(vf(args)).toBe("fps=30,scale=512:-1");
+  });
+
+  test("ignoreTrim skips seek and renders flat 3s", () => {
+    const args = buildFFmpegArgs({
+      ...BASE,
+      format: "webm-tg",
+      trimRange: [10, 50],
+      ignoreTrim: true,
+    });
+    expect(args).not.toContain("-ss");
+    const t = args.indexOf("-t");
+    expect(args.slice(t, t + 2)).toEqual(["-t", "3"]);
+  });
+
+  test("crf follows exportQuality", () => {
+    const args = buildFFmpegArgs({ ...BASE, format: "webm-tg", crf: 20 });
+    const i = args.indexOf("-crf");
+    expect(args.slice(i, i + 2)).toEqual(["-crf", "20"]);
+  });
+});
+
 describe("buildFFmpegArgs speed", () => {
   test("2x emits setpts + single atempo", () => {
     const args = buildFFmpegArgs({ ...BASE, speed: 2 });

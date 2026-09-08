@@ -34,7 +34,18 @@ type TranscodeRequest = Pick<
   | "sourceHeight"
   | "sourceWidth"
   | "trimRange"
-> & { file: File; audioTracks?: AudioTrackRenderSettings[] };
+  | "watermark"
+  | "ignoreTrim"
+  | "audioTrackIndex"
+> & {
+  file: File;
+  audioTracks?: AudioTrackRenderSettings[];
+  gainDb?: number;
+  loudnormTargetLufs?: number;
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
+  muteSegments?: Array<{ start: number; end: number }>;
+};
 
 /**
  * Download the transcode output file and prompt the user to save it using
@@ -125,7 +136,15 @@ export function useTranscodeMutation() {
         sourceHeight: request.sourceHeight,
         sourceWidth: request.sourceWidth,
         trimRange: request.trimRange,
+        watermark: request.watermark,
+        ignoreTrim: request.ignoreTrim,
+        audioTrackIndex: request.audioTrackIndex,
         audioTracks: request.audioTracks,
+        gainDb: request.gainDb,
+        loudnormTargetLufs: request.loudnormTargetLufs,
+        fadeInSeconds: request.fadeInSeconds,
+        fadeOutSeconds: request.fadeOutSeconds,
+        muteSegments: request.muteSegments,
       });
 
       const setUpload = (sent: number, total: number) => {
@@ -260,7 +279,10 @@ export function useTranscodeMutation() {
       const fresh = cutStore.state;
       const freshName = fresh?.exportFilename;
       const freshFormat = fresh?.exportFormat;
-      const filename = `${freshName || exportFilename}.${freshFormat || exportFormat}`;
+      const formatForExt = freshFormat || exportFormat;
+      // webm-tg renders a plain .webm file.
+      const extForFile = formatForExt === "webm-tg" ? "webm" : formatForExt;
+      const filename = `${freshName || exportFilename}.${extForFile}`;
       let savedName: string | undefined;
 
       try {

@@ -57,7 +57,7 @@ export interface TranscodeOptions {
   trimRange: [number, number];
   ignoreTrim?: boolean;
   crop: { x: number; y: number; width: number; height: number };
-  format: "mp4" | "webm" | "mov";
+  format: "mp4" | "webm" | "mov" | "webm-tg";
   outputSuffix?: string;
   speed?: number;
   fps?: number;
@@ -208,12 +208,107 @@ function buildFormatArgs(
 }
 
 /**
+ * Strict Telegram sticker preset ("webm-tg").
+ *
+ * Renders exactly:
+ *   ffmpeg -y -i <input> -t 3 -vf 'fps=30,scale=512:-1' \
+ *     -c:v libvpx-vp9 -crf <crf> -b:v 0 -an <output>
+ *
+ * All other options (speed, fps, audio, watermark,
+ * mobileLayout, custom args) are intentionally ignored on this path.
+ */
+export const TELEGRAM_WEBM_TG_DURATION = 3;
+const TELEGRAM_WEBM_TG_FILTER = "fps=30,scale=512:-1";
+
+/**
+ * Output duration for the webm-tg preset: the trim length capped at 3s,
+ * or a flat 3s when trim is ignored or invalid.
+ */
+export function telegramWebmTgDuration(
+  trimRange: [number, number],
+  ignoreTrim?: boolean,
+): number {
+  if (!ignoreTrim) {
+    const d = trimRange[1] - trimRange[0];
+    if (Number.isFinite(d) && d > 0)
+      return Math.min(TELEGRAM_WEBM_TG_DURATION, d);
+  }
+  return TELEGRAM_WEBM_TG_DURATION;
+}
+
+function buildTelegramWebmTgArgs(
+  options: TranscodeOptions,
+  outputPath: string,
+) {
+  const normalizedCrf =
+    typeof options.crf === "number" && Number.isFinite(options.crf)
+      ? Math.max(0, Math.min(60, Math.round(options.crf)))
+      : 10;
+  const args: string[] = ["-y"];
+  if (!options.ignoreTrim) {
+    const start = options.trimRange[0];
+    const dur = options.trimRange[1] - options.trimRange[0];
+    if (
+      Number.isFinite(start) &&
+      start > 0 &&
+      Number.isFinite(dur) &&
+      dur > 0
+    ) {
+      args.push("-ss", String(start));
+    }
+  }
+  const crop = cropPercentToPixels(
+    options.crop,
+    options.sourceWidth,
+    options.sourceHeight,
+  );
+  let vf = TELEGRAM_WEBM_TG_FILTER;
+  if (
+    crop.cw !== options.sourceWidth ||
+    crop.ch !== options.sourceHeight
+  ) {
+    vf = `crop=${crop.cw}:${crop.ch}:${crop.cx}:${crop.cy},${vf}`;
+  }
+  args.push(
+    "-i",
+    options.inputPath,
+    "-t",
+    String(telegramWebmTgDuration(options.trimRange, options.ignoreTrim)),
+    "-vf",
+    vf,
+    "-c:v",
+    "libvpx-vp9",
+    "-crf",
+    String(normalizedCrf),
+    "-b:v",
+    "0",
+    "-an",
+    "-progress",
+    "pipe:2",
+    "-nostats",
+    outputPath,
+  );
+  return args;
+}
+
+/**
  * Build the complete FFmpeg command line for a single export job.
  *
  * This includes trimming, cropping, speed adjustments, optional FPS changes,
  * and any additional user-supplied FFmpeg flags.
  */
 export function buildFFmpegArgs(options: TranscodeOptions) {
+  // Telegram sticker preset: fixed encoder settings, but honors trim
+  // (seek + duration capped at 3s) and crop. Everything else (speed, fps,
+  // audio, watermark, mobileLayout, custom args) is ignored on this path.
+  if (options.format === "webm-tg") {
+    const outputName =
+      options.outputPath ??
+      `${options.filename}${options.outputSuffix ?? ""}.webm`;
+    const finalOutputPath =
+      options.outputPath ?? path.join(OUTPUT_DIRECTORY, outputName);
+    return buildTelegramWebmTgArgs(options, finalOutputPath);
+  }
   // Convert crop rectangle percentages to absolute pixel values.
   // Values are clamped to the source dimensions so FFmpeg never receives
   // invalid crop coordinates.

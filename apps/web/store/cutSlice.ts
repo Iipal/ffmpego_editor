@@ -2,13 +2,16 @@ import { createStore } from "@tanstack/store";
 import { useSelector } from "@tanstack/react-store";
 
 export interface CutSlice {
-  exportFormat: "mp4" | "webm" | "mov";
+  exportFormat: "mp4" | "webm" | "mov" | "webm-tg";
   exportFps: number;
   exportFilename: string;
   exportQuality: number;
   playbackSpeed: number;
   exportSpeed: number;
   customFFmpegArgs: string;
+  watermark: boolean;
+  ignoreTrim: boolean;
+  audioTrackIndex: number;
   isSidebarOpen: boolean;
   transcodeStatus:
     | "idle"
@@ -33,6 +36,9 @@ export const initialCutSlice: CutSlice = {
   playbackSpeed: 1,
   exportSpeed: 1,
   customFFmpegArgs: "",
+  watermark: false,
+  ignoreTrim: false,
+  audioTrackIndex: 0,
   isSidebarOpen: true,
   transcodeStatus: "idle",
   transcodeProgress: 0,

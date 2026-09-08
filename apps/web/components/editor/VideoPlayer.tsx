@@ -8,7 +8,7 @@ import { AudioControls } from "@/components/editor/AudioControls";
 import { CropOverlay } from "@/components/editor/CropOverlay";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
-import { cropStore } from "@/store/cropSlice";
+import { cropStore, setCropState } from "@/store/cropSlice";
 import { cutStore } from "@/store/cutSlice";
 import { mobileStore } from "@/store/mobileSlice";
 import { audioStore } from "@/store/audioSlice";
@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const {
     file,
     mediaUrl,
@@ -111,6 +113,47 @@ export function VideoPlayer() {
     }
   }, [currentTime, trimRange]);
 
+  // --- Scroll-to-zoom on the canvas stage --------------------------------
+  // Native non-passive wheel listener (React's onWheel is passive at the
+  // root, so preventDefault would be ignored and the page would scroll).
+  // Zoom is anchored at the cursor: with transform translate(o) scale(z)
+  // about the element center, offset' = o + (z - z') * (l - c) keeps the
+  // point under the cursor fixed, where l is the cursor in unscaled canvas
+  // coords recovered from the transformed bounding rect.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const { canvasZoom: zoom, canvasOffset: offset } = cropStore.state;
+      const delta =
+        event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+      const nextZoom = Math.min(
+        4,
+        Math.max(0.25, zoom * Math.exp(-delta * 0.0015)),
+      );
+      if (nextZoom === zoom) return;
+      const rect = canvas.getBoundingClientRect();
+      // Cursor in unscaled canvas coords, relative to canvas center.
+      const lx =
+        (event.clientX - rect.left) / zoom - rect.width / zoom / 2;
+      const ly =
+        (event.clientY - rect.top) / zoom - rect.height / zoom / 2;
+      setCropState((previous) => ({
+        ...previous,
+        canvasZoom: nextZoom,
+        canvasOffset: {
+          x: offset.x + (zoom - nextZoom) * lx,
+          y: offset.y + (zoom - nextZoom) * ly,
+        },
+      }));
+    };
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", onWheel);
+  }, []);
+
   const startCanvasPan = (event: React.PointerEvent<HTMLDivElement>) => {
     // Pan is allowed even during crop mode — CropOverlay stops propagation on
     // crop handles/move so panning only fires for background/empty area drags.
@@ -121,7 +164,9 @@ export function VideoPlayer() {
       offset: canvasOffset,
     };
     const onMove = (moveEvent: PointerEvent) => {
-      setSourceState((previous) => ({
+      // canvasOffset lives in cropStore (read at the top of this component) —
+      // writing it to sourceStore is a dead update nothing reads.
+      setCropState((previous) => ({
         ...previous,
         canvasOffset: {
           x: start.offset.x + moveEvent.clientX - start.x,
@@ -147,12 +192,14 @@ export function VideoPlayer() {
               transformed. CropOverlay lives inside the letterboxed canvas and
               inherits the same zoom/pan so crop rect stays aligned with video. */}
           <div
+            ref={stageRef}
             className="absolute inset-0 flex items-center justify-center overflow-hidden bg-black"
             onPointerDown={(e) => {
               startCanvasPan(e);
             }}
           >
             <div
+              ref={canvasRef}
               className={cn("relative origin-center")}
               style={{
                 ...canvasSize,

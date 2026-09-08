@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -282,6 +283,9 @@ export function Sidebar() {
         sourceHeight: state.sourceHeight,
         sourceWidth: state.sourceWidth,
         trimRange: state.trimRange,
+        watermark: state.watermark,
+        ignoreTrim: state.ignoreTrim,
+        audioTrackIndex: state.audioTrackIndex,
         audioTracks: audio.tracks.length
           ? getAudioRenderSettings(audio.tracks)
           : undefined,
@@ -634,8 +638,15 @@ export function Sidebar() {
                 <SelectItem value="mp4">MP4</SelectItem>
                 <SelectItem value="webm">WebM</SelectItem>
                 <SelectItem value="mov">MOV</SelectItem>
+                <SelectItem value="webm-tg">WebM Telegram (sticker)</SelectItem>
               </SelectContent>
             </Select>
+            {state.exportFormat === "webm-tg" && (
+              <p className="text-[11px] leading-4 text-kumo-subtle">
+                Telegram sticker preset: 30fps, width 512px, VP9, no audio,
+                up to 3s. Trim, crop, filename and quality apply.
+              </p>
+            )}
             <div className="space-y-2 pt-2">
               <Label>Filename</Label>
               <Input
@@ -675,7 +686,7 @@ export function Sidebar() {
                 />
               </div>
             )}
-            {state.exportFormat !== "webm" && (
+            {state.exportFormat !== "webm-tg" && (
               <>
                 <Label>Framerate</Label>
                 <Select
@@ -696,7 +707,7 @@ export function Sidebar() {
                 </Select>
               </>
             )}
-            {state.exportFormat !== "webm" && (
+            {state.exportFormat !== "webm-tg" && (
               <>
                 <Input
                   type="number"
@@ -715,6 +726,44 @@ export function Sidebar() {
                     update({ customFFmpegArgs: event.target.value })
                   }
                 />
+              </>
+            )}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="export-ignore-trim">Ignore trim</Label>
+              <Switch
+                id="export-ignore-trim"
+                checked={state.ignoreTrim}
+                onCheckedChange={(ignoreTrim) => update({ ignoreTrim })}
+              />
+            </div>
+            {state.exportFormat !== "webm-tg" && (
+              <>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="export-watermark">Watermark</Label>
+                  <Switch
+                    id="export-watermark"
+                    checked={state.watermark}
+                    onCheckedChange={(watermark) => update({ watermark })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="export-audio-track">Audio track index</Label>
+                  <Input
+                    id="export-audio-track"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={state.audioTrackIndex}
+                    onChange={(event) =>
+                      update({
+                        audioTrackIndex: Math.max(
+                          0,
+                          Number(event.target.value) || 0,
+                        ),
+                      })
+                    }
+                  />
+                </div>
               </>
             )}
             {state.uploadStatus === "uploading" &&

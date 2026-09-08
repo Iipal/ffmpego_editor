@@ -3,7 +3,7 @@ import { readdir, unlink } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
-import { buildFFmpegArgs } from "../utils/ffmpegBuilder.js";
+import { buildFFmpegArgs, telegramWebmTgDuration } from "../utils/ffmpegBuilder.js";
 import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { consumeUpload } from "./upload.js";
@@ -845,7 +845,7 @@ app.post("/transcode", async (c) => {
       400,
     );
   }
-  const settings = genericParsed.data;
+  const settings = normalizeTrimAlias(genericParsed.data);
   const resolvedMain = await resolveInputFile(
     c as unknown as {
       req: {
@@ -863,9 +863,11 @@ app.post("/transcode", async (c) => {
 
   const format = settings.exportFormat;
   const jobId = crypto.randomUUID();
+  const isWebmTg = format === "webm-tg";
 
-  // Generate temp output paths in os.tmpdir()
-  const originalOutputPath = tempOutputPath(jobId, "", format);
+  // Generate temp output paths in os.tmpdir(). webm-tg renders a .webm file.
+  const outputExt = isWebmTg ? "webm" : format;
+  const originalOutputPath = tempOutputPath(jobId, "", outputExt);
 
   const mobileLayout = settings.mobileLayout
     ? {
@@ -882,7 +884,11 @@ app.post("/transcode", async (c) => {
     : null;
   // B4: -vf merges into our -vf chain only for the plain path; a
   // mobileLayout builds a filter_complex graph where -vf is denied.
-  const custom = parseArgsField(settings.customFFmpegArgs, !mobileLayout);
+  // webm-tg is a strict preset: custom args are ignored entirely so the
+  // rendered command stays exactly the telegram sticker invocation.
+  const custom = isWebmTg
+    ? { args: [] as string[], extraVf: [] as string[] }
+    : parseArgsField(settings.customFFmpegArgs, !mobileLayout);
   if ("argError" in custom) return c.json({ error: custom.argError }, 400);
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
@@ -890,16 +896,24 @@ app.post("/transcode", async (c) => {
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     trimRange: settings.trimRange,
+    ignoreTrim: settings.ignoreTrim,
     crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
     format,
-    fps: settings.exportFps,
-    crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
+    fps: isWebmTg ? undefined : settings.exportFps,
+    crf:
+      settings.exportFormat === "mov" ? undefined : settings.exportQuality,
     customArgs: custom.args,
     extraVideoFilters: custom.extraVf,
     outputPath: originalOutputPath,
     mobileLayout: mobileLayout as never,
+    watermark: isWebmTg ? false : !!settings.watermark,
+    gainDb: settings.gainDb,
+    loudnormTargetLufs: settings.loudnormTargetLufs,
+    fadeInSeconds: settings.fadeInSeconds,
+    fadeOutSeconds: settings.fadeOutSeconds,
+    muteSegments: settings.muteSegments,
     audioTrackIndex: settings.audioTrackIndex,
-    audioTracks: settings.audioTracks,
+    audioTracks: isWebmTg ? undefined : settings.audioTracks,
   });
 
   jobLog(jobId, "ffmpeg args:", originalArgs.join(" "));
@@ -915,23 +929,25 @@ app.post("/transcode", async (c) => {
     filename: settings.exportFilename.trim() || filename,
   });
 
-  const duration = Math.max(
-    0.001,
-    settings.trimRange[1] - settings.trimRange[0],
-  );
+  // webm-tg renders trim (capped at 3s) or a flat 3s when trim is ignored.
+  const duration = isWebmTg
+    ? telegramWebmTgDuration(settings.trimRange, settings.ignoreTrim)
+    : Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]);
   const runAll = async () => {
     await runTranscode(jobId, originalArgs, duration);
     const afterFirst = getJob(jobId);
     if (!afterFirst || afterFirst.status !== "completed") return;
-    if (settings.exportSpeed !== 1) {
+    // webm-tg is a single strict pass: no speed-adjusted alternate output.
+    if (!isWebmTg && settings.exportSpeed !== 1) {
       const suffix = `_${settings.exportSpeed.toFixed(1)}`;
-      const alternateOutputPath = tempOutputPath(jobId, suffix, format);
+      const alternateOutputPath = tempOutputPath(jobId, suffix, outputExt);
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
         filename: settings.exportFilename.trim() || filename,
         sourceWidth: settings.sourceWidth,
         sourceHeight: settings.sourceHeight,
         trimRange: settings.trimRange,
+        ignoreTrim: settings.ignoreTrim,
         crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
         format,
         outputSuffix: suffix,
@@ -943,6 +959,7 @@ app.post("/transcode", async (c) => {
         extraVideoFilters: custom.extraVf,
         outputPath: alternateOutputPath,
         mobileLayout: mobileLayout as never,
+        watermark: !!settings.watermark,
         gainDb: settings.gainDb,
         loudnormTargetLufs: settings.loudnormTargetLufs,
         fadeInSeconds: settings.fadeInSeconds,
