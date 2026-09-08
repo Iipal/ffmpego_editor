@@ -23,8 +23,8 @@ export type TrimSliderProps = {
   onSetTrimRange: (range: [number, number]) => void;
 };
 
-// Shared dual-range trim slider with playhead overlay. Composed by
-// TrimControls (boxed, marker) and the main Timeline (bare, line).
+// Shared dual-range trim slider with playhead overlay, composed by the
+// self-owned TrimControls card.
 export function TrimSlider({
   trimStart,
   trimEnd,

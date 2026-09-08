@@ -11,7 +11,6 @@ import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
 import { NOOP, initAppOnce } from "./heavy-modules";
 import { getSubtitleTrack } from "./subtitle-helpers";
-import { useTrimRange } from "@/components/editor/shared/useTrimRange";
 import { useSubtitleExport } from "./useSubtitleExport";
 import { useSubtitleMutations } from "./useSubtitleMutations";
 import { useSubtitleTemplates } from "./useSubtitleTemplates";
@@ -182,8 +181,10 @@ export function useSubtitleEditor() {
     setSubtitles,
   });
 
-  // Shared trim-range state: store tuple, init/clamp on duration, clamped
-  // commits. Retime side-effect runs on every committed range change.
+  // Shared trim-range state is owned by the self-owned TrimControls card
+  // (useTrimRange inside it). The retime side-effect is passed to the card
+  // as onTrimChange in pageEditorSubtitles and runs on every committed
+  // range change.
   const retimeSubtitlesToTrim = useCallback(
     (s: number, e: number) => {
       setSubtitles((prev) =>
@@ -210,14 +211,6 @@ export function useSubtitleEditor() {
     },
     [setSubtitles],
   );
-
-  const { handleTrimChange } = useTrimRange({
-    duration: effectiveDuration,
-    minGap: MIN_SUBTITLE_DURATION,
-    initClampMargin: 1,
-    overshoot: "clamp",
-    onTrimChange: retimeSubtitlesToTrim,
-  });
 
   const { isExporting, handleExport } = useSubtitleExport({
     file,
@@ -246,7 +239,7 @@ export function useSubtitleEditor() {
     trimStart,
     trimEnd,
     isExporting,
-    handleTrimChange,
+    retimeSubtitlesToTrim,
     handleExport,
     ...mutations,
     ...templatesHook,

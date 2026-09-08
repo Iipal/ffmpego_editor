@@ -3,19 +3,23 @@
 import { useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { PlayerControls } from "@/components/editor/PlayerControls";
-import { Timeline } from "@/components/editor/Timeline";
+import { TrimControls } from "@/components/editor/TrimControls";
+import { AudioControls } from "@/components/editor/AudioControls";
 import { CropOverlay } from "@/components/editor/CropOverlay";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { cropStore } from "@/store/cropSlice";
 import { cutStore } from "@/store/cutSlice";
 import { mobileStore } from "@/store/mobileSlice";
+import { audioStore } from "@/store/audioSlice";
+import { useAudioPreview } from "@/hooks/useAudioPreview";
 import { cn } from "@/lib/utils";
 
 export function VideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const {
+    file,
     mediaUrl,
     volume,
     isMuted,
@@ -26,6 +30,15 @@ export function VideoPlayer() {
   const { isCropMode, canvasZoom, canvasOffset } = useSelector(cropStore);
   const { playbackSpeed } = useSelector(cutStore);
   const { isLoopEnabled } = useSelector(mobileStore);
+  const { tracks: audioTracks } = useSelector(audioStore);
+  useAudioPreview({
+    file,
+    mediaUrl,
+    videoRef,
+    tracks: audioTracks,
+    volume,
+    muted: isMuted,
+  });
   const manualTransform = `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${canvasZoom})`;
 
   // Zoom/pan applies in and outside crop mode. CropOverlay's pointer math
@@ -52,8 +65,8 @@ export function VideoPlayer() {
     const video = videoRef.current;
     if (!video) return;
     video.volume = volume;
-    video.muted = isMuted;
-  }, [isMuted, volume]);
+    video.muted = audioTracks.length > 0 ? true : isMuted;
+  }, [isMuted, volume, audioTracks.length]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -127,7 +140,7 @@ export function VideoPlayer() {
   if (!mediaUrl) return null;
 
   return (
-    <div className="space-y-3">
+    <>
       <Card className="overflow-hidden p-0 rounded-lg">
         <div ref={wrapperRef} className="relative aspect-video w-full">
           {/* Outer stage is always untransformed; only the inner canvas is
@@ -152,7 +165,7 @@ export function VideoPlayer() {
                 src={mediaUrl}
                 onLoadedMetadata={(event) => {
                   const d = event.currentTarget.duration;
-                  // Trim init/clamp is owned by useTrimRange (Timeline below),
+                  // Trim init/clamp is owned by useTrimRange (TrimControls below),
                   // which reacts to this duration update.
                   setSourceState((previous) => {
                     return {
@@ -199,7 +212,9 @@ export function VideoPlayer() {
         </div>
         <PlayerControls playerRef={videoRef} wrapperRef={wrapperRef} />
       </Card>
-      <Timeline playerRef={videoRef} />
-    </div>
+      {/* Trim init/clamp is owned by useTrimRange inside TrimControls. */}
+      <TrimControls minGap={0} initClampMargin={0.01} playerRef={videoRef} />
+      <AudioControls />
+    </>
   );
 }

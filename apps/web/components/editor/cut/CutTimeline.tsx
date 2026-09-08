@@ -36,7 +36,7 @@ export function CutTimeline({
   children: ReactNode;
 }) {
   return (
-    <div className="space-y-2 rounded-lg border border-kumo-hairline bg-kumo-recessed/20 p-3">
+    <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-semibold">
           Cuts · {cutsCount} · out {formatTime(outDuration)}

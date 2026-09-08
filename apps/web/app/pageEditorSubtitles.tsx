@@ -15,8 +15,10 @@ import { PreviewPane } from "@/components/editor/subtitles/PreviewPane";
 import { SubtitleArea } from "@/components/editor/subtitles/SubtitleArea";
 import { SubtitleListPanel } from "@/components/editor/subtitles/SubtitleListPanel";
 import { SubtitleSettingsPanel } from "@/components/editor/subtitles/SubtitleSettingsPanel";
-import { TimelineSection } from "@/components/editor/subtitles/TimelineSection";
 import { useSubtitleEditor } from "@/components/editor/subtitles/useSubtitleEditor";
+import { AudioControls } from "@/components/editor/AudioControls";
+import { TrimControls } from "@/components/editor/TrimControls";
+import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 
 // Thin composer for the subtitles editor. All state lives in
 // useSubtitleEditor; all UI lives in components/editor/subtitles/*.
@@ -98,8 +100,8 @@ export default function PageEditorSubtitles() {
         onDelete={e.handleDeleteSubtitle}
       />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_360px] items-start">
-        <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_300px] items-start">
+        <div className="space-y-3">
           <PreviewPane
             layout={e.layout}
             videoRef={e.videoRef}
@@ -127,24 +129,17 @@ export default function PageEditorSubtitles() {
             onTimelineSeek={e.handleTimelineSeek}
           />
 
-          <TimelineSection
-            effectiveDuration={e.effectiveDuration}
-            trimStart={e.trimStart}
-            trimEnd={e.trimEnd}
-            onTrimChange={e.handleTrimChange}
-            currentTime={e.currentTime}
-            subtitles={e.deferredSubtitles}
-            selectedId={e.selectedId}
-            trackCount={e.trackCount}
-            onSeek={e.handleTimelineSeek}
-            onSelect={e.setSelectedId}
-            onUpdateSubtitle={e.handleTimelineUpdateSubtitle}
-            onUpdateTrack={e.handleMoveSubtitleToTrack}
-            onAddTrack={e.handleAddTrack}
+          <TrimControls
+            sliderMax={Math.max(e.effectiveDuration, 0.01)}
+            minGap={MIN_SUBTITLE_DURATION}
+            initClampMargin={1}
+            playerRef={e.videoRef}
+            onTrimChange={e.retimeSubtitlesToTrim}
           />
+          <AudioControls />
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <SubtitleListPanel
             hasVideo={e.hasVideo}
             effectiveDuration={e.effectiveDuration}

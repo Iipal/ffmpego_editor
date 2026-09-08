@@ -10,7 +10,7 @@ import {
   useTransition,
 } from "react";
 import { useSelector } from "@tanstack/react-store";
-import { sourceStore } from "@/store/sourceSlice";
+import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { formatTime } from "@/lib/format-time";
 import {
   createDefaultLayout,
@@ -21,10 +21,6 @@ import {
 } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
-import {
-  TRIM_MIN_GAP_DEFAULT,
-  useTrimRange,
-} from "@/components/editor/shared/useTrimRange";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
 import {
   cachedBuildMobileFilter,
@@ -52,8 +48,9 @@ export function useMobilePageState() {
   const [isLoopTrim, setIsLoopTrim] = useState(false);
 
   // Shared transport state: play/pause/seek/volume/mute + trim-loop window.
-  // currentTime snapshot is throttled to 10 Hz (same cadence as before);
-  // handlers read the live video element directly.
+  // currentTime snapshot is throttled to 20 Hz and driven by a rAF loop
+  // while playing (same cadence family as the crop player); handlers read
+  // the live video element directly.
   const {
     togglePlay,
     seekTo,
@@ -64,27 +61,20 @@ export function useMobilePageState() {
     setMuted,
     currentTime,
   } = useVideoPlayer(videoRef, {
+    mediaUrl,
     loopRange: isLoopTrim ? trimRange : null,
-    throttleMs: 100,
+    throttleMs: 50,
   });
 
   const hasVideo = !!mediaUrl && !!file;
   const duration = ed.duration || srcDuration || 0;
 
-  // Shared trim-range state: store tuple, init/clamp on duration, clamped
-  // commits, set-start/end-to-time helpers.
-  const {
-    trimStart,
-    trimEnd,
-    trimmedDuration,
-    setTrimRange,
-    setStartToCurrentTime,
-    setEndToCurrentTime,
-  } = useTrimRange({
-    duration,
-    minGap: TRIM_MIN_GAP_DEFAULT,
-    overshoot: "reset",
-  });
+  // Trim-range state is owned by the self-owned TrimControls card
+  // (useTrimRange inside it); read the shared tuple here for labels, loop
+  // window and export.
+  const trimStart = trimRange[0];
+  const trimEnd = trimRange[1];
+  const trimmedDuration = Math.max(0, trimEnd - trimStart);
 
   const validationError = useMemo(() => {
     if (ed.layout.zones.length === 0) return "No zones";
@@ -129,22 +119,14 @@ export function useMobilePageState() {
     const saved = loadPrefForMode(ed.layout.mode);
     if (saved) ed.setLayout(saved);
     else ed.setLayout(createDefaultLayout(ed.layout.mode, 0.5));
-    if (duration > 0) setTrimRange([0, duration]);
+    if (duration > 0) {
+      const next: [number, number] = [0, duration];
+      setSourceState((prev) => ({ ...prev, trimRange: next }));
+    }
     setVolume(1);
     setMuted(false);
     setIsLoopTrim(false);
-  }, [ed, duration, setTrimRange, setVolume, setMuted]);
-
-  const setStartToCurrent = useCallback(() => {
-    const t = videoRef.current?.currentTime ?? currentTime;
-    const ns = setStartToCurrentTime(t);
-    if (videoRef.current && isLoopTrim) videoRef.current.currentTime = ns;
-  }, [currentTime, isLoopTrim, setStartToCurrentTime]);
-
-  const setEndToCurrent = useCallback(() => {
-    const t = videoRef.current?.currentTime ?? currentTime;
-    setEndToCurrentTime(t);
-  }, [currentTime, setEndToCurrentTime]);
+  }, [ed, duration, setVolume, setMuted]);
 
   const fileName = file?.name ?? "";
   const sourceLabel =
@@ -197,12 +179,9 @@ export function useMobilePageState() {
     splitLabel,
     modeBadge,
     trimLabel,
-    setTrimRange,
     togglePlay,
     seekTo,
     ...actions,
-    setStartToCurrent,
-    setEndToCurrent,
     handleSeekStart,
     handleResetAll,
   };

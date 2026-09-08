@@ -2,16 +2,13 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTime } from "@/lib/format-time";
-import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
-import { TrimControls } from "@/components/editor/shared/TrimControls";
 import { MemoTimelineVisual } from "./TimelineVisual";
 
 export type TimelineSectionProps = {
   effectiveDuration: number;
   trimStart: number;
   trimEnd: number;
-  onTrimChange: (newStart: number, newEnd: number) => void;
   currentTime: number;
   subtitles: Subtitle[];
   selectedId: string | null;
@@ -27,7 +24,6 @@ export function TimelineSection({
   effectiveDuration,
   trimStart,
   trimEnd,
-  onTrimChange,
   currentTime,
   subtitles,
   selectedId,
@@ -48,17 +44,6 @@ export function TimelineSection({
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <TrimControls
-          trimStart={trimStart}
-          trimEnd={trimEnd}
-          duration={effectiveDuration}
-          sliderMax={Math.max(effectiveDuration, 0.01)}
-          minGap={MIN_SUBTITLE_DURATION}
-          onSetTrimRange={([s, e]) => onTrimChange(s, e)}
-          showReadout={false}
-          showNumericInputs
-        />
-
         <MemoTimelineVisual
           duration={effectiveDuration}
           trimStart={trimStart}

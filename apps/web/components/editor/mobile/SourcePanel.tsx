@@ -14,7 +14,6 @@ import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerContr
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { SourceStage } from "./SourceStage";
 import { ZoneCard } from "./ZoneCard";
-import { TrimControls } from "@/components/editor/shared/TrimControls";
 import type { ZoneId } from "./types";
 
 type SourcePanelProps = {
@@ -32,8 +31,6 @@ type SourcePanelProps = {
   currentTime: number;
   duration: number;
   trimStart: number;
-  trimEnd: number;
-  trimmedDuration: number;
   onMove: (id: string, nx: number, ny: number) => void;
   onResize: (id: string, zone: CropZone) => void;
   onZoom: (id: string, z: number) => void;
@@ -46,10 +43,6 @@ type SourcePanelProps = {
   onSeekStart: () => void;
   isLoopTrim: boolean;
   setIsLoopTrim: (v: boolean) => void;
-  onSetTrimRange: (range: [number, number]) => void;
-  onSetStartToCurrent: () => void;
-  onSetEndToCurrent: () => void;
-  ignoreTrim: boolean;
   validationError: string | null;
 };
 
@@ -69,8 +62,6 @@ export function SourcePanel(props: SourcePanelProps) {
     currentTime,
     duration,
     trimStart,
-    trimEnd,
-    trimmedDuration,
     onMove,
     onResize,
     onZoom,
@@ -83,10 +74,6 @@ export function SourcePanel(props: SourcePanelProps) {
     onSeekStart,
     isLoopTrim,
     setIsLoopTrim,
-    onSetTrimRange,
-    onSetStartToCurrent,
-    onSetEndToCurrent,
-    ignoreTrim,
     validationError,
   } = props;
 
@@ -157,21 +144,7 @@ export function SourcePanel(props: SourcePanelProps) {
           playFromStartLabel={`Seek to trim start ${formatTime(trimStart)}`}
           playFromStartDisabled={!duration}
         />
-        <TrimControls
-          trimStart={trimStart}
-          trimEnd={trimEnd}
-          trimmedDuration={trimmedDuration}
-          duration={duration}
-          currentTime={currentTime}
-          disabled={ignoreTrim}
-          onSetTrimRange={onSetTrimRange}
-          showSetToCurrentButtons
-          onSetStartToCurrent={onSetStartToCurrent}
-          onSetEndToCurrent={onSetEndToCurrent}
-          showLoopSwitch
-          isLoopTrim={isLoopTrim}
-          onLoopTrimChange={setIsLoopTrim}
-        />
+
         <div className="grid grid-cols-2 gap-2">
           {layout.zones.map((z) => (
             <ZoneCard

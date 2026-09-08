@@ -49,9 +49,7 @@ export function CropWorkspace() {
         {/* Main column — player */}
         <div className="min-w-0 flex flex-col gap-3">
           <Activity mode={hasVideo ? "visible" : "hidden"}>
-            <div className="rounded-lg border border-kumo-line bg-kumo-base shadow-[0_1px_2px_rgba(0,0,0,0.05)] overflow-hidden">
-              <DynamicVideoPlayer />
-            </div>
+            <DynamicVideoPlayer />
           </Activity>
 
           {!isSidebarOpen && (

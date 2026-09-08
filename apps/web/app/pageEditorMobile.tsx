@@ -12,6 +12,8 @@ import { PreviewPanel } from "@/components/editor/mobile/PreviewPanel";
 import { useMobilePageState } from "@/components/editor/mobile/useMobilePageState";
 import { useMobileExport } from "@/components/editor/mobile/useMobileExport";
 import { setCachedLayout } from "@/components/editor/mobile/mobile-helpers";
+import { AudioControls } from "@/components/editor/AudioControls";
+import { TrimControls } from "@/components/editor/TrimControls";
 
 export default function MobileEditorPage() {
   const s = useMobilePageState();
@@ -85,41 +87,43 @@ export default function MobileEditorPage() {
           }}
         />
 
-        <SourcePanel
-          layout={s.ed.layout}
-          selected={s.ed.selected}
-          onSelect={s.ed.setSelected}
-          onModeChange={s.handleModeChange}
-          videoRef={s.videoRef}
-          mediaUrl={s.mediaUrl}
-          volume={s.volume}
-          setVolume={s.setVolume}
-          isMuted={s.isMuted}
-          setIsMuted={s.setIsMuted}
-          sourceLabel={s.sourceLabel}
-          currentTime={s.currentTime}
-          duration={s.duration}
-          trimStart={s.trimStart}
-          trimEnd={s.trimEnd}
-          trimmedDuration={s.trimmedDuration}
-          onMove={s.handleMove}
-          onResize={s.handleResize}
-          onZoom={s.handleZoom}
-          onResetZone={s.resetZone}
-          onToggleLock={s.handleToggleLock}
-          onRole={s.handleRoleChange}
-          onSeekTo={s.seekTo}
-          onTogglePlay={s.togglePlay}
-          isPlaying={s.isPlaying}
-          onSeekStart={s.handleSeekStart}
-          isLoopTrim={s.isLoopTrim}
-          setIsLoopTrim={s.setIsLoopTrim}
-          onSetTrimRange={(range) => s.setTrimRange(range)}
-          onSetStartToCurrent={s.setStartToCurrent}
-          onSetEndToCurrent={s.setEndToCurrent}
-          ignoreTrim={s.ed.ignoreTrim}
-          validationError={s.validationError}
-        />
+        <div className="space-y-4">
+          <SourcePanel
+            layout={s.ed.layout}
+            selected={s.ed.selected}
+            onSelect={s.ed.setSelected}
+            onModeChange={s.handleModeChange}
+            videoRef={s.videoRef}
+            mediaUrl={s.mediaUrl}
+            volume={s.volume}
+            setVolume={s.setVolume}
+            isMuted={s.isMuted}
+            setIsMuted={s.setIsMuted}
+            sourceLabel={s.sourceLabel}
+            currentTime={s.currentTime}
+            duration={s.duration}
+            trimStart={s.trimStart}
+            onMove={s.handleMove}
+            onResize={s.handleResize}
+            onZoom={s.handleZoom}
+            onResetZone={s.resetZone}
+            onToggleLock={s.handleToggleLock}
+            onRole={s.handleRoleChange}
+            onSeekTo={s.seekTo}
+            onTogglePlay={s.togglePlay}
+            isPlaying={s.isPlaying}
+            onSeekStart={s.handleSeekStart}
+            isLoopTrim={s.isLoopTrim}
+            setIsLoopTrim={s.setIsLoopTrim}
+            validationError={s.validationError}
+          />
+          <TrimControls
+            duration={s.duration}
+            overshoot="reset"
+            playerRef={s.videoRef}
+          />
+          <AudioControls />
+        </div>
 
         <div className="space-y-4">
           <PreviewPanel

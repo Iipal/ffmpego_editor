@@ -3,7 +3,6 @@
 import { Activity } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Slider } from "@/components/ui/slider";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { clamp } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
@@ -19,8 +18,9 @@ import {
   globalPointerUpHandlers,
 } from "./pointer-bus";
 import type { PointerHandler } from "./pointer-bus";
-import { percentToTime } from "./subtitle-helpers";
 import { OverlaySubtitle } from "./OverlaySubtitle";
+import { TimelineSection } from "./TimelineSection";
+import { useSubtitleEditor } from "./useSubtitleEditor";
 
 export type PreviewPaneProps = {
   layout: MobileLayout;
@@ -75,6 +75,8 @@ export function PreviewPane({
   onProgressSeek,
   onTimelineSeek,
 }: PreviewPaneProps) {
+  const e = useSubtitleEditor();
+
   return (
     <Card className="overflow-hidden">
       <CardHeader className="py-3">
@@ -181,65 +183,37 @@ export function PreviewPane({
           );
         })()}
 
-        <div className="rounded-lg border bg-kumo-recessed/10 p-3 space-y-3">
-          <VideoPlayerControls
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            duration={effectiveDuration}
-            onTogglePlay={onTogglePlayback}
-            onSeek={onTimelineSeek}
-            volume={volume}
-            onVolumeChange={onVolumeChange}
-            muted={muted}
-            onToggleMute={onToggleMute}
-            loop={isLooping}
-            onToggleLoop={onToggleLoop}
-            onPlayFromStart={onPlayFromTrimStart}
-            playFromStartLabel="Play from trim start"
-            timeLabel={`${formatTime(currentTime)} / ${formatTime(effectiveDuration)} · Trim ${formatTime(trimStart)} → ${formatTime(trimEnd)}`}
-            extraContent={
-              <div className="space-y-1 pt-3">
-                <div className="flex items-center justify-between text-[11px] text-kumo-subtle">
-                  <span>Progress (trim range)</span>
-                  <span className="tabular-nums" suppressHydrationWarning>
-                    {trimEnd > trimStart
-                      ? `${Math.round(clamp(((currentTime - trimStart) / (trimEnd - trimStart)) * 100, 0, 100))}%`
-                      : "0%"}
-                  </span>
-                </div>
-                <Slider
-                  value={[
-                    clamp(
-                      trimEnd > trimStart
-                        ? clamp(
-                            ((currentTime - trimStart) /
-                              (trimEnd - trimStart)) *
-                              100,
-                            0,
-                            100,
-                          )
-                        : 0,
-                      0,
-                      100,
-                    ),
-                  ]}
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  onValueChange={(v) => {
-                    const pct = Array.isArray(v)
-                      ? (v[0] as number)
-                      : (v as number);
-                    if (trimEnd <= trimStart) return;
-                    const t = percentToTime(pct, trimStart, trimEnd);
-                    onProgressSeek(t);
-                  }}
-                  aria-label="Seek within trim range"
-                />
-              </div>
-            }
-          />
-        </div>
+        <VideoPlayerControls
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={effectiveDuration}
+          onTogglePlay={onTogglePlayback}
+          onSeek={onTimelineSeek}
+          volume={volume}
+          onVolumeChange={onVolumeChange}
+          muted={muted}
+          onToggleMute={onToggleMute}
+          loop={isLooping}
+          onToggleLoop={onToggleLoop}
+          onPlayFromStart={onPlayFromTrimStart}
+          playFromStartLabel="Play from trim start"
+          timeLabel={`${formatTime(currentTime)} / ${formatTime(effectiveDuration)} · Trim ${formatTime(trimStart)} → ${formatTime(trimEnd)}`}
+        />
+
+        <TimelineSection
+          effectiveDuration={e.effectiveDuration}
+          trimStart={e.trimStart}
+          trimEnd={e.trimEnd}
+          currentTime={e.currentTime}
+          subtitles={e.deferredSubtitles}
+          selectedId={e.selectedId}
+          trackCount={e.trackCount}
+          onSeek={e.handleTimelineSeek}
+          onSelect={e.setSelectedId}
+          onUpdateSubtitle={e.handleTimelineUpdateSubtitle}
+          onUpdateTrack={e.handleMoveSubtitleToTrack}
+          onAddTrack={e.handleAddTrack}
+        />
       </CardContent>
     </Card>
   );
