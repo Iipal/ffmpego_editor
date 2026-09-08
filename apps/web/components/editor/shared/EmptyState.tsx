@@ -47,10 +47,8 @@ export function FootnoteDivider() {
 
 export function UploaderCard({
   formatNote = "MP4 · WebM · MOV · MKV up to 10 GB",
-  showExportsNote = true,
 }: {
   formatNote?: string;
-  showExportsNote?: boolean;
 }) {
   return (
     <Card className="p-6 sm:p-8">
@@ -60,12 +58,6 @@ export function UploaderCard({
           <LocalOnlyBadge />
           <FootnoteDivider />
           <span>{formatNote}</span>
-          {showExportsNote && (
-            <>
-              <FootnoteDivider />
-              <span className="tabular-nums">Exports to ~/ffmpego_edits</span>
-            </>
-          )}
         </div>
       </CardContent>
     </Card>
