@@ -13,7 +13,8 @@ import {
   migrateRenderPlan,
   type RenderKind,
 } from "@repo/contracts";
-import { buildFFmpegArgs, telegramWebmTgDuration } from "../utils/ffmpegBuilder.js";
+import { isVisualFiltersDefault } from "@repo/ffmpeg-filters";
+import { buildFFmpegArgs, telegramWebmTgDuration, TELEGRAM_WEBM_TG_TARGET_BYTES, TELEGRAM_WEBM_TG_CRF_STEP, TELEGRAM_WEBM_TG_CRF_MIN, TELEGRAM_WEBM_TG_CRF_MAX, clampTelegramCrf } from "../utils/ffmpegBuilder.js";
 import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { consumeUpload } from "./upload.js";
@@ -458,6 +459,164 @@ async function runTranscode(jobId: string, args: string[], duration: number) {
 }
 
 /**
+ * Single ffmpeg attempt for the webm-tg size search: streams progress like
+ * runTranscode but leaves the terminal state alone so the caller can run
+ * further CRF iterations. Returns the exit code (0 = ok). Respects
+ * cooperative cancellation (returns -1 without touching the row).
+ */
+async function runFfmpegAttempt(
+  jobId: string,
+  args: string[],
+  duration: number,
+): Promise<number> {
+  const proc = Bun.spawn(["ffmpeg", ...args], {
+    stdout: "ignore",
+    stderr: "pipe",
+  });
+  procs.set(jobId, proc);
+  try {
+    await Promise.all([
+      proc.exited,
+      readProgress(proc.stderr as ReadableStream<Uint8Array>, jobId, duration),
+    ]);
+    if (getJob(jobId)?.status === "cancelled") return -1;
+    return await proc.exited;
+  } catch (error) {
+    if (getJob(jobId)?.status === "cancelled") return -1;
+    updateJob(jobId, {
+      status: "failed",
+      error: error instanceof Error ? error.message : "FFmpeg failed to start.",
+    });
+    jobError(jobId, "failed to start:", error);
+    return 1;
+  } finally {
+    procs.delete(jobId);
+  }
+}
+
+function failWebmTgJob(jobId: string, code: number): void {
+  const tail = getJob(jobId)?.logTail ?? "";
+  const last = tail.split("\n").slice(-5).join("\n");
+  const cls = classifyFfmpegExit(code, tail);
+  updateJob(jobId, {
+    status: "failed",
+    exitCode: code,
+    error: `FFmpeg exited with code ${code} [${cls.code}]${cls.retryable ? " (retryable)" : ""}. ${cls.message}${last ? `\nLast output:\n${last}` : ""}`,
+  });
+  jobError(jobId, `failed (exit ${code}, ${cls.code})`);
+}
+
+/**
+ * Iterative CRF search for the webm-tg preset: encodes at the requested CRF,
+ * then steps by TELEGRAM_WEBM_TG_CRF_STEP (±2) — up when over budget, down
+ * when under — keeping the largest output that fits in
+ * TELEGRAM_WEBM_TG_TARGET_BYTES. Attempts render to temp files; only the
+ * winning pass is copied to the reserved output path.
+ */
+async function runWebmTgCrfSearch(
+  jobId: string,
+  makeArgs: (crf: number, outputPath: string) => string[],
+  startCrf: number,
+  duration: number,
+  outputPath: string,
+): Promise<void> {
+  const target = TELEGRAM_WEBM_TG_TARGET_BYTES;
+  const step = TELEGRAM_WEBM_TG_CRF_STEP;
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), `${jobId}-tg-`));
+  let crf = clampTelegramCrf(startCrf);
+  const visited = new Set<number>();
+  let bestCrf: number | null = null;
+  let bestSize = -1;
+  let bestTmp: string | null = null;
+  try {
+    while (
+      crf >= TELEGRAM_WEBM_TG_CRF_MIN &&
+      crf <= TELEGRAM_WEBM_TG_CRF_MAX &&
+      !visited.has(crf)
+    ) {
+      visited.add(crf);
+      if (getJob(jobId)?.status === "cancelled") return;
+      const attemptPath = path.join(scratch, `crf${crf}.webm`);
+      const args = makeArgs(crf, attemptPath);
+      jobLog(jobId, `webm-tg attempt crf=${crf} (target ${target} bytes)`);
+      const code = await runFfmpegAttempt(jobId, args, duration);
+      if (code === -1) return;
+      if (code !== 0) {
+        failWebmTgJob(jobId, code);
+        return;
+      }
+      let size = -1;
+      try {
+        size = fs.statSync(attemptPath).size;
+      } catch {
+        failWebmTgJob(jobId, code);
+        return;
+      }
+      jobLog(jobId, `webm-tg attempt crf=${crf} size=${size} bytes`);
+      if (size <= target) {
+        if (size > bestSize) {
+          if (bestTmp) {
+            try {
+              fs.unlinkSync(bestTmp);
+            } catch {}
+          }
+          bestCrf = crf;
+          bestSize = size;
+          bestTmp = attemptPath;
+        } else {
+          try {
+            fs.unlinkSync(attemptPath);
+          } catch {}
+        }
+        if (size === target) break;
+        const next = crf - step;
+        if (
+          next < TELEGRAM_WEBM_TG_CRF_MIN ||
+          visited.has(next)
+        )
+          break;
+        crf = next;
+      } else {
+        try {
+          fs.unlinkSync(attemptPath);
+        } catch {}
+        // Already hold a fitting pass: with step granularity the previous
+        // best is the closest fit from above — stop instead of oscillating.
+        if (bestCrf !== null) break;
+        const next = crf + step;
+        if (
+          next > TELEGRAM_WEBM_TG_CRF_MAX ||
+          visited.has(next)
+        )
+          break;
+        crf = next;
+      }
+    }
+    if (getJob(jobId)?.status === "cancelled") return;
+    if (!bestTmp) {
+      // Unreachable for 3s 512px content (even CRF 63 fits), but never
+      // violate the hard cap silently: fail instead of delivering oversize.
+      updateJob(jobId, {
+        status: "failed",
+        error: `webm-tg could not fit ${target} bytes within CRF ${TELEGRAM_WEBM_TG_CRF_MIN}..${TELEGRAM_WEBM_TG_CRF_MAX}.`,
+      });
+      jobError(jobId, "webm-tg size search found no fitting pass");
+      return;
+    }
+    fs.copyFileSync(bestTmp, outputPath);
+    updateJob(jobId, { status: "completed", progress: 100, exitCode: 0 });
+    jobLog(
+      jobId,
+      `webm-tg completed crf=${bestCrf} size=${bestSize} bytes (target ${target})`,
+    );
+  } finally {
+    try {
+      fs.rmSync(scratch, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
+/**
  * Probe input duration via ffprobe (used for progress when trim is ignored
  * and the full-length video is rendered).
  */
@@ -682,6 +841,12 @@ app.post("/transcode/mobile", async (c) => {
   );
   if ("argError" in custom)
     return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
+  if (!isVisualFiltersDefault(settings.visualFilters)) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message:
+        "visualFilters cannot be combined with mobileLayout (this export builds its own filter graph). Use the plain transcode endpoint instead.",
+    });
+  }
   const ignoreTrim = settings.ignoreTrim === true;
   let progressDuration = Math.max(
     0.001,
@@ -939,6 +1104,12 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   );
   if ("argError" in custom)
     return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
+  if (!isVisualFiltersDefault(settings.visualFilters)) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message:
+        "visualFilters cannot be combined with mobileLayout (this export builds its own filter graph). Use the plain transcode endpoint instead.",
+    });
+  }
   const exportBase = settings.exportFilename.trim() || file.name;
   let originalOutput: { fileId: string; path: string };
   try {
@@ -1193,38 +1364,54 @@ app.post("/transcode", async (c) => {
     : null;
   // B4: -vf merges into our -vf chain only for the plain path; a
   // mobileLayout builds a filter_complex graph where -vf is denied.
-  // webm-tg is a strict preset: custom args are ignored entirely so the
-  // rendered command stays exactly the telegram sticker invocation.
+  // webm-tg is a strict preset: custom args + visual stack are ignored
+  // entirely so the rendered command stays exactly the telegram sticker
+  // invocation.
   const custom = isWebmTg
     ? { args: [] as string[], extraVf: [] as string[] }
     : parseArgsField(settings.customFFmpegArgs, !mobileLayout);
   if ("argError" in custom)
     return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
-  const originalArgs = buildFFmpegArgs({
-    inputPath: temporaryPath,
-    filename: settings.exportFilename.trim() || filename,
-    sourceWidth: settings.sourceWidth,
-    sourceHeight: settings.sourceHeight,
-    trimRange: settings.trimRange,
-    ignoreTrim: settings.ignoreTrim,
-    crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
-    format,
-    fps: isWebmTg ? undefined : settings.exportFps,
-    crf:
-      settings.exportFormat === "mov" ? undefined : settings.exportQuality,
-    customArgs: custom.args,
-    extraVideoFilters: custom.extraVf,
-    outputPath: originalOutputPath,
-    mobileLayout: mobileLayout as never,
-    watermark: isWebmTg ? false : !!settings.watermark,
-    gainDb: settings.gainDb,
-    loudnormTargetLufs: settings.loudnormTargetLufs,
-    fadeInSeconds: settings.fadeInSeconds,
-    fadeOutSeconds: settings.fadeOutSeconds,
-    muteSegments: settings.muteSegments,
-    audioTrackIndex: settings.audioTrackIndex,
-    audioTracks: isWebmTg ? undefined : settings.audioTracks,
-  });
+  const visualFilters = isWebmTg ? undefined : settings.visualFilters;
+  if (mobileLayout && !isVisualFiltersDefault(visualFilters)) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message:
+        "visualFilters cannot be combined with mobileLayout (this export builds its own filter graph). Use the plain transcode endpoint instead.",
+    });
+  }
+  let originalArgs: string[];
+  try {
+    originalArgs = buildFFmpegArgs({
+      inputPath: temporaryPath,
+      filename: settings.exportFilename.trim() || filename,
+      sourceWidth: settings.sourceWidth,
+      sourceHeight: settings.sourceHeight,
+      trimRange: settings.trimRange,
+      ignoreTrim: settings.ignoreTrim,
+      crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
+      format,
+      fps: isWebmTg ? undefined : settings.exportFps,
+      crf:
+        settings.exportFormat === "mov" ? undefined : settings.exportQuality,
+      customArgs: custom.args,
+      visualFilters: visualFilters as never,
+      extraVideoFilters: custom.extraVf,
+      outputPath: originalOutputPath,
+      mobileLayout: mobileLayout as never,
+      watermark: isWebmTg ? false : !!settings.watermark,
+      gainDb: settings.gainDb,
+      loudnormTargetLufs: settings.loudnormTargetLufs,
+      fadeInSeconds: settings.fadeInSeconds,
+      fadeOutSeconds: settings.fadeOutSeconds,
+      muteSegments: settings.muteSegments,
+      audioTrackIndex: settings.audioTrackIndex,
+      audioTracks: isWebmTg ? undefined : settings.audioTracks,
+    });
+  } catch (e) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message: e instanceof Error ? e.message : "Invalid video filters.",
+    });
+  }
 
   jobLog(jobId, "ffmpeg args:", originalArgs.join(" "));
 
@@ -1249,6 +1436,33 @@ app.post("/transcode", async (c) => {
     ? telegramWebmTgDuration(settings.trimRange, settings.ignoreTrim)
     : Math.max(0.001, settings.trimRange[1] - settings.trimRange[0]);
   const runAll = async () => {
+    if (isWebmTg) {
+      // Iterative CRF search (±2) toward TELEGRAM_WEBM_TG_TARGET_BYTES.
+      const startCrf = clampTelegramCrf(settings.exportQuality);
+      const cropSetting =
+        settings.crop ?? { x: 0, y: 0, width: 100, height: 100 };
+      await runWebmTgCrfSearch(
+        jobId,
+        (crf, attemptPath) =>
+          buildFFmpegArgs({
+            inputPath: temporaryPath,
+            filename: settings.exportFilename.trim() || filename,
+            sourceWidth: settings.sourceWidth,
+            sourceHeight: settings.sourceHeight,
+            trimRange: settings.trimRange,
+            ignoreTrim: settings.ignoreTrim,
+            crop: cropSetting,
+            format,
+            crf,
+            outputPath: attemptPath,
+          }),
+        startCrf,
+        duration,
+        originalOutputPath,
+      );
+      settleJobFiles(jobId);
+      return;
+    }
     await runTranscode(jobId, originalArgs, duration);
     settleJobFiles(jobId);
     const afterFirst = getJob(jobId);
@@ -1289,6 +1503,7 @@ app.post("/transcode", async (c) => {
         crf:
           settings.exportFormat === "mov" ? undefined : settings.exportQuality,
         customArgs: custom.args,
+        visualFilters: visualFilters as never,
         extraVideoFilters: custom.extraVf,
         outputPath: alternateOutputPath,
         mobileLayout: mobileLayout as never,

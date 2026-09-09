@@ -3,7 +3,11 @@ import path from "node:path";
 import {
   buildAtempoFilter,
   buildSetptsFilter,
+  buildVisualVideoFilters,
   cropPercentToPixels,
+  isVisualFiltersDefault,
+  normalizeVisualFilters,
+  type VisualFilters,
 } from "@repo/ffmpeg-filters";
 
 // server-hoist-static-io: candidate list is static — build once, cache resolved path
@@ -64,6 +68,8 @@ export interface TranscodeOptions {
   crf?: number;
   /** Pre-parsed extra flags (see parseCustomArgs in validation.ts). */
   customArgs?: string[];
+  /** Structured visual filter stack (Sidebar UI). Built via shared builder. */
+  visualFilters?: VisualFilters;
   /** -vf values merged into the builder's own video filter chain. */
   extraVideoFilters?: string[];
   outputPath?: string;
@@ -222,6 +228,24 @@ function buildFormatArgs(
 export const TELEGRAM_WEBM_TG_DURATION = 3;
 const TELEGRAM_WEBM_TG_FILTER = "fps=30,scale=512:-1";
 
+/** Hard size cap for the webm-tg preset (bytes). */
+export const TELEGRAM_WEBM_TG_TARGET_BYTES = 256_000;
+/** CRF step for the iterative size search (faster than step 1). */
+export const TELEGRAM_WEBM_TG_CRF_STEP = 2;
+/** VP9 CRF bounds. */
+export const TELEGRAM_WEBM_TG_CRF_MIN = 0;
+export const TELEGRAM_WEBM_TG_CRF_MAX = 63;
+
+/** Normalize a requested CRF to the VP9 range (default 10 like the builder). */
+export function clampTelegramCrf(crf: unknown): number {
+  if (typeof crf !== "number" || !Number.isFinite(crf))
+    return 10;
+  return Math.max(
+    TELEGRAM_WEBM_TG_CRF_MIN,
+    Math.min(TELEGRAM_WEBM_TG_CRF_MAX, Math.round(crf)),
+  );
+}
+
 /**
  * Output duration for the webm-tg preset: the trim length capped at 3s,
  * or a flat 3s when trim is ignored or invalid.
@@ -242,10 +266,7 @@ function buildTelegramWebmTgArgs(
   options: TranscodeOptions,
   outputPath: string,
 ) {
-  const normalizedCrf =
-    typeof options.crf === "number" && Number.isFinite(options.crf)
-      ? Math.max(0, Math.min(60, Math.round(options.crf)))
-      : 10;
+  const normalizedCrf = clampTelegramCrf(options.crf);
   const args: string[] = ["-y"];
   if (!options.ignoreTrim) {
     const start = options.trimRange[0];
@@ -562,6 +583,22 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       const audio = buildAudioFilter(options, options.speed, track);
       if (audio) args.push("-filter:a:" + index, audio);
     });
+  }
+
+  // Structured visual stack (Sidebar UI) — single shared builder with the
+  // live preview. Order: crop → visual → speed → custom extraVf.
+  // A labeled -filter_complex graph cannot take a -vf — routes deny this
+  // with a 400; this throw is defense in depth for direct callers.
+  const visual = options.visualFilters
+    ? normalizeVisualFilters(options.visualFilters)
+    : null;
+  if (visual && !isVisualFiltersDefault(visual)) {
+    if (usedComplex || options.mobileLayout) {
+      throw new Error(
+        "visualFilters cannot be combined with mobileLayout filter_complex output",
+      );
+    }
+    videoFilters.push(...buildVisualVideoFilters(visual));
   }
 
   // User -vf values merge into our -vf chain (validated by parseCustomArgs).

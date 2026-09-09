@@ -7,6 +7,7 @@ import {
   type ExportPreset,
 } from "@repo/contracts";
 import type { CutSlice } from "@/store/cutSlice";
+import type { VisualFilters } from "@/store/filterSlice";
 
 export type { ExportPreset };
 export { BUILTIN_PRESETS };
@@ -80,7 +81,7 @@ type PresetPatch = Partial<
     | "presetTarget"
     | "audioFormat"
   >
->;
+> & { visualFilters?: VisualFilters };
 
 /**
  * One-shot preset → export-field patch. Filename is filled only when the
@@ -106,6 +107,8 @@ export function presetToPatch(
   if (s.exportQuality !== undefined) patch.exportQuality = s.exportQuality;
   if (s.exportSpeed !== undefined) patch.exportSpeed = s.exportSpeed;
   if (s.watermark !== undefined) patch.watermark = s.watermark;
+  if (s.visualFilters !== undefined)
+    patch.visualFilters = s.visualFilters as VisualFilters;
   if (s.customFFmpegArgs !== undefined)
     patch.customFFmpegArgs = s.customFFmpegArgs;
   if (s.ignoreTrim !== undefined) patch.ignoreTrim = s.ignoreTrim;

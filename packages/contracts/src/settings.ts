@@ -63,6 +63,45 @@ export const audioTrackSchema = z.object({
     .default([]),
 });
 
+/**
+ * Visual filter stack (Sidebar UI). Mirrors the canonical
+ * `VisualFilters` type in `@repo/ffmpeg-filters`; the server normalizes
+ * with `normalizeVisualFilters` and builds `-vf` via
+ * `buildVisualVideoFilters` so preview and export cannot drift.
+ */
+export const visualFiltersSchema = z.object({
+  eq: z
+    .object({
+      brightness: finite.min(-1).max(1).default(0),
+      contrast: finite.min(0).max(2).default(1),
+      saturation: finite.min(0).max(3).default(1),
+      gamma: finite.min(0.1).max(10).default(1),
+    })
+    .default({ brightness: 0, contrast: 1, saturation: 1, gamma: 1 }),
+  denoise: z
+    .object({
+      enabled: z.boolean().default(false),
+      strength: finite.min(0).max(10).default(4),
+    })
+    .default({ enabled: false, strength: 4 }),
+  deshake: z
+    .object({ enabled: z.boolean().default(false) })
+    .default({ enabled: false }),
+  transform: z
+    .object({
+      flipH: z.boolean().default(false),
+      flipV: z.boolean().default(false),
+      rotate: z.union([
+        z.literal(0),
+        z.literal(90),
+        z.literal(180),
+        z.literal(270),
+      ]).default(0),
+    })
+    .default({ flipH: false, flipV: false, rotate: 0 }),
+});
+export type VisualFiltersInput = z.infer<typeof visualFiltersSchema>;
+
 const exportBase = z.object({
   sourceWidth: finite,
   sourceHeight: finite,
@@ -71,6 +110,7 @@ const exportBase = z.object({
   exportSpeed: finite,
   exportQuality: finite,
   exportFilename: z.string().min(1),
+  visualFilters: visualFiltersSchema.optional(),
   customFFmpegArgs: z.string().optional().default(""),
   watermark: z.boolean().optional(),
   audioTrackIndex: finite.int().min(0).optional().default(0),

@@ -24,6 +24,7 @@ import { trackHistoryEntry } from "@/store/exportHistorySlice";
 import { openJobComparison } from "@/lib/export-history";
 import type { CropSlice } from "@/store/cropSlice";
 import type { AudioTrackRenderSettings } from "@/store/audioSlice";
+import type { VisualFilters } from "@/store/filterSlice";
 
 type TranscodeRequest = Pick<
   SourceSlice & CutSlice & CropSlice,
@@ -42,6 +43,7 @@ type TranscodeRequest = Pick<
   | "audioTrackIndex"
 > & {
   file: File;
+  visualFilters?: VisualFilters;
   audioTracks?: AudioTrackRenderSettings[];
   gainDb?: number;
   loudnormTargetLufs?: number;
@@ -130,6 +132,7 @@ export function useTranscodeMutation() {
     mutationFn: async (request: TranscodeRequest) => {
       const settingsJson = JSON.stringify({
         crop: request.crop,
+        visualFilters: request.visualFilters,
         customFFmpegArgs: request.customFFmpegArgs,
         exportFormat: request.exportFormat,
         exportFps: request.exportFps,

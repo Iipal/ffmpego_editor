@@ -10,6 +10,7 @@
  * without a version envelope) are wrapped via {@link migratePreset}.
  */
 import { z } from "zod";
+import { visualFiltersSchema } from "./settings";
 
 export const PRESET_VERSION = 1 as const;
 
@@ -26,6 +27,7 @@ export const presetSettingsSchema = z.object({
   /** Appended to the source basename when the preset fills the filename. */
   filenameSuffix: z.string().max(32).optional(),
   watermark: z.boolean().optional(),
+  visualFilters: visualFiltersSchema.optional(),
   customFFmpegArgs: z.string().max(2000).optional(),
   ignoreTrim: z.boolean().optional(),
 });

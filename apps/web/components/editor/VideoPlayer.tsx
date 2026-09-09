@@ -12,6 +12,11 @@ import { cropStore, setCropState } from "@/store/cropSlice";
 import { cutStore } from "@/store/cutSlice";
 import { mobileStore } from "@/store/mobileSlice";
 import { audioStore } from "@/store/audioSlice";
+import { filterStore } from "@/store/filterSlice";
+import {
+  buildCanvasCssFilter,
+  buildCanvasCssTransform,
+} from "@repo/ffmpeg-filters";
 import { useAudioPreview } from "@/hooks/useAudioPreview";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +38,13 @@ export function VideoPlayer() {
   const { playbackSpeed } = useSelector(cutStore);
   const { isLoopEnabled } = useSelector(mobileStore);
   const { tracks: audioTracks } = useSelector(audioStore);
+  const filters = useSelector(filterStore);
+  // Live preview of the visual filter stack (color + flip/rotate only —
+  // gamma/denoise/deshake are server-only, see visualPreviewNotes).
+  // Applied to the <video> element itself so it composes with the
+  // zoom/pan transform on the parent canvas div.
+  const previewFilter = buildCanvasCssFilter(filters);
+  const previewTransform = buildCanvasCssTransform(filters.transform);
   useAudioPreview({
     file,
     mediaUrl,
@@ -210,6 +222,10 @@ export function VideoPlayer() {
                 ref={videoRef}
                 className="size-full object-fill"
                 src={mediaUrl}
+                style={{
+                  filter: previewFilter || "none",
+                  transform: previewTransform || undefined,
+                }}
                 onLoadedMetadata={(event) => {
                   const d = event.currentTarget.duration;
                   // Trim init/clamp is owned by useTrimRange (TrimControls below),

@@ -65,7 +65,10 @@ import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
 import { UploadProgress } from "@/components/editor/UploadProgress";
-import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
+import { VisualFiltersPanel } from "@/components/editor/VisualFiltersPanel";
+import { filterStore, setFilterState } from "@/store/filterSlice";
+import { isVisualFiltersDefault } from "@repo/ffmpeg-filters";
+import { audioStore, getAudioRenderSettings, setAudioState } from "@/store/audioSlice";
 import { API_BASE_URL } from "@/lib/api-client";
 import { serverErrorMessage } from "@/lib/transcode-jobs";
 import { saveBlobFile } from "@/lib/save-blob-file";
@@ -115,6 +118,7 @@ export function Sidebar() {
   const crop = useSelector(cropStore);
   const cut = useSelector(cutStore);
   const audio = useSelector(audioStore);
+  const visualFilters = useSelector(filterStore);
   const state = { ...source, ...crop, ...cut };
   const metadataMutation = useVideoMetadataMutation();
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
@@ -322,7 +326,13 @@ export function Sidebar() {
     setPresetId(id);
     const preset = presets.find((p) => p.id === id);
     if (!preset) return;
-    update(presetToPatch(preset, state.exportFilename, basename));
+    const patch = presetToPatch(preset, state.exportFilename, basename);
+    update(patch);
+    // Visual filters live in filterStore, which update() doesn't route to.
+    if (patch.visualFilters) {
+      const next = patch.visualFilters;
+      setFilterState(() => structuredClone(next));
+    }
     toast.success(`Preset applied: ${preset.name}`, {
       description:
         preset.target === "audio-extract"
@@ -353,6 +363,9 @@ export function Sidebar() {
               watermark: state.watermark,
               customFFmpegArgs: state.customFFmpegArgs || undefined,
               ignoreTrim: state.ignoreTrim || undefined,
+              visualFilters: isVisualFiltersDefault(visualFilters)
+                ? undefined
+                : structuredClone(visualFilters),
             },
       ...(state.presetTarget === "audio-extract"
         ? { audioFormat: state.audioFormat }
@@ -467,6 +480,9 @@ export function Sidebar() {
         audioTracks: audio.tracks.length
           ? getAudioRenderSettings(audio.tracks)
           : undefined,
+        visualFilters: isVisualFiltersDefault(visualFilters)
+          ? undefined
+          : structuredClone(visualFilters),
       },
       {
         onSuccess: (result) =>
@@ -768,30 +784,20 @@ export function Sidebar() {
                   aria-label="Playback speed"
                 />
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="export-speed">Export speed</Label>
-                  <span className="text-xs text-kumo-subtle tabular-nums">
-                    {state.exportSpeed.toFixed(1)}x
-                  </span>
-                </div>
-                <Slider
-                  id="export-speed"
-                  value={[state.exportSpeed]}
-                  min={0.1}
-                  max={2}
-                  step={0.1}
-                  onValueChange={(value) =>
-                    update({
-                      exportSpeed: Array.isArray(value)
-                        ? Number(value[0] ?? 1)
-                        : Number(value),
-                    })
-                  }
-                  aria-label="Export speed"
-                />
-              </div>
+              <p className="text-[11px] leading-4 text-kumo-subtle">
+                Export speed (speed ramp) lives in the Filters card below.
+              </p>
             </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </Card>
+      <Card className="p-4 rounded-lg">
+        <Collapsible defaultOpen>
+          <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
+            Filters <ChevronDown className="size-4 text-kumo-subtle" />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 pt-3">
+            <VisualFiltersPanel />
           </CollapsibleContent>
         </Collapsible>
       </Card>
@@ -973,14 +979,26 @@ export function Sidebar() {
                     update({ exportFps: Number(event.target.value) })
                   }
                 />
-                <Label>FFmpeg arguments</Label>
-                <Textarea
-                  value={state.customFFmpegArgs}
-                  placeholder="-vf eq=contrast=1.2 -b:v 2M"
-                  onChange={(event) =>
-                    update({ customFFmpegArgs: event.target.value })
-                  }
-                />
+                <Collapsible>
+                  <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
+                    Advanced <ChevronDown className="size-4 text-kumo-subtle" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="space-y-2 pt-3">
+                    <Label>FFmpeg arguments</Label>
+                    <Textarea
+                      value={state.customFFmpegArgs}
+                      placeholder="-vf eq=contrast=1.2 -b:v 2M"
+                      onChange={(event) =>
+                        update({ customFFmpegArgs: event.target.value })
+                      }
+                    />
+                    <p className="text-[11px] leading-4 text-kumo-subtle">
+                      Most color, denoise, stabilize, flip and speed needs are
+                      covered by the Filters card above — use this only for
+                      advanced overrides.
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
               </>
             )}
             <div className="flex items-center justify-between">
@@ -1002,22 +1020,52 @@ export function Sidebar() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="export-audio-track">Audio track index</Label>
-                  <Input
-                    id="export-audio-track"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={state.audioTrackIndex}
-                    onChange={(event) =>
-                      update({
-                        audioTrackIndex: Math.max(
-                          0,
-                          Number(event.target.value) || 0,
-                        ),
-                      })
-                    }
-                  />
+                  <Label>Audio tracks</Label>
+                  {audio.tracks.length === 0 ? (
+                    <p className="text-[11px] leading-4 text-kumo-subtle">
+                      No audio tracks detected in this file.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {audio.tracks.map((track) => (
+                        <li
+                          key={track.trackIndex}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium">
+                              Track {track.trackIndex + 1}
+                              {track.title ? ` · ${track.title}` : ""}
+                            </p>
+                            <p className="truncate text-[11px] text-kumo-subtle">
+                              {[track.language, track.codec, `${track.channels}ch`]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </div>
+                          <Switch
+                            id={`export-audio-enabled-${track.trackIndex}`}
+                            checked={track.enabled}
+                            onCheckedChange={(enabled) =>
+                              setAudioState((previous) => ({
+                                ...previous,
+                                tracks: previous.tracks.map((t) =>
+                                  t.trackIndex === track.trackIndex
+                                    ? { ...t, enabled }
+                                    : t,
+                                ),
+                              }))
+                            }
+                            aria-label={`Include track ${track.trackIndex + 1} in export`}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-[11px] leading-4 text-kumo-subtle">
+                    Same switches as Audio controls — disabled tracks are left
+                    out of the export.
+                  </p>
                 </div>
               </>
             )}
