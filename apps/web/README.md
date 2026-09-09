@@ -1,30 +1,240 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FFmpeg Editor Web (`apps/web`)
 
-## Getting Started
+Local-only Next.js frontend (App Router, `next dev -p 3050`). All pages are
+`"use client"`. Server state = TanStack Query, sync UI state = TanStack Store.
+Backend: `http://localhost:3100` (see `apps/api/README.md`).
+Shared code: `@repo/contracts`, `@repo/types`, `@repo/ffmpeg-filters`, `@repo/ui`.
 
-First, run the development server:
+## 1. System overview
 
-```bash
-bun dev
+Two views: app shell (A) and data layers (B).
+
+**A. Shell — every page renders inside this:**
+
+```mermaid
+flowchart LR
+    Web([browser]) --> Layout[layout.tsx<br/>fonts + css]
+    Layout --> Prov[providers.tsx<br/>Theme + Query + Tooltip]
+    Prov --> Side[AppSidebar<br/>AppNav]
+    Prov --> Page([route page])
+    Page --> Trans[DirectionalTransition]
+    style Prov fill:#0d9488,color:#fff
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**B. Where frontend code lives (same view as API §2):**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```mermaid
+flowchart LR
+    subgraph Pages["app/ routes"]
+        Crop["editor/crop<br/>PageEditorCrop"]
+        Mob["editor/mobile<br/>PageEditorMobile"]
+        Sub["editor/mobile/subtitles<br/>PageEditorSubtitles"]
+        Bulk["editor/mobile/bulk<br/>PageEditorMobileBulk"]
+        Cut["editor/cut<br/>CutEditorPage"]
+        Adm["admin<br/>PageAdmin"]
+    end
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+    Crop ~~~ Mob ~~~ Sub ~~~ Bulk ~~~ Cut ~~~ Adm
 
-## Learn More
+    subgraph Shared["shared layers"]
+        Comp["components/editor + admin + ui"]
+        Store["store/*<br/>TanStack Store"]
+        Lib["lib/* + hooks/*<br/>Query + SSE"]
+    end
 
-To learn more about Next.js, take a look at the following resources:
+    Crop -. uses .-> Comp & Store & Lib
+    Mob -. uses .-> Comp & Store & Lib
+    Sub -. uses .-> Comp & Store & Lib
+    Bulk -. uses .-> Comp & Store & Lib
+    Cut -. uses .-> Comp & Store & Lib
+    Adm -. uses .-> Comp & Store & Lib
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Nav order (`components/view-transition/AppNav.tsx`, `NAV_ITEMS`):
+`/editor/crop` → `/editor/mobile` → `/editor/mobile/subtitles` →
+`/editor/mobile/bulk` → `/editor/cut` → `/admin`. `/` redirects to
+`/editor/crop` (`app/page.tsx`).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 2. Pages — features and components
 
-## Deploy on Vercel
+**`/editor/crop` — `PageEditorCrop`** (generic trim/crop/filter export):
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```mermaid
+flowchart LR
+    P([PageEditorCrop]) --> E[CropEmptyState]
+    P --> H[CropEditorHeader]
+    P --> W[CropWorkspace]
+    W --> A[CropArea + CropOverlay]
+    W --> V[DynamicVideoPlayer]
+    W --> S[Sidebar]
+    S --> T[TrimControls]
+    S --> VF[VisualFiltersPanel]
+    S --> AC[AudioControls + AudioWaveform]
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `CropEmptyState` — no-video dropzone (`VideoUploader` + picker).
+- `CropEditorHeader` — filename + export entry.
+- `CropWorkspace` — grid shell + `UploadProgress` banner.
+- `CropArea` / `CropOverlay` — crop control/readout bar + canvas rect.
+- `VideoPlayer` (`DynamicVideoPlayer` lazy) + `PlayerControls` — preview with
+  CSS filter preview + audio preview.
+- `Sidebar` — export form (format/fps/crf/speed, presets via
+  `lib/export-presets.ts`, validation via `lib/validate-settings.ts`).
+- `TrimControls`, `VisualFiltersPanel`, `AudioControls`, `AudioWaveform`,
+  `VideoUploader`, `UploadProgress` — as named.
+
+**`/editor/mobile` — `MobileEditorPage`** (16:9 → 9:16):
+
+```mermaid
+flowchart LR
+    P([MobileEditorPage]) --> E[MobileEmptyState]
+    P --> H[EditorHeader]
+    P --> A[MobileArea]
+    P --> S[SourcePanel]
+    P --> V[PreviewPanel + PortraitPreview]
+    P --> Z[ZoneCard + ZoneOverlay]
+    P --> T[TrimControls + AudioControls]
+```
+
+- State: `useMobilePageState` (layout/selection/playback/validation),
+  export: `useMobileExport` → `POST /api/transcode/mobile`.
+- `MobileArea` — control/readout surface; `SourcePanel` — source + zone stage;
+  `PreviewPanel`/`PortraitPreview` — split slider + 1080×1920 renderer;
+  `ZoneCard`/`ZoneOverlay` — per-zone x/y/w/h sliders; `SourceStage` — canvas.
+- Shared layout persisted via `hooks/useSharedMobileLayout.ts`.
+
+**`/editor/mobile/subtitles` — `PageEditorSubtitles`** (9:16 + burned text):
+
+```mermaid
+flowchart LR
+    P([PageEditorSubtitles]) --> A[SubtitleArea]
+    P --> V[PreviewPane + OverlaySubtitle]
+    P --> L[SubtitleListPanel + SubtitleRow]
+    P --> S[SubtitleSettingsPanel]
+    P --> T[TimelineSection + TimelineVisual]
+```
+
+- State: `useSubtitleEditor` (`components/editor/subtitles/useSubtitleEditor.ts`);
+  export → `POST /api/transcode/mobile/subtitles`.
+- Panels: `SubtitleBasicsPanel`, `SubtitleFontPanel` (+ `GoogleFontPicker`),
+  `SubtitleOutlinePanel`, `SubtitleShadowPanel`, `SubtitleBackgroundPanel`;
+  placeholders in `placeholders.tsx`, lazy chunks in `heavy-modules.tsx`.
+
+**`/editor/mobile/bulk` — `MobileBulkEditorPage`** (folder batch):
+
+```mermaid
+flowchart LR
+    P([MobileBulkEditorPage]) --> E[BulkEmptyState]
+    P --> H[BulkHeader]
+    P --> A[BulkArea]
+    P --> C[BulkItemCard + CellPreview]
+    P --> X[BulkExpandedView]
+    P --> S[BulkSettingsPanel]
+```
+
+- State: `useBulkEditorState` (`components/editor/bulk/hooks.ts`);
+  export: `useBulkExport` loops `POST /api/transcode/mobile` per item,
+  saves via directory handle.
+
+**`/editor/cut` — `CutEditorPage`** (multi-cut assembly):
+
+```mermaid
+flowchart LR
+    P([CutEditorPage]) --> E[CutEmptyState]
+    P --> H[CutHeader]
+    P --> V[CutPreview]
+    P --> T[CutTimeline + CutBlock]
+    P --> L[CutList]
+    P --> S[CutSettingsSidebar + ZoneSliders]
+```
+
+- Hooks (colocated `components/editor/cut/`): `useCutList` (CRUD +
+  sorted/overlap/outDuration), `useCutPlayback`/`useSeekTo` (cut-aware player),
+  `useCutLayouts` (stacked/single + watermark), `useCutExport`/`useExportName`
+  → `POST /api/transcode/cut`.
+
+**`/admin` — `PageAdmin`** (jobs dashboard):
+
+```mermaid
+flowchart LR
+    P([PageAdmin]) --> H[AdminHeader]
+    P --> A[JobsArea]
+    P --> F[FilterBar]
+    P --> L[JobsList + JobRow]
+    P --> X[ExtractRows]
+    P --> C[CompareDialog]
+```
+
+- State: `useAdminJobs` (`components/admin/useAdminJobs.ts`) — jobs query +
+  SSE live sync + download/retry/rename/delete/cancel/clear actions.
+- `JobsArea` — totals/queue readout; `FilterBar` — status filter;
+  `JobRow` — badge/progress/row actions; `ExtractRows` — audio-extract history;
+  `CompareDialog` (`components/export/CompareDialog.tsx`) — source-vs-output.
+
+## 3. Data flow (every export takes this path)
+
+```mermaid
+flowchart LR
+    Pick([VideoUploader<br/>pick + validate]) --> Meta[useVideoMetadataMutation<br/>POST /metadata]
+    Meta --> Chunk{over 256MB?}
+    Chunk -- no --> Form[uploadFormWithProgress]
+    Chunk -- yes --> Big[uploadFileChunked<br/>/upload/init-chunk-complete]
+    Form --> TR[transcode mutation<br/>POST /transcode*]
+    Big --> TR
+    TR --> SSE[awaitTranscodeCompletion<br/>SSE progressUrl]
+    SSE --> Save([save-blob-file<br/>download])
+```
+
+- `lib/upload-chunked.ts`: `shouldUseChunked`, `uploadFileChunked`,
+  `uploadFormWithProgress`, `CHUNKED_THRESHOLD_BYTES`.
+- `lib/transcode-progress.ts`: `awaitTranscodeCompletion` (shared SSE waiter).
+- `lib/transcode-jobs.ts`: `cancelTranscodeJob`, `parseRetryAfterMs`,
+  `TranscodeHttpError`, `queuedLabel`, `withLogTail`.
+- `hooks/use-ffmpeg-mutations.ts`: `useTranscodeMutation`
+  (`POST /api/transcode` + SSE + download save).
+- `lib/preflight.ts`: `preflightExport`, `probeApiConnectivity`.
+- `lib/export-history.ts` + `store/exportHistorySlice.ts`:
+  `trackHistoryEntry`, `retryHistoryEntry`, `renameJob`.
+
+## 4. State map
+
+```mermaid
+flowchart LR
+    subgraph Client["TanStack Store (sync)"]
+        SRC[sourceSlice<br/>file, mediaUrl, trim]
+        CROP[cropSlice<br/>crop, aspect, zoom]
+        CUT[cutSlice<br/>format, fps, quality]
+        FIL[filterSlice<br/>visual filters]
+        AUD[audioSlice<br/>gain, fades, mutes]
+        SUB[subtitleSlice<br/>subtitles, selection]
+        MOB[mobileSlice<br/>loop flag]
+        HIS[exportHistorySlice<br/>entries]
+        CMP[compareSlice<br/>compare dialog]
+    end
+    subgraph Server["TanStack Query (async)"]
+        MD[POST /metadata]
+        AA[POST /audio/analysis]
+        TR[POST /transcode*]
+        JB[GET /transcode/jobs + SSE]
+    end
+    Client --> Server
+```
+
+- `providers.tsx`: `QueryClientProvider` (`staleTime` 5 s, no refocus),
+  `hydrateSourceStore` + `subscribeToTrimPersistence` on mount.
+- Shared UI: `components/ui/*` (Shadcn: button, dialog, slider, select,
+  sonner `Toaster`, tooltip…), `providers/ThemeProvider.tsx`,
+  `components/ui/ThemeToggle.tsx`.
+
+## 5. Local development
+
+```bash
+cd apps/web
+bun install
+bun run dev        # next dev -p 3050 (Turbopack)
+bun run typecheck  # tsc --noEmit
+bun run lint       # eslint
+```
+
+Needs the API on `:3100` (`NEXT_PUBLIC_API_URL` override); `/admin`
+`JobsArea` shows the API base + queue so a wrong URL is obvious.
