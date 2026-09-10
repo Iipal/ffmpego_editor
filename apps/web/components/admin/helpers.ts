@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 import type { JobEntry, JobsResponse } from "./types";
-import { createGlobalListenerBus } from "@/lib/global-listener-bus";
+import { GlobalListenerBus } from "@/lib/global-listener-bus";
 
 // js-hoist-regexp: hoist RegExp to module scope (avoid per-render recreation, share mutable lastIndex safely without /g)
 // FILENAME_SANITIZE_RE reused for any future filename handling; JOB_ID_RE validates jobId cheaply.
@@ -22,18 +22,17 @@ export const statusBadgeRaw: Record<string, string> = {
     "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900",
   failed:
     "bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900",
-  cancelled:
-    "bg-kumo-recessed text-kumo-subtle border-kumo-line",
+  cancelled: "bg-kumo-recessed text-kumo-subtle border-kumo-line",
 };
 
 // client-event-listeners: dedup global listeners (single listener for N JobRow instances)
-// Backed by the shared bus factory (lib/global-listener-bus).
+// Backed by the shared bus service (lib/global-listener-bus).
 // client-passive-event-listeners: passive where preventDefault not needed (scroll tracking)
-const scrollBus = createGlobalListenerBus<Event>(
+const scrollBus = new GlobalListenerBus<Event>(
   { passive: true } as AddEventListenerOptions,
   "scroll",
 );
-const touchBus = createGlobalListenerBus<Event>(
+const touchBus = new GlobalListenerBus<Event>(
   { passive: true } as AddEventListenerOptions,
   "touchstart",
 );
