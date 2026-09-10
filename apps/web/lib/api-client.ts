@@ -97,7 +97,7 @@ class APIClient {
   /**
    * POST a JSON body and parse the JSON reply as `T`. Used for metadata
    * probes and other small JSON endpoints (multipart uploads use
-   * `formPost` / `uploadFormWithProgress` instead for progress events).
+   * `formPost` / `uploadChunked.uploadForm` instead for progress events).
    */
   async post<T>(
     endpoint: string,

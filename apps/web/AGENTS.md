@@ -25,8 +25,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
      (`VideoUploader`); with video → header + area + panels.
 3. **Export path.** `VideoUploader` pick → `useVideoMetadataMutation`
    (`POST /metadata`) → editors call `exportQueue.enqueue` (`lib/export-queue.ts` service):
-   chunked (`uploadFileChunked`, >256 MB via `/upload/init-chunk-complete`)
-   or direct (`uploadFormWithProgress`) upload → `POST /transcode*` →
+   chunked (`uploadChunked.uploadFile`, >256 MB via `/upload/init-chunk-complete`)
+   or direct (`uploadChunked.uploadForm`) upload → `POST /transcode*` →
    `transcodeProgress.subscribe` (SSE `progressUrl`) → `saveBlobFile` +
    `openComparison`. Fire-and-forget: progress lives in `exportQueueSlice`
    (QueueDock + AppNav badge); `uploadId` reuse means big files upload once.
@@ -59,7 +59,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `export-history.ts`      | `ExportHistory` service: `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`           |
 | `export-presets.ts`      | `ExportPresets` service: `exportPresets.all/customs/save/remove/toPatch`                                 |
 | `global-listener-bus.ts` | `GlobalListenerBus` service: pointer move/up + admin scroll/touch buses                                  |
-| `upload-chunked.ts`      | `uploadFileChunked` (>256 MB), `uploadFormWithProgress` (XHR progress), `shouldUseChunked`               |
+| `upload-chunked.ts`      | `UploadChunked` service: `uploadChunked.shouldUseChunked/uploadFile/uploadForm`                          |
 | `transcode-progress.ts`  | `TranscodeProgress` service: `transcodeProgress.subscribe/awaitCompletion`                               |
 | `transcode-jobs.ts`      | `TranscodeJobs` service: `transcodeJobs.cancelTranscodeJob/serverErrorMessage`                           |
 | `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity`                          |

@@ -179,8 +179,8 @@ flowchart LR
 flowchart LR
     Pick([VideoUploader<br/>pick + validate]) --> Meta[useVideoMetadataMutation<br/>POST /metadata]
     Meta --> Chunk{over 256MB?}
-    Chunk -- no --> Form[uploadFormWithProgress]
-    Chunk -- yes --> Big[uploadFileChunked<br/>/upload/init-chunk-complete]
+    Chunk -- no --> Form[uploadChunked.uploadForm]
+    Chunk -- yes --> Big[uploadChunked.uploadFile<br/>/upload/init-chunk-complete]
     Form --> TR[exportQueue.enqueue<br/>lib/export-queue.ts]
     Big --> TR
     TR --> SSE[transcodeProgress.subscribe<br/>SSE progressUrl]
@@ -188,8 +188,8 @@ flowchart LR
     SSE -. live progress .-> QD[QueueDock + AppNav badge<br/>store/exportQueueSlice]
 ```
 
-- `lib/upload-chunked.ts`: `shouldUseChunked`, `uploadFileChunked`,
-  `uploadFormWithProgress`, `CHUNKED_THRESHOLD_BYTES`.
+- `lib/upload-chunked.ts` (`UploadChunked` service:
+  `uploadChunked.shouldUseChunked/uploadFile/uploadForm`).
 - `lib/export-queue.ts`: `ExportQueue` class service (`exportQueue` singleton)
   — `enqueue` (fire-and-forget upload → job POST → SSE → download/save;
   429 retry, in-flight gate, orphan guard), `cancel`, `dismiss`.

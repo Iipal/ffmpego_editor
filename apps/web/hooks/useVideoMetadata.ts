@@ -5,11 +5,7 @@ import { toast } from "sonner";
 import { apiClient, type VideoMetadata } from "@/lib/api-client";
 import { setSourceState } from "@/store/sourceSlice";
 import { cutStore, setCutState } from "@/store/cutSlice";
-import {
-  shouldUseChunked,
-  uploadFileChunked,
-  uploadFormWithProgress,
-} from "@/lib/upload-chunked";
+import { uploadChunked } from "@/lib/upload-chunked";
 import { transcodeJobs } from "@/lib/transcode-jobs";
 
 function setUploadProgress(sent: number, total: number) {
@@ -54,8 +50,8 @@ export function useVideoMetadataMutation() {
       }));
     },
     mutationFn: async (file: File) => {
-      if (shouldUseChunked(file)) {
-        const { uploadId } = await uploadFileChunked(file, {
+      if (uploadChunked.shouldUseChunked(file)) {
+        const { uploadId } = await uploadChunked.uploadFile(file, {
           onProgress: (sent, total) => setUploadProgress(sent, total),
         });
         const res = await fetch(apiClient.url("/api/metadata"), {
@@ -65,14 +61,15 @@ export function useVideoMetadataMutation() {
         if (!res.ok) {
           const err = (await res.json().catch(() => null)) as unknown;
           throw new Error(
-            transcodeJobs.serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
+            transcodeJobs.serverErrorMessage(err) ??
+              `Metadata failed: ${res.status}`,
           );
         }
         return (await res.json()) as VideoMetadata;
       }
       const form = new FormData();
       form.append("file", file);
-      return uploadFormWithProgress<VideoMetadata>("/api/metadata", form, {
+      return uploadChunked.uploadForm<VideoMetadata>("/api/metadata", form, {
         onUploadProgress: (sent, total) => setUploadProgress(sent, total),
       });
     },
@@ -151,8 +148,8 @@ export function useExtendedVideoMetadataMutation() {
       }));
     },
     mutationFn: async (file: File) => {
-      if (shouldUseChunked(file)) {
-        const { uploadId } = await uploadFileChunked(file, {
+      if (uploadChunked.shouldUseChunked(file)) {
+        const { uploadId } = await uploadChunked.uploadFile(file, {
           onProgress: (sent, total) => setUploadProgress(sent, total),
         });
         const res = await fetch(
@@ -164,14 +161,15 @@ export function useExtendedVideoMetadataMutation() {
         if (!res.ok) {
           const err = (await res.json().catch(() => null)) as unknown;
           throw new Error(
-            transcodeJobs.serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
+            transcodeJobs.serverErrorMessage(err) ??
+              `Metadata failed: ${res.status}`,
           );
         }
         return (await res.json()) as VideoMetadata;
       }
       const form = new FormData();
       form.append("file", file);
-      return uploadFormWithProgress<VideoMetadata>(
+      return uploadChunked.uploadForm<VideoMetadata>(
         "/api/metadata?includeFrames=false&includePackets=false",
         form,
         {

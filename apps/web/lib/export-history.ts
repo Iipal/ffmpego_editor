@@ -10,11 +10,7 @@ import { apiClient, type TranscodeResponse } from "./api-client";
 import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import { transcodeJobs } from "./transcode-jobs";
-import {
-  shouldUseChunked,
-  uploadFileChunked,
-  uploadFormWithProgress,
-} from "./upload-chunked";
+import { uploadChunked } from "./upload-chunked";
 import { sourceStore } from "@/store/sourceSlice";
 import {
   trackHistoryEntry,
@@ -132,8 +128,8 @@ class ExportHistory {
     extra?: Record<string, string>,
   ): Promise<TranscodeResponse> {
     const file = this.currentFile();
-    if (shouldUseChunked(file)) {
-      const { uploadId } = await uploadFileChunked(file);
+    if (uploadChunked.shouldUseChunked(file)) {
+      const { uploadId } = await uploadChunked.uploadFile(file);
       const form = new FormData();
       form.append("settings", settingsJson);
       if (extra) for (const [k, v] of Object.entries(extra)) form.append(k, v);
@@ -152,7 +148,7 @@ class ExportHistory {
     form.append("file", file);
     form.append("settings", settingsJson);
     if (extra) for (const [k, v] of Object.entries(extra)) form.append(k, v);
-    return uploadFormWithProgress<TranscodeResponse>(endpoint, form, {});
+    return uploadChunked.uploadForm<TranscodeResponse>(endpoint, form, {});
   }
 
   /**

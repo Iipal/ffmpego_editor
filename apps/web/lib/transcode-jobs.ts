@@ -136,7 +136,7 @@ export class TranscodeJobs {
     );
   }
 
-  /** Attach HTTP status info to an XHR rejection (uploadFormWithProgress path). */
+  /** Attach HTTP status info to an XHR rejection (uploadChunked.uploadForm path). */
   public shapeXhrError(
     status: number,
     serverError: string | undefined,

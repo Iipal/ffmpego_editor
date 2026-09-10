@@ -39,11 +39,7 @@ import {
   transcodeJobs,
 } from "./transcode-jobs";
 import { transcodeProgress } from "./transcode-progress";
-import {
-  shouldUseChunked,
-  uploadFileChunked,
-  uploadFormWithProgress,
-} from "./upload-chunked";
+import { uploadChunked } from "./upload-chunked";
 import { toast } from "sonner";
 
 export type ExportQueueProgressStatus =
@@ -374,8 +370,12 @@ class ExportQueue {
     form: FormData,
     signal: AbortSignal,
   ): Promise<TranscodeResponse> {
-    if (task.file && !task.forceDirect && shouldUseChunked(task.file)) {
-      const { uploadId } = await uploadFileChunked(task.file, {
+    if (
+      task.file &&
+      !task.forceDirect &&
+      uploadChunked.shouldUseChunked(task.file)
+    ) {
+      const { uploadId } = await uploadChunked.uploadFile(task.file, {
         onProgress: task.onUploadProgress,
         signal,
       });
@@ -391,7 +391,7 @@ class ExportQueue {
       }
       return (await res.json()) as TranscodeResponse;
     }
-    return uploadFormWithProgress<TranscodeResponse>(task.endpoint, form, {
+    return uploadChunked.uploadForm<TranscodeResponse>(task.endpoint, form, {
       onUploadProgress: task.onUploadProgress,
       signal,
     });
