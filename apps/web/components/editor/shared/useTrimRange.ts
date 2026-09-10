@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useTransition } from "react";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 
 export const TRIM_MIN_GAP_DEFAULT = 0.2;
 export const TRIM_SLIDER_MAX_FALLBACK = 30;
@@ -95,8 +95,8 @@ export function useTrimRange({
       let s = rs;
       let e = re;
       if (d > 0) {
-        s = clamp(s, 0, Math.max(0, d - minGap));
-        e = clamp(e, s + minGap, d);
+        s = mobileLayoutService.clamp(s, 0, Math.max(0, d - minGap));
+        e = mobileLayoutService.clamp(e, s + minGap, d);
         if (e - s < minGap) return;
       }
       if (s === cur[0] && e === cur[1]) return;
@@ -119,7 +119,7 @@ export function useTrimRange({
   const setStartToCurrentTime = useCallback(
     (t: number) => {
       const cur = sourceStore.state.trimRange;
-      const ns = clamp(t, 0, cur[1] - minGap);
+      const ns = mobileLayoutService.clamp(t, 0, cur[1] - minGap);
       setTrimRange([ns, cur[1]]);
       return ns;
     },
@@ -130,7 +130,7 @@ export function useTrimRange({
     (t: number) => {
       const cur = sourceStore.state.trimRange;
       const dur = duration || TRIM_SLIDER_MAX_FALLBACK;
-      const ne = clamp(t, cur[0] + minGap, dur);
+      const ne = mobileLayoutService.clamp(t, cur[0] + minGap, dur);
       setTrimRange([cur[0], ne]);
       return ne;
     },

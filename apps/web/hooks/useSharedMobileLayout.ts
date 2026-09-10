@@ -1,25 +1,23 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import {
-  loadPref,
-  createDefaultLayout,
-  normalizeLayout,
+  mobileLayoutService,
   type MobileLayout,
 } from "@/lib/mobile-layout";
 
 export function useSharedMobileLayout() {
   const [layout, setLayout] = useState<MobileLayout>(() => {
     try {
-      return loadPref() ?? createDefaultLayout("stacked", 0.5);
+      return mobileLayoutService.loadPref() ?? mobileLayoutService.createDefaultLayout("stacked", 0.5);
     } catch {
-      return createDefaultLayout("stacked", 0.5);
+      return mobileLayoutService.createDefaultLayout("stacked", 0.5);
     }
   });
 
   const refresh = useCallback(() => {
     try {
-      const loaded = loadPref();
-      if (loaded) setLayout(normalizeLayout(loaded));
+      const loaded = mobileLayoutService.loadPref();
+      if (loaded) setLayout(mobileLayoutService.normalizeLayout(loaded));
     } catch {}
   }, []);
 

@@ -3,7 +3,7 @@
 import { memo, useCallback, useRef } from "react";
 import { formatTime } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { Cut } from "./types";
 
 export type CutBlockProps = {
@@ -58,14 +58,14 @@ export const CutBlock = memo(function CutBlock({
         const o = st.orig;
         const minLen = 0.2;
         if (st.kind === "l") {
-          const ns = clamp(o.start + dt, 0, o.end - minLen);
+          const ns = mobileLayoutService.clamp(o.start + dt, 0, o.end - minLen);
           onChange(cut.id, { ...o, start: Math.round(ns * 100) / 100 });
         } else if (st.kind === "r") {
-          const ne = clamp(o.end + dt, o.start + minLen, duration);
+          const ne = mobileLayoutService.clamp(o.end + dt, o.start + minLen, duration);
           onChange(cut.id, { ...o, end: Math.round(ne * 100) / 100 });
         } else {
           const len = o.end - o.start;
-          const ns = clamp(o.start + dt, 0, Math.max(0, duration - len));
+          const ns = mobileLayoutService.clamp(o.start + dt, 0, Math.max(0, duration - len));
           onChange(cut.id, {
             ...o,
             start: Math.round(ns * 100) / 100,

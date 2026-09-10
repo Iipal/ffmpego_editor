@@ -4,7 +4,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo } from "react";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
 import { subtitleStore, setSubtitleState } from "@/store/subtitleSlice";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
 import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
 import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
@@ -203,8 +203,8 @@ export function useSubtitleEditor() {
           if (ne - ns < MIN_SUBTITLE_DURATION) {
             ne = Math.min(e, ns + MIN_SUBTITLE_DURATION);
           }
-          ns = clamp(ns, s, e - MIN_SUBTITLE_DURATION);
-          ne = clamp(ne, ns + MIN_SUBTITLE_DURATION, e);
+          ns = mobileLayoutService.clamp(ns, s, e - MIN_SUBTITLE_DURATION);
+          ne = mobileLayoutService.clamp(ne, ns + MIN_SUBTITLE_DURATION, e);
           return { ...sub, startTime: ns, endTime: ne };
         }),
       );

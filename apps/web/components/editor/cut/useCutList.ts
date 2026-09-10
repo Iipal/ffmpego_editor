@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { cutsOverlap, newId, sortCuts, totalDuration } from "./helpers";
 import type { Cut } from "./types";
 
@@ -30,8 +30,8 @@ export function useCutList({ duration }: { duration: number }) {
         toast.error("Video duration unknown yet");
         return;
       }
-      const t = clamp(currentTime, 0, Math.max(0, duration - 0.3));
-      const end = clamp(t + 2, t + 0.2, duration);
+      const t = mobileLayoutService.clamp(currentTime, 0, Math.max(0, duration - 0.3));
+      const end = mobileLayoutService.clamp(t + 2, t + 0.2, duration);
       if (end - t < 0.2) {
         toast.error("Not enough room at playhead");
         return;

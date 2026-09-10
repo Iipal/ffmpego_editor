@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Trash2 } from "lucide-react";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { cn } from "@/lib/utils";
 import type { Cut } from "./types";
 
@@ -56,7 +56,7 @@ export function CutList({
               if (!Number.isFinite(v)) return;
               onPatchCut(c.id, {
                 ...c,
-                start: clamp(v, 0, c.end - 0.2),
+                start: mobileLayoutService.clamp(v, 0, c.end - 0.2),
               });
             }}
             className="h-7 w-24 font-mono text-xs tabular-nums"
@@ -73,7 +73,7 @@ export function CutList({
               if (!Number.isFinite(v)) return;
               onPatchCut(c.id, {
                 ...c,
-                end: clamp(v, c.start + 0.2, duration),
+                end: mobileLayoutService.clamp(v, c.start + 0.2, duration),
               });
             }}
             className="h-7 w-24 font-mono text-xs tabular-nums"

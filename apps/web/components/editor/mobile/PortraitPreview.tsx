@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import dynamic from "next/dynamic";
-import { OUTPUT_H, OUTPUT_W } from "@/lib/mobile-layout";
+import { MobileLayoutService } from "@/lib/mobile-layout";
 import { HEAVY_MODULES } from "./mobile-helpers";
 import { usePortraitCanvas } from "./usePortraitCanvas";
 import {
@@ -59,7 +59,7 @@ export const PortraitPreview = memo(function PortraitPreview({
           </span>
         </div>
         <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-          {OUTPUT_W} × {OUTPUT_H} · Full 9:16
+          {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · Full 9:16
         </div>
       </div>
     );
@@ -99,7 +99,7 @@ export const PortraitPreview = memo(function PortraitPreview({
         </div>
       </div>
       <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-        {OUTPUT_W} × {OUTPUT_H} · {(deferredSplit * 100).toFixed(0)}% /{" "}
+        {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · {(deferredSplit * 100).toFixed(0)}% /{" "}
         {((1 - deferredSplit) * 100).toFixed(0)}%
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { TRIM_MIN_GAP_DEFAULT, TRIM_SLIDER_MAX_FALLBACK } from "./useTrimRange";
 
 export type TrimSliderProps = {
@@ -74,7 +74,7 @@ export function TrimSlider({
               "opacity-40",
           )}
           style={{
-            left: `${clamp((currentTime / duration) * 100, 0, 100)}%`,
+            left: `${mobileLayoutService.clamp((currentTime / duration) * 100, 0, 100)}%`,
           }}
           aria-hidden
         >

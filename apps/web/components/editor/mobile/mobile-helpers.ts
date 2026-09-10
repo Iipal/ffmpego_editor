@@ -1,5 +1,5 @@
 import { preconnect, preload } from "react-dom";
-import { buildMobileFilter, savePref, loadPref } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 
 export { NOOP } from "@/lib/utils";
@@ -56,7 +56,7 @@ export function cachedBuildMobileFilter(
 ): string {
   const key = `${layout.mode}:${layout.splitRatio}:${layout.zones.map((z) => `${z.id}:${z.x},${z.y},${z.width},${z.height},${z.zoom}`).join("|")}:${sw}x${sh}:${split}`;
   if (buildFilterCache.has(key)) return buildFilterCache.get(key)!;
-  const v = buildMobileFilter(layout, sw, sh, split);
+  const v = mobileLayoutService.buildMobileFilter(layout, sw, sh, split);
   buildFilterCache.set(key, v);
   return v;
 }
@@ -65,7 +65,7 @@ const layoutCache = new Map<string, MobileLayout | null>();
 export function getCachedLayout(): MobileLayout | null {
   const key = "ffmpeg-mobile-layout-v1";
   if (layoutCache.has(key)) return layoutCache.get(key)!;
-  const v = loadPref();
+  const v = mobileLayoutService.loadPref();
   layoutCache.set(key, v);
   return v;
 }
@@ -82,9 +82,9 @@ export function setCachedLayout(l: MobileLayout) {
               }
             ).requestIdleCallback(cb)
         : (cb: () => void) => setTimeout(cb, 0);
-    schedule(() => savePref(l));
+    schedule(() => mobileLayoutService.savePref(l));
   } catch {
-    savePref(l);
+    mobileLayoutService.savePref(l);
   }
 }
 

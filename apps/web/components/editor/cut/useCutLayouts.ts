@@ -2,17 +2,17 @@
 
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { createDefaultLayout, loadPrefForMode } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import type { CutMode } from "./types";
 
 export function useCutLayouts() {
   const [mode, setMode] = useState<CutMode>("full-size");
   const [stackedLayout, setStackedLayout] = useState<MobileLayout>(
-    () => loadPrefForMode("stacked") ?? createDefaultLayout("stacked", 0.5),
+    () => mobileLayoutService.loadPrefForMode("stacked") ?? mobileLayoutService.createDefaultLayout("stacked", 0.5),
   );
   const [singleLayout, setSingleLayout] = useState<MobileLayout>(
-    () => loadPrefForMode("full") ?? createDefaultLayout("full", 0.5),
+    () => mobileLayoutService.loadPrefForMode("full") ?? mobileLayoutService.createDefaultLayout("full", 0.5),
   );
   const [watermarkStack, setWatermarkStack] = useState(true);
   const [watermarkSingle, setWatermarkSingle] = useState(true);
@@ -26,8 +26,8 @@ export function useCutLayouts() {
   const activeWatermark = mode === "2-stack" ? watermarkStack : watermarkSingle;
 
   const syncFromMobile = useCallback(() => {
-    const s = loadPrefForMode("stacked");
-    const f = loadPrefForMode("full");
+    const s = mobileLayoutService.loadPrefForMode("stacked");
+    const f = mobileLayoutService.loadPrefForMode("full");
     if (s) setStackedLayout(s);
     if (f) setSingleLayout(f);
     toast.success("Zones synced from Mobile editor");

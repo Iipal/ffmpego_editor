@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { formatTime } from "@/lib/format-time";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { CutBlock } from "./CutBlock";
 import type { Cut } from "./types";
 import type { ReactNode } from "react";
@@ -72,7 +72,7 @@ export function CutTimeline({
           <div
             className="pointer-events-none absolute top-0 bottom-0 z-10 w-0.5 bg-kumo-strong/70"
             style={{
-              left: `${clamp((currentTime / duration) * 100, 0, 100)}%`,
+              left: `${mobileLayoutService.clamp((currentTime / duration) * 100, 0, 100)}%`,
             }}
             aria-hidden
           />

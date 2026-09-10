@@ -66,7 +66,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `validate-settings.ts`   | contracts pre-validation before every `POST`                                                   |
 | `playback-bus.ts`        | global transport bus (shortcuts/palette → active `<video>` + `sourceStore`)                    |
 | `video-file.ts`          | accepted input attrs, size guards, filename helpers                                            |
-| `mobile-layout.ts`       | mobile layout math shared with preview                                                         |
+| `mobile-layout.ts`       | `MobileLayoutService`: `mobileLayoutService.clamp/normalizeLayout/...`, `MobileLayoutService.OUTPUT_W/H` |
 | `format-time.ts`         | `formatTime` display helper                                                                    |
 | `save-blob-file.ts`      | `saveBlobFile` (picker), `fetchDownloadBlob`, `pickerTypesForExt`                              |
 | `preload.ts`             | hover/focus intent preloads (`preloadUploadChunked`)                                           |

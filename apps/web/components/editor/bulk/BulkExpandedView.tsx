@@ -9,11 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format-time";
 import {
-  clamp,
-  MIN_SPLIT,
-  MAX_SPLIT,
-  OUTPUT_W,
-  OUTPUT_H,
+  MobileLayoutService,
+  mobileLayoutService,
 } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
@@ -41,7 +38,7 @@ const MIN_STACK_H = 420;
 // 9:16 aspect (width factor) and the grid gap (gap-3) — used to derive the
 // stack height from the grid WIDTH (stable: widths never shift when heights
 // change, so unlike measuring the stretched source box this cannot ratchet).
-const AR_9_16 = OUTPUT_W / OUTPUT_H;
+const AR_9_16 = MobileLayoutService.OUTPUT_W / MobileLayoutService.OUTPUT_H;
 const GRID_GAP = 12;
 // Divider (h-0.5) inside the stack box; subtracted so both boxes match to the px.
 const STACK_DIVIDER = 2;
@@ -72,12 +69,12 @@ const BulkLiveStackedPreview = memo(function BulkLiveStackedPreview({
   const bottomRef = useRef<HTMLCanvasElement>(null);
 
   const totalH =
-    height && height > 0 ? height : STACKED_W * (OUTPUT_H / OUTPUT_W);
-  const width = totalH * (OUTPUT_W / OUTPUT_H);
+    height && height > 0 ? height : STACKED_W * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
+  const width = totalH * (MobileLayoutService.OUTPUT_W / MobileLayoutService.OUTPUT_H);
 
   const draw = useCallback(() => {
     if (!video || video.readyState < 2 || video.videoWidth === 0) return;
-    const split = clamp(layout.splitRatio, MIN_SPLIT, MAX_SPLIT);
+    const split = mobileLayoutService.clamp(layout.splitRatio, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const parts: Array<{
       canvas: HTMLCanvasElement | null;

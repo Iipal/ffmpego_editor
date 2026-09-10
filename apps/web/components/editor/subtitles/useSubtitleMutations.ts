@@ -2,7 +2,7 @@
 
 import { useCallback, useTransition } from "react";
 import { setSubtitleState } from "@/store/subtitleSlice";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
 import { DEFAULT_SUBTITLE_STYLE } from "@/lib/subtitles/subtitleDefaults";
 import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
@@ -118,13 +118,13 @@ export function useSubtitleMutations({
 
   const handleAddSubtitle = useCallback(() => {
     if (!hasVideo || effectiveDuration === 0) return;
-    const t = clamp(
+    const t = mobileLayoutService.clamp(
       currentTime,
       trimStart,
       Math.max(trimStart, trimEnd - MIN_SUBTITLE_DURATION),
     );
-    const start = clamp(t, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
-    const end = clamp(start + 1, start + MIN_SUBTITLE_DURATION, trimEnd);
+    const start = mobileLayoutService.clamp(t, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
+    const end = mobileLayoutService.clamp(start + 1, start + MIN_SUBTITLE_DURATION, trimEnd);
     const id = generateId();
     setSubtitles((prev) => {
       const track = findFirstFreeTrack(prev, start, end);
@@ -172,7 +172,7 @@ export function useSubtitleMutations({
 
   const handleMoveSubtitleToTrack = useCallback(
     (id: string, newTrack: number) => {
-      const t = clamp(Math.round(newTrack), 0, 99);
+      const t = mobileLayoutService.clamp(Math.round(newTrack), 0, 99);
       if (t >= trackCount) {
         setTrackCountExplicit(t + 1);
       }
@@ -192,8 +192,8 @@ export function useSubtitleMutations({
   const handleTimelineUpdateSubtitle = useCallback(
     (id: string, ns: number, ne: number) => {
       const d = effectiveDuration;
-      let s = clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
-      let e = clamp(ne, s + MIN_SUBTITLE_DURATION, trimEnd);
+      let s = mobileLayoutService.clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
+      let e = mobileLayoutService.clamp(ne, s + MIN_SUBTITLE_DURATION, trimEnd);
       if (s < 0) s = 0;
       if (e > d) e = d;
       if (e - s < MIN_SUBTITLE_DURATION) return;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import type { RefObject } from "react";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { NOOP } from "@/lib/utils";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
@@ -241,7 +241,7 @@ export function useVideoPlayer(
   }, [loop, videoRef, mediaUrl]);
 
   const setVolume = useCallback((v: number) => {
-    const next = clamp(v, 0, 1);
+    const next = mobileLayoutService.clamp(v, 0, 1);
     setSourceState((previous) => ({
       ...previous,
       volume: next,
@@ -295,7 +295,7 @@ export function useVideoPlayer(
         Number.isFinite(v.duration) && v.duration > 0
           ? v.duration
           : timeRef.current;
-      v.currentTime = clamp(t, 0, Math.max(0.01, d || 0));
+      v.currentTime = mobileLayoutService.clamp(t, 0, Math.max(0.01, d || 0));
       timeRef.current = v.currentTime;
       setSourceState((previous) => ({
         ...previous,

@@ -1,4 +1,4 @@
-import { createDefaultLayout, loadPrefForMode } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import type { BulkStatus } from "./types";
 
@@ -64,12 +64,12 @@ export function statusColor(s: BulkStatus): string {
 export function loadStackedLayout(): MobileLayout {
   try {
     return (
-      loadPrefForMode("stacked") ??
-      loadPrefForMode("full") ??
-      createDefaultLayout("stacked", 0.5)
+      mobileLayoutService.loadPrefForMode("stacked") ??
+      mobileLayoutService.loadPrefForMode("full") ??
+      mobileLayoutService.createDefaultLayout("stacked", 0.5)
     );
   } catch {
-    return createDefaultLayout("stacked", 0.5);
+    return mobileLayoutService.createDefaultLayout("stacked", 0.5);
   }
 }
 

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { isAcceptedVideoFile } from "@/lib/video-file";
-import { validateLayout } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { baseNameOf, loadStackedLayout } from "./helpers";
 import type { BulkItem, BulkStatus, FsDirHandle } from "./types";
@@ -43,7 +43,7 @@ export function useBulkEditorState() {
 
   const stackedLayout = layout.mode === "full" ? null : layout;
   const layoutError = stackedLayout
-    ? validateLayout(stackedLayout)
+    ? mobileLayoutService.validateLayout(stackedLayout)
     : "Open the Mobile editor and save a stacked 2-zone layout, then press Sync zones.";
 
   const patchItem = useCallback((id: string, patch: Partial<BulkItem>) => {

@@ -4,7 +4,7 @@ import { Activity } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { formatTime } from "@/lib/format-time";
 import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
@@ -125,8 +125,8 @@ export function PreviewPane({
                           <div
                             className="absolute size-2 rounded-full bg-kumo-brand border border-white shadow pointer-events-none"
                             style={{
-                              left: `${clamp(selectedSubtitle.position.x, 0, 100)}%`,
-                              top: `${clamp(selectedSubtitle.position.y, 0, 100)}%`,
+                              left: `${mobileLayoutService.clamp(selectedSubtitle.position.x, 0, 100)}%`,
+                              top: `${mobileLayoutService.clamp(selectedSubtitle.position.y, 0, 100)}%`,
                               transform: "translate(-50%, -50%)",
                             }}
                             aria-hidden

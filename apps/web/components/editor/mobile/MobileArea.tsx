@@ -7,7 +7,7 @@ import {
   Undo2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { OUTPUT_H, OUTPUT_W } from "@/lib/mobile-layout";
+import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileAreaProps } from "./types";
 
 export function MobileArea({
@@ -181,7 +181,7 @@ export function MobileArea({
             {validationError ? "invalid" : status}
           </div>
           <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            {validationError ?? `${OUTPUT_W}×${OUTPUT_H} · 9:16`}
+            {validationError ?? `${MobileLayoutService.OUTPUT_W}×${MobileLayoutService.OUTPUT_H} · 9:16`}
           </div>
         </div>
       </div>

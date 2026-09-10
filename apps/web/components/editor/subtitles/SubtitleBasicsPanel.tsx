@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
 import type { Subtitle, SubtitleTemplate } from "@/lib/subtitles/subtitleTypes";
 import { getSubtitleTrack } from "./subtitle-helpers";
@@ -129,10 +129,10 @@ export function SubtitleBasicsPanel({
             onChange={(e) => {
               const v = parseFloat(e.target.value);
               if (!Number.isFinite(v)) return;
-              let ns = clamp(v, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
+              let ns = mobileLayoutService.clamp(v, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
               let ne = selected.endTime;
               if (ns >= ne)
-                ne = clamp(
+                ne = mobileLayoutService.clamp(
                   ns + MIN_SUBTITLE_DURATION,
                   ns + MIN_SUBTITLE_DURATION,
                   trimEnd,
@@ -154,10 +154,10 @@ export function SubtitleBasicsPanel({
             onChange={(e) => {
               const v = parseFloat(e.target.value);
               if (!Number.isFinite(v)) return;
-              let ne = clamp(v, trimStart + MIN_SUBTITLE_DURATION, trimEnd);
+              let ne = mobileLayoutService.clamp(v, trimStart + MIN_SUBTITLE_DURATION, trimEnd);
               let ns = selected.startTime;
               if (ne <= ns)
-                ns = clamp(
+                ns = mobileLayoutService.clamp(
                   ne - MIN_SUBTITLE_DURATION,
                   trimStart,
                   ne - MIN_SUBTITLE_DURATION,
@@ -236,7 +236,7 @@ export function SubtitleBasicsPanel({
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 if (!Number.isFinite(v)) return;
-                const x = clamp(v, 0, 100);
+                const x = mobileLayoutService.clamp(v, 0, 100);
                 onUpdateSubtitle(selected.id, {
                   position: { ...selected.position, x },
                 });
@@ -257,7 +257,7 @@ export function SubtitleBasicsPanel({
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 if (!Number.isFinite(v)) return;
-                const y = clamp(v, 0, 100);
+                const y = mobileLayoutService.clamp(v, 0, 100);
                 onUpdateSubtitle(selected.id, {
                   position: { ...selected.position, y },
                 });

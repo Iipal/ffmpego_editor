@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo } from "react";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { cn } from "@/lib/utils";
 import { renderSubtitleStyle } from "./subtitle-helpers";
 import type { OverlaySubtitleProps } from "./types";
@@ -21,8 +21,8 @@ export const OverlaySubtitle = memo(function OverlaySubtitle({
         isSelected && "ring-1 ring-dashed ring-blue-500 rounded",
       )}
       style={{
-        left: `${clamp(sub.position.x, 0, 100)}%`,
-        top: `${clamp(sub.position.y, 0, 100)}%`,
+        left: `${mobileLayoutService.clamp(sub.position.x, 0, 100)}%`,
+        top: `${mobileLayoutService.clamp(sub.position.y, 0, 100)}%`,
         transform: "translate(-50%, -50%)",
       }}
       aria-label={`Subtitle ${sub.text}`}

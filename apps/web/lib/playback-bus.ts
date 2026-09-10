@@ -6,7 +6,7 @@
 // active element + the store works uniformly across crop/mobile/subtitles/
 // bulk/cut without unifying the hooks first.
 
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { setSourceState, sourceStore } from "@/store/sourceSlice";
 import { setMobileState } from "@/store/mobileSlice";
 
@@ -31,7 +31,10 @@ function commitSeek(video: HTMLVideoElement | null, time: number) {
     (video && Number.isFinite(video.duration) ? video.duration : 0) ||
     sourceStore.state.duration ||
     0;
-  const t = duration > 0 ? clamp(time, 0, Math.max(0.01, duration)) : time;
+  const t =
+    duration > 0
+      ? mobileLayoutService.clamp(time, 0, Math.max(0.01, duration))
+      : time;
   if (video) video.currentTime = t;
   setSourceState((previous) =>
     previous.currentTime === t ? previous : { ...previous, currentTime: t },
@@ -76,7 +79,7 @@ export function setTrimInToPlayhead(): boolean {
   const video = getActiveVideo();
   const t = readTime(video);
   const cur = sourceStore.state.trimRange;
-  const next = clamp(t, 0, cur[1] - TRIM_MIN_GAP);
+  const next = mobileLayoutService.clamp(t, 0, cur[1] - TRIM_MIN_GAP);
   if (next >= cur[1] - TRIM_MIN_GAP && t > next) return false;
   setSourceState((previous) => ({ ...previous, trimRange: [next, cur[1]] }));
   return true;
@@ -91,7 +94,7 @@ export function setTrimOutToPlayhead(): boolean {
     (video && Number.isFinite(video.duration) ? video.duration : 0) ||
     sourceStore.state.duration ||
     0;
-  const next = clamp(t, cur[0] + TRIM_MIN_GAP, duration);
+  const next = mobileLayoutService.clamp(t, cur[0] + TRIM_MIN_GAP, duration);
   if (next <= cur[0] + TRIM_MIN_GAP && t < next) return false;
   setSourceState((previous) => ({ ...previous, trimRange: [cur[0], next] }));
   return true;

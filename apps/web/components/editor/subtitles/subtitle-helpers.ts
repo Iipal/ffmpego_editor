@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
 
 // js-hoist-regexp: hoisted RegExp (avoid per-render creation, no /g mutable state)
@@ -20,7 +20,7 @@ export function timeToPercent(
   end: number,
 ): number {
   if (end <= start) return 0;
-  return clamp(((time - start) / (end - start)) * 100, 0, 100);
+  return mobileLayoutService.clamp(((time - start) / (end - start)) * 100, 0, 100);
 }
 
 export function percentToTime(
@@ -28,7 +28,7 @@ export function percentToTime(
   start: number,
   end: number,
 ): number {
-  const p = clamp(percent, 0, 100) / 100;
+  const p = mobileLayoutService.clamp(percent, 0, 100) / 100;
   return start + p * (end - start);
 }
 

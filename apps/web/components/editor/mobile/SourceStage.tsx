@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
-import { resizeZoneAspectLocked } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone } from "@/lib/mobile-layout";
 import { ZoneOverlay } from "./ZoneOverlay";
 import { NoVideoPlaceholder } from "./placeholders";
@@ -102,7 +102,7 @@ export const SourceStage = memo(function SourceStage({
       const onMoveCb = (ev: PointerEvent) => {
         const dx = (ev.clientX - sx) / rect.width;
         const dy = (ev.clientY - sy) / rect.height;
-        const next = resizeZoneAspectLocked(
+        const next = mobileLayoutService.resizeZoneAspectLocked(
           start,
           handle,
           dx,

@@ -13,11 +13,8 @@ import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { formatTime } from "@/lib/format-time";
 import {
-  createDefaultLayout,
-  loadPrefForMode,
-  validateLayout,
-  OUTPUT_H,
-  OUTPUT_W,
+  MobileLayoutService,
+  mobileLayoutService,
 } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
@@ -78,7 +75,7 @@ export function useMobilePageState() {
 
   const validationError = useMemo(() => {
     if (ed.layout.zones.length === 0) return "No zones";
-    return validateLayout(ed.layout);
+    return mobileLayoutService.validateLayout(ed.layout);
   }, [ed.layout]);
 
   const filterString = useMemo(
@@ -116,9 +113,9 @@ export function useMobilePageState() {
   }, [duration, trimStart, seekTo, isPlaying]);
 
   const handleResetAll = useCallback(() => {
-    const saved = loadPrefForMode(ed.layout.mode);
+    const saved = mobileLayoutService.loadPrefForMode(ed.layout.mode);
     if (saved) ed.setLayout(saved);
-    else ed.setLayout(createDefaultLayout(ed.layout.mode, 0.5));
+    else ed.setLayout(mobileLayoutService.createDefaultLayout(ed.layout.mode, 0.5));
     if (duration > 0) {
       const next: [number, number] = [0, duration];
       setSourceState((prev) => ({ ...prev, trimRange: next }));
@@ -131,7 +128,7 @@ export function useMobilePageState() {
   const fileName = file?.name ?? "";
   const sourceLabel =
     sourceWidth && sourceHeight ? `${sourceWidth} × ${sourceHeight} px` : "—";
-  const outputLabel = `${OUTPUT_W} × ${OUTPUT_H} px`;
+  const outputLabel = `${MobileLayoutService.OUTPUT_W} × ${MobileLayoutService.OUTPUT_H} px`;
   const splitLabel = `${Math.round(ed.layout.splitRatio * 100)} / ${Math.round((1 - ed.layout.splitRatio) * 100)}`;
   const modeBadge =
     ed.layout.mode === "full" ? "Full 9:16" : `Stacked ${splitLabel}`;
@@ -143,7 +140,7 @@ export function useMobilePageState() {
       ? `${formatTime(trimStart)} → ${formatTime(trimEnd)} · ${formatTime(trimmedDuration)}`
       : "—";
 
-  void OUTPUT_H;
+  void MobileLayoutService.OUTPUT_H;
 
   return {
     ed,

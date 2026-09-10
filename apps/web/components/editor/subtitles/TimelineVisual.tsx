@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { formatTime } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
 import { getSubtitleTrack } from "./subtitle-helpers";
@@ -56,7 +56,7 @@ export function TimelineVisual({
   // js-cache-property-access: cache duration check
   const durationPositive = duration > 0;
   const playheadPct = durationPositive
-    ? clamp((currentTime / duration) * 100, 0, 100)
+    ? mobileLayoutService.clamp((currentTime / duration) * 100, 0, 100)
     : 0;
   const trimLeftPct = durationPositive ? (trimStart / duration) * 100 : 0;
   const trimWidthPct = durationPositive
@@ -145,7 +145,7 @@ export function TimelineVisual({
           const isActive =
             currentTime >= sub.startTime && currentTime < sub.endTime;
           const trackIdx = getSubtitleTrack(sub);
-          const clampedTrack = clamp(trackIdx, 0, Math.max(trackCount - 1, 0));
+          const clampedTrack = mobileLayoutService.clamp(trackIdx, 0, Math.max(trackCount - 1, 0));
           const top = HEADER_H + clampedTrack * ROW_H + 3;
           return (
             <div

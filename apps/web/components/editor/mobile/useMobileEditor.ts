@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createDefaultLayout, normalizeLayout } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { DEFAULT_SPLIT, getCachedLayout } from "./mobile-helpers";
 import type { EditorHistory, ZoneId } from "./types";
 
 export function useMobileEditor() {
   const [history, setHistory] = useState<EditorHistory>(() => ({
-    layout: getCachedLayout() ?? createDefaultLayout("stacked", DEFAULT_SPLIT),
+    layout: getCachedLayout() ?? mobileLayoutService.createDefaultLayout("stacked", DEFAULT_SPLIT),
     past: [],
     future: [],
   }));
@@ -32,7 +32,7 @@ export function useMobileEditor() {
 
   const commit = useCallback((updater: (l: MobileLayout) => MobileLayout) => {
     setHistory((prev) => {
-      const nextLayout = normalizeLayout(updater(prev.layout));
+      const nextLayout = mobileLayoutService.normalizeLayout(updater(prev.layout));
       if (nextLayout === prev.layout) return prev;
       return {
         layout: nextLayout,

@@ -2,7 +2,7 @@
 
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone } from "@/lib/mobile-layout";
 
 export function ZoneSliders({
@@ -13,7 +13,7 @@ export function ZoneSliders({
   onChange: (z: CropZone) => void;
 }) {
   const num = (v: number, min: number, max: number) =>
-    clamp(Math.round(v * 1000) / 1000, min, max);
+    mobileLayoutService.clamp(Math.round(v * 1000) / 1000, min, max);
   return (
     <div className="grid grid-cols-2 gap-2">
       {(

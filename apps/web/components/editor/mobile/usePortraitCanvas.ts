@@ -8,11 +8,8 @@ import {
   useState,
 } from "react";
 import {
-  clamp,
-  MAX_SPLIT,
-  MIN_SPLIT,
-  OUTPUT_H,
-  OUTPUT_W,
+  MobileLayoutService,
+  mobileLayoutService,
 } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 
@@ -122,11 +119,11 @@ export function usePortraitCanvas(
           h,
         );
       } else if (slice === "top") {
-        const split = clamp(deferredSplit, MIN_SPLIT, MAX_SPLIT);
+        const split = mobileLayoutService.clamp(deferredSplit, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT);
         const h1 = 1920 * split;
         ctx.drawImage(img, 0, 0, 1080, h1, 0, 0, w, h);
       } else {
-        const split = clamp(deferredSplit, MIN_SPLIT, MAX_SPLIT);
+        const split = mobileLayoutService.clamp(deferredSplit, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT);
         const h1 = 1920 * split;
         const h2 = 1920 - h1;
         ctx.drawImage(img, 0, h1, 1080, h2, 0, 0, w, h);
@@ -143,15 +140,15 @@ export function usePortraitCanvas(
       const c = canvasFullRef.current;
       if (c) {
         c.width = Math.round(baseW * dpr);
-        c.height = Math.round(baseW * (OUTPUT_H / OUTPUT_W) * dpr);
+        c.height = Math.round(baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W) * dpr);
         c.style.width = `${baseW}px`;
-        c.style.height = `${baseW * (OUTPUT_H / OUTPUT_W)}px`;
+        c.style.height = `${baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W)}px`;
       }
     } else {
       const top = canvasTopRef.current;
       const bottom = canvasBottomRef.current;
       const split = deferredSplit;
-      const totalH = baseW * (OUTPUT_H / OUTPUT_W);
+      const totalH = baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
       if (top) {
         const h = totalH * split;
         top.width = Math.round(baseW * dpr);
@@ -284,7 +281,7 @@ export function usePortraitCanvas(
       const onMove = (ev: PointerEvent) => {
         if (!isDraggingRef.current || !rect) return;
         const y = (ev.clientY - rect.top) / rect.height;
-        onSplit(clamp(y, MIN_SPLIT, MAX_SPLIT));
+        onSplit(mobileLayoutService.clamp(y, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT));
       };
       const onUp = () => {
         isDraggingRef.current = false;

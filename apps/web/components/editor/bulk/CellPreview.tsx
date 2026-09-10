@@ -2,11 +2,8 @@
 
 import { memo, useCallback, useEffect, useRef } from "react";
 import {
-  clamp,
-  MIN_SPLIT,
-  MAX_SPLIT,
-  OUTPUT_W,
-  OUTPUT_H,
+  MobileLayoutService,
+  mobileLayoutService,
 } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { ensureWatermark, wmImg } from "./helpers";
@@ -41,9 +38,9 @@ export const CellPreview = memo(function CellPreview({
   const draw = useCallback(() => {
     const video = videoRef.current;
     if (!video || video.readyState < 2 || video.videoWidth === 0) return;
-    const split = clamp(layout.splitRatio, MIN_SPLIT, MAX_SPLIT);
+    const split = mobileLayoutService.clamp(layout.splitRatio, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const totalH = PREVIEW_W * (OUTPUT_H / OUTPUT_W);
+    const totalH = PREVIEW_W * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
     const parts: Array<{
       canvas: HTMLCanvasElement | null;
       zone: CropZone;

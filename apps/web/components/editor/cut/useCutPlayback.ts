@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { setSourceState } from "@/store/sourceSlice";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
 import type { Cut } from "./types";
@@ -118,7 +118,7 @@ export function useSeekTo(
     (t: number) => {
       const v = videoRef.current;
       if (!v) return;
-      const next = clamp(t, 0, Math.max(0.01, v.duration || duration || 0));
+      const next = mobileLayoutService.clamp(t, 0, Math.max(0.01, v.duration || duration || 0));
       v.currentTime = next;
       setSourceState((previous) =>
         previous.currentTime === next

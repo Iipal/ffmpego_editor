@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { clamp } from "@/lib/mobile-layout";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { NOOP } from "./heavy-modules";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
@@ -230,7 +230,7 @@ export function useVideoPlayback({
   }, [playbackSpeed, mediaUrl]);
 
   const setVolume = useCallback((v: number) => {
-    const next = clamp(v, 0, 1);
+    const next = mobileLayoutService.clamp(v, 0, 1);
     setSourceState((previous) => ({
       ...previous,
       volume: next,
@@ -300,7 +300,7 @@ export function useVideoPlayback({
     (value: number) => {
       const v = videoRef.current;
       if (!v || effectiveDuration === 0) return;
-      const t = clamp(value, trimStartRef.current, trimEndRef.current);
+      const t = mobileLayoutService.clamp(value, trimStartRef.current, trimEndRef.current);
       v.currentTime = t;
       currentTimeRef.current = t;
       setSourceState((previous) => ({ ...previous, currentTime: t }));
@@ -312,7 +312,7 @@ export function useVideoPlayback({
     (time: number) => {
       const v = videoRef.current;
       if (!v) return;
-      const t = clamp(time, 0, effectiveDuration);
+      const t = mobileLayoutService.clamp(time, 0, effectiveDuration);
       v.currentTime = t;
       currentTimeRef.current = t;
       setSourceState((previous) => ({ ...previous, currentTime: t }));

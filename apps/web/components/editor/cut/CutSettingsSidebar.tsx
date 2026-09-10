@@ -16,11 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Film } from "lucide-react";
 import {
-  clamp,
-  MAX_SPLIT,
-  MIN_SPLIT,
-  OUTPUT_H,
-  OUTPUT_W,
+  MobileLayoutService,
+  mobileLayoutService,
 } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { ZoneSliders } from "./ZoneSliders";
@@ -99,7 +96,7 @@ export function CutSettingsSidebar({
           <p className="text-[11px] leading-4 text-kumo-subtle">
             {mode === "full-size"
               ? `Original ${sourceWidth || "—"}×${sourceHeight || "—"} kept, cuts concatenated.`
-              : `Reframed to ${OUTPUT_W}×${OUTPUT_H} with Mobile zones, cuts concatenated.`}
+              : `Reframed to ${MobileLayoutService.OUTPUT_W}×${MobileLayoutService.OUTPUT_H} with Mobile zones, cuts concatenated.`}
           </p>
         </div>
 
@@ -119,8 +116,8 @@ export function CutSettingsSidebar({
               </Label>
               <Slider
                 value={[stackedLayout.splitRatio]}
-                min={MIN_SPLIT}
-                max={MAX_SPLIT}
+                min={MobileLayoutService.MIN_SPLIT}
+                max={MobileLayoutService.MAX_SPLIT}
                 step={0.01}
                 onValueChange={(v) => {
                   const val = Array.isArray(v)
@@ -128,7 +125,7 @@ export function CutSettingsSidebar({
                     : (v as number);
                   setStackedLayout((p) => ({
                     ...p,
-                    splitRatio: clamp(val, MIN_SPLIT, MAX_SPLIT),
+                    splitRatio: mobileLayoutService.clamp(val, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT),
                   }));
                 }}
               />
