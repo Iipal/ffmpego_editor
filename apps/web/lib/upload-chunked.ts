@@ -11,6 +11,7 @@
 
 import { apiClient } from "./api-client";
 import { transcodeJobs } from "./transcode-jobs";
+import { uploadSessions } from "./upload-sessions";
 
 /** Tuning knobs for `UploadChunked.uploadFile` (all optional). */
 export interface ChunkedUploadOptions {
@@ -26,6 +27,10 @@ export interface ChunkedUploadResult {
   assetId: string;
   filename: string;
   totalSize: number;
+  /** True when an interrupted session was resumed (some chunks skipped). */
+  resumed: boolean;
+  /** Bytes already on the server before this call sent anything. */
+  resumedBytes: number;
 }
 
 /** Progress/signal knobs for `UploadChunked.uploadForm`. */
@@ -61,6 +66,14 @@ export class UploadChunked {
    * chunks sequentially (flat memory, resumable on failure with per-chunk
    * retries), then POST /api/upload/complete. Reports `(sent, total)` per
    * chunk; aborts promptly on `opts.signal`.
+   *
+   * Transparent resume: when this exact file (name + size + lastModified)
+   * has a remembered session with bytes still on the server, the uploader
+   * verifies it via `GET /upload/status` and skips already-received chunk
+   * indices instead of re-sending them. The server counts only fully-written
+   * chunks and writes each chunk at its explicit offset, so re-sending a
+   * partially-written chunk self-heals. Falls back to a fresh session when
+   * the remembered one is gone (swept/aborted) or mismatched.
    */
   public async uploadFile(
     file: File,
@@ -75,37 +88,73 @@ export class UploadChunked {
     );
     const maxRetries = opts.maxRetries ?? UploadChunked.MAX_RETRIES;
 
-    // 1) init
-    const initRes = await fetch(apiClient.url("/api/upload/init"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename: file.name,
-        totalSize: file.size,
-        chunkSize,
-      }),
-      signal: opts.signal,
-    });
-    if (!initRes.ok) {
-      const err = (await initRes.json().catch(() => null)) as {
-        error?: string;
-      } | null;
-      throw new Error(err?.error ?? `Upload init failed: ${initRes.status}`);
+    // 0) resume check — same file uploaded before?
+    let uploadId: string | null = null;
+    let effectiveChunk = chunkSize;
+    let sent = 0;
+    let resumed = false;
+    let resumedBytes = 0;
+    let skip = new Set<number>();
+    const remembered = uploadSessions.lookup(file);
+    if (remembered) {
+      let status = null;
+      try {
+        status = await uploadSessions.fetchStatus(remembered.uploadId);
+      } catch (e) {
+        console.warn("[upload-chunked] resume status check failed:", e);
+      }
+      if (status && status.totalSize === file.size && status.received > 0) {
+        // Authoritative skip-set from the server; offsets follow the chunk
+        // size that created the session so indices stay aligned.
+        uploadId = status.uploadId;
+        effectiveChunk = remembered.chunkSize;
+        skip = new Set(status.chunks);
+        sent = Math.min(status.received, file.size);
+        resumedBytes = sent;
+        resumed = true;
+        opts.onProgress?.(sent, file.size);
+      } else {
+        // Gone or mismatched — forget so the next attempt inits fresh.
+        uploadSessions.forget(remembered.uploadId);
+      }
     }
-    const init = (await initRes.json()) as {
-      uploadId: string;
-      assetId: string;
-      chunkSize: number;
-      totalSize: number;
-    };
-    const { uploadId } = init;
-    const effectiveChunk = init.chunkSize ?? chunkSize;
+
+    // 1) init (fresh uploads only)
+    if (uploadId === null) {
+      const initRes = await fetch(apiClient.url("/api/upload/init"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          totalSize: file.size,
+          chunkSize,
+        }),
+        signal: opts.signal,
+      });
+      if (!initRes.ok) {
+        const err = (await initRes.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(err?.error ?? `Upload init failed: ${initRes.status}`);
+      }
+      const init = (await initRes.json()) as {
+        uploadId: string;
+        assetId: string;
+        chunkSize: number;
+        totalSize: number;
+      };
+      uploadId = init.uploadId;
+      effectiveChunk = init.chunkSize ?? chunkSize;
+      uploadSessions.remember(file, uploadId, effectiveChunk);
+    }
     const totalChunks = Math.ceil(file.size / effectiveChunk);
 
     // 2) send chunks sequentially (keeps memory flat; enables resume on failure)
-    let sent = 0;
     for (let i = 0; i < totalChunks; i++) {
       if (opts.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      // Already on the server from the interrupted session — skip the bytes
+      // (the server also dedupes re-sent indices idempotently).
+      if (skip.has(i)) continue;
       const offset = i * effectiveChunk;
       const end = Math.min(offset + effectiveChunk, file.size);
       const blob = file.slice(offset, end);
@@ -166,7 +215,10 @@ export class UploadChunked {
       );
     }
     const complete = (await completeRes.json()) as ChunkedUploadResult;
-    return complete;
+    // Session consumed — drop the resume memory so a later upload of the
+    // same file starts fresh instead of pointlessly re-verifying.
+    uploadSessions.forget(uploadId);
+    return { ...complete, resumed, resumedBytes };
   }
 
   /**

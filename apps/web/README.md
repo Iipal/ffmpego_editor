@@ -181,7 +181,19 @@ flowchart LR
   `useStorageSweepMutation`, reaps expired/stale/orphan rows, live jobs
   untouched) and warns at ≥90% since new exports then fail with 507
   QUOTA_EXCEEDED/DISK_FULL.
-- `JobsArea` — totals/queue readout + storage/quota bar with Sweep; `FilterBar` — status filter;
+- Upload sessions: `useUploadSessionsQuery` (`hooks/useUploadSessions.ts`
+  over `lib/upload-sessions.ts`, `GET /api/upload/sessions` polled every
+  10 s) — interrupted chunked uploads still holding server bytes, each with
+  its resume progress (`received/total`) + age + Abort button
+  (`DELETE /api/upload/:uploadId` via `useAbortUploadSessionMutation`,
+  refcount-aware so live job inputs are never deleted). Re-uploading the
+  same file auto-resumes: `uploadChunked.uploadFile` verifies the
+  remembered session via `GET /upload/status` (authoritative `chunks[]`
+  skip-set) and re-sends only missing chunks, with a "Resumed from N%"
+  toast in `exportQueue.submitJob`.
+- `JobsArea` — totals/queue readout; `StorageArea` — quota bar with Sweep;
+  `UploadSessions` — open upload sessions with resume progress + Abort;
+  `FilterBar` — status filter;
   `JobRow` — badge/progress/row actions; `ExtractRows` — audio-extract history;
   `CompareDialog` (`components/export/CompareDialog.tsx`) — source-vs-output.
 

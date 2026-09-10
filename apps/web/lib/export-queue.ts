@@ -372,10 +372,15 @@ class ExportQueue {
       !task.forceDirect &&
       uploadChunked.shouldUseChunked(task.file)
     ) {
-      const { uploadId } = await uploadChunked.uploadFile(task.file, {
+      const result = await uploadChunked.uploadFile(task.file, {
         onProgress: task.onUploadProgress,
         signal,
       });
+      const { uploadId } = result;
+      if (result.resumed && task.file.size > 0) {
+        const pct = Math.round((result.resumedBytes / task.file.size) * 100);
+        toast.info(`Resumed upload from ${pct}% — skipped sent chunks`);
+      }
       const res = await fetch(apiClient.url(task.endpoint), {
         method: "POST",
         headers: { "x-upload-id": uploadId },

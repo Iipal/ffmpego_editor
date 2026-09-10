@@ -38,7 +38,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph Modules["route modules"]
-        U["routes/upload.ts<br/>POST /upload/init<br/>POST /upload/chunk/:id<br/>POST /upload/complete/:id<br/>GET /upload/status/:id<br/>DELETE /upload/:id"]
+        U["routes/upload.ts<br/>POST /upload/init<br/>POST /upload/chunk/:id<br/>POST /upload/complete/:id<br/>GET /upload/sessions<br/>GET /upload/status/:id<br/>DELETE /upload/:id"]
         V["routes/video.ts<br/>POST /transcode, /mobile,<br/>/mobile/subtitles, /cut<br/>GET /transcode/jobs + /stream<br/>GET /download/:id, /progress/:id<br/>DELETE /jobs, /jobs/:id<br/>POST /clear, PATCH /jobs/:id"]
         MD["routes/metadata.ts<br/>POST /metadata"]
         AU["routes/audio.ts<br/>POST /audio/analysis<br/>POST /audio/extract"]
@@ -230,7 +230,8 @@ ops endpoints `GET /` and `GET /health`). Errors use the shared `{ code, message
 | `POST /api/upload/init`               | Create session: validate `totalSize` (≤10 GB), disk + quota gates (507), `AssetStore.reserve()`, pre-allocate sparse file. Returns `{uploadId, assetId, chunkSize}`. |
 | `POST /api/upload/chunk/:uploadId`    | Random-access write of one raw chunk (`x-chunk-index/offset` or query). Idempotent per index, clamps `received`, `touch()`es asset.                                  |
 | `POST /api/upload/complete/:uploadId` | Verify/truncate to `totalSize`, `finalize()` asset. `UPLOAD_INCOMPLETE` if short.                                                                                    |
-| `GET /api/upload/status/:uploadId`    | Progress `{received, totalSize, percent, assetId}` for resume UI.                                                                                                    |
+| `GET /api/upload/sessions`            | List open sessions `{count, sessions[]}` (newest first: `received/percent/ageSeconds`) for the Admin orphan/abort UI.                                                |
+| `GET /api/upload/status/:uploadId`    | Progress `{received, totalSize, percent, chunks[], assetId}` — `chunks` is the received-index skip-set for client resume.                                            |
 | `DELETE /api/upload/:uploadId`        | Abort session. Refcount-aware: jobs holding `share()` keep bytes.                                                                                                    |
 
 ### Transcode (`src/routes/video.ts`) — the core

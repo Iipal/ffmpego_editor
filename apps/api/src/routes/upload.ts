@@ -251,6 +251,26 @@ app.post("/upload/complete/:uploadId", async (c) => {
   });
 });
 
+// GET /upload/sessions — list open sessions for the Admin dashboard so
+// orphaned uploads (abandoned before complete) are visible + abortable
+// instead of sitting until the 6h server sweep. Newest first.
+app.get("/upload/sessions", (c) => {
+  const now = Date.now();
+  const sessions = listUploads()
+    .map((s) => ({
+      uploadId: s.uploadId,
+      filename: s.filename,
+      totalSize: s.totalSize,
+      received: s.received,
+      percent: s.totalSize ? Math.round((s.received / s.totalSize) * 100) : 0,
+      createdAt: s.createdAt,
+      ageSeconds: Math.max(0, Math.round((now - s.createdAt) / 1000)),
+      assetId: s.fileId,
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+  return c.json({ count: sessions.length, sessions });
+});
+
 // GET /upload/status/:uploadId — progress
 app.get("/upload/status/:uploadId", (c) => {
   const s = getUpload(c.req.param("uploadId"));
@@ -261,6 +281,9 @@ app.get("/upload/status/:uploadId", (c) => {
     totalSize: s.totalSize,
     received: s.received,
     percent: s.totalSize ? Math.round((s.received / s.totalSize) * 100) : 0,
+    // Received chunk indices — the authoritative skip-set for client resume
+    // (robust when the resuming client picks a different chunk size).
+    chunks: [...s.chunks].sort((a, b) => a - b),
     assetId: s.fileId,
   });
 });

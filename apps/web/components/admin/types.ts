@@ -1,7 +1,6 @@
 import type { StoredFileDescriptor } from "@repo/types";
 import type { LiveStatus } from "./useJobsLiveSync";
 import type { HealthSnapshot } from "@/lib/health";
-import type { StorageStats } from "@/lib/storage";
 
 // Mirrors the B1/B2 API contract (apps/api/src/routes/video.ts):
 // statuses queued|processing|completed|failed|cancelled, logTail tail log,
@@ -77,16 +76,6 @@ export type JobsAreaProps = {
   liveStatus: LiveStatus;
   apiBase: string;
   onRefresh: () => void;
-} & AdminStorageProps;
-
-export type AdminStorageProps = {
-  /** Store census from `GET /api/storage/stats` (managed bytes vs quota). */
-  storage?: StorageStats | undefined;
-  storageLoading?: boolean;
-  storageError?: string | null;
-  /** `POST /api/storage/sweep` in flight (reaps expired/stale/orphan rows). */
-  sweepPending?: boolean;
-  onSweep: () => void;
 };
 
 export type AdminHealthProps = {

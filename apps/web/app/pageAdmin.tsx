@@ -24,6 +24,8 @@ import { ExtractRows } from "@/components/admin/ExtractRows";
 import { FilterBar } from "@/components/admin/FilterBar";
 import { JobsArea } from "@/components/admin/JobsArea";
 import { JobsList } from "@/components/admin/JobsList";
+import { StorageArea } from "@/components/admin/StorageArea";
+import { UploadSessions } from "@/components/admin/UploadSessions";
 import { TipsHoisted } from "@/components/admin/placeholders";
 import {
   didInitApp,
@@ -37,6 +39,10 @@ import {
   useStorageStatsQuery,
   useStorageSweepMutation,
 } from "@/hooks/useStorageStats";
+import {
+  useAbortUploadSessionMutation,
+  useUploadSessionsQuery,
+} from "@/hooks/useUploadSessions";
 
 export default function PageAdmin() {
   // advanced-init-once: one-time preconnect, not per mount
@@ -59,6 +65,29 @@ export default function PageAdmin() {
   } = useStorageStatsQuery();
   const { mutate: sweepStorage, isPending: sweepPending } =
     useStorageSweepMutation();
+  const {
+    data: sessions = [],
+    isLoading: sessionsLoading,
+    error: sessionsError,
+  } = useUploadSessionsQuery();
+  const {
+    mutate: abortSession,
+    isPending: abortPending,
+    variables: abortingId,
+  } = useAbortUploadSessionMutation();
+
+  const handleAbortSession = (uploadId: string) => {
+    abortSession(uploadId, {
+      onSuccess: () => {
+        toast.success("Upload session aborted — bytes released");
+      },
+      onError: (e) => {
+        toast.error(
+          e instanceof Error ? e.message : "Abort failed — try again.",
+        );
+      },
+    });
+  };
 
   const handleSweep = () => {
     sweepStorage(undefined, {
@@ -139,24 +168,44 @@ export default function PageAdmin() {
         onClearAll={handleClearAll}
       />
 
-      {/* Jobs area — control & readout surface, mirrors pageEditorCrop CropArea */}
-      <JobsArea
-        total={data?.count ?? jobs.length}
-        pending={pendingCount}
-        completed={completedCount}
-        failed={failedCount}
-        filter={deferredFilter}
-        isStale={isFilterStale}
-        isFetching={isFetching}
-        apiBase={apiClient.baseUrl}
-        liveStatus={liveStatus}
-        onRefresh={handleRefresh}
-        storage={storage}
-        storageLoading={storageLoading}
-        storageError={storageError instanceof Error ? storageError.message : null}
-        sweepPending={sweepPending}
-        onSweep={handleSweep}
-      />
+      {/* Ops row — peer cards: jobs readout, storage/quota, upload sessions */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Jobs area — control & readout surface, mirrors pageEditorCrop CropArea */}
+        <JobsArea
+          total={data?.count ?? jobs.length}
+          pending={pendingCount}
+          completed={completedCount}
+          failed={failedCount}
+          filter={deferredFilter}
+          isStale={isFilterStale}
+          isFetching={isFetching}
+          apiBase={apiClient.baseUrl}
+          liveStatus={liveStatus}
+          onRefresh={handleRefresh}
+        />
+
+        {/* Storage — quota census + on-demand sweep */}
+        <StorageArea
+          storage={storage}
+          storageLoading={storageLoading}
+          storageError={
+            storageError instanceof Error ? storageError.message : null
+          }
+          sweepPending={sweepPending}
+          onSweep={handleSweep}
+        />
+
+        {/* Upload sessions — interrupted chunked uploads + abort */}
+        <UploadSessions
+          sessions={sessions}
+          sessionsLoading={sessionsLoading}
+          sessionsError={
+            sessionsError instanceof Error ? sessionsError.message : null
+          }
+          abortPendingId={abortPending ? (abortingId ?? null) : null}
+          onAbort={handleAbortSession}
+        />
+      </div>
 
       <Card onMouseEnter={preloadHeavyCard}>
         <CardHeader className="pb-3">
