@@ -23,7 +23,8 @@ export function err(
     headers?: Record<string, string>;
   },
 ) {
-  const requestId = opts.requestId ?? resolveRequestId(c.req.header(REQUEST_ID_HEADER));
+  const requestId =
+    opts.requestId ?? resolveRequestId(c.req.header(REQUEST_ID_HEADER));
   const { requestId: _ignored, headers, ...rest } = opts;
   const status = ERROR_STATUS[code] as ContentfulStatusCode;
   return c.json(errorEnvelope(code, { ...rest, requestId }), status, headers);

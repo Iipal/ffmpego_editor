@@ -84,7 +84,9 @@ export function EditorHeader({
           disabled={!!validationError}
           className="h-7 rounded-md text-xs font-medium"
         >
-          {activeExports > 0 ? `Export 9:16 (+${activeExports} queued)` : "Export 9:16"}
+          {activeExports > 0
+            ? `Export 9:16 (+${activeExports} queued)`
+            : "Export 9:16"}
         </Button>
       </div>
     </header>

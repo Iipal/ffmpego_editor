@@ -180,7 +180,8 @@ function buildFormatArgs(
     case "gif":
       // Silent preview GIF: callers cap size via scale + fps via -r.
       return ["-c:v", "gif", "-an"].flat();
-    case "mov":      return [
+    case "mov":
+      return [
         "-c:v",
         "prores_ks",
         "-profile:v",
@@ -238,8 +239,7 @@ export const TELEGRAM_WEBM_TG_CRF_MAX = 63;
 
 /** Normalize a requested CRF to the VP9 range (default 10 like the builder). */
 export function clampTelegramCrf(crf: unknown): number {
-  if (typeof crf !== "number" || !Number.isFinite(crf))
-    return 10;
+  if (typeof crf !== "number" || !Number.isFinite(crf)) return 10;
   return Math.max(
     TELEGRAM_WEBM_TG_CRF_MIN,
     Math.min(TELEGRAM_WEBM_TG_CRF_MAX, Math.round(crf)),
@@ -286,10 +286,7 @@ function buildTelegramWebmTgArgs(
     options.sourceHeight,
   );
   let vf = TELEGRAM_WEBM_TG_FILTER;
-  if (
-    crop.cw !== options.sourceWidth ||
-    crop.ch !== options.sourceHeight
-  ) {
+  if (crop.cw !== options.sourceWidth || crop.ch !== options.sourceHeight) {
     vf = `crop=${crop.cw}:${crop.ch}:${crop.cx}:${crop.cy},${vf}`;
   }
   args.push(
@@ -384,7 +381,11 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
     args.push("-map", "0:v?");
     for (const track of enabledAudioTracks)
       args.push("-map", `0:a:${track.trackIndex}?`);
-  } else if (!noAudio && !options.mobileLayout && options.audioTrackIndex !== undefined) {
+  } else if (
+    !noAudio &&
+    !options.mobileLayout &&
+    options.audioTrackIndex !== undefined
+  ) {
     args.push("-map", "0:v?", "-map", audioMap);
   }
 

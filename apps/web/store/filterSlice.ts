@@ -18,7 +18,9 @@ export function useFilterStore() {
   return useSelector(filterStore);
 }
 
-export function setFilterState(updater: (previous: VisualFilters) => VisualFilters) {
+export function setFilterState(
+  updater: (previous: VisualFilters) => VisualFilters,
+) {
   filterStore.setState(updater);
 }
 

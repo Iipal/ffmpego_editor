@@ -43,10 +43,7 @@ import { uploadChunked } from "./upload-chunked";
 import { toast } from "sonner";
 
 export type ExportQueueProgressStatus =
-  | "uploading"
-  | "queued"
-  | "processing"
-  | "saving";
+  "uploading" | "queued" | "processing" | "saving";
 
 /** Live phase snapshot forwarded to `ExportQueueTask.onProgress` mirrors. */
 export interface ExportQueueProgress {

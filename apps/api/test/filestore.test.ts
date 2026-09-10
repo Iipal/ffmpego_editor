@@ -27,7 +27,9 @@ afterEach(() => {
   }
 });
 
-function makeStore(opts: { quotaBytes?: number; isJobAlive?: (id: string) => boolean } = {}): {
+function makeStore(
+  opts: { quotaBytes?: number; isJobAlive?: (id: string) => boolean } = {},
+): {
   store: FileStore;
   db: Database;
 } {
@@ -61,7 +63,11 @@ describe("reserve → write → finalize → release", () => {
     expect(fs.existsSync(p)).toBe(true);
 
     const r = store.AssetStore.release(id);
-    expect(r).toMatchObject({ deleted: true, bytesFreed: 4, alreadyGone: false });
+    expect(r).toMatchObject({
+      deleted: true,
+      bytesFreed: 4,
+      alreadyGone: false,
+    });
     expect(fs.existsSync(p)).toBe(false);
     expect(store.AssetStore.get(id)).toBeNull();
   });
@@ -78,9 +84,15 @@ describe("reserve → write → finalize → release", () => {
     const first = store.ArtifactStore.release(id);
     expect(first.deleted).toBe(true);
     const second = store.ArtifactStore.release(id);
-    expect(second).toMatchObject({ deleted: false, alreadyGone: true, refCount: 0 });
+    expect(second).toMatchObject({
+      deleted: false,
+      alreadyGone: true,
+      refCount: 0,
+    });
 
-    const unknown = store.ArtifactStore.release("art_ffffffffffffffffffffffffffffffff");
+    const unknown = store.ArtifactStore.release(
+      "art_ffffffffffffffffffffffffffffffff",
+    );
     expect(unknown).toMatchObject({ deleted: false, alreadyGone: true });
   });
 
@@ -156,7 +168,11 @@ describe("adopt vs share refcounts", () => {
     store.AssetStore.share(id, "job-1"); // refCount 2
 
     const dec = store.AssetStore.release(id);
-    expect(dec).toMatchObject({ deleted: false, alreadyGone: false, refCount: 1 });
+    expect(dec).toMatchObject({
+      deleted: false,
+      alreadyGone: false,
+      refCount: 1,
+    });
     expect(fs.existsSync(p)).toBe(true);
 
     const last = store.AssetStore.release(id);
@@ -171,7 +187,11 @@ describe("quota gate", () => {
     const { store } = makeStore({ quotaBytes: 100 });
     let thrown: unknown = null;
     try {
-      store.AssetStore.reserve({ kind: "upload", filename: "big.mp4", sizeHint: 101 });
+      store.AssetStore.reserve({
+        kind: "upload",
+        filename: "big.mp4",
+        sizeHint: 101,
+      });
     } catch (e) {
       thrown = e;
     }
@@ -179,7 +199,10 @@ describe("quota gate", () => {
     expect((thrown as FileStoreQuotaError).neededBytes).toBe(101);
     expect((thrown as FileStoreQuotaError).quotaBytes).toBe(100);
     // Zero-hint reserves still pass; the gate counts finalized bytes too.
-    const ok = store.AssetStore.reserve({ kind: "upload", filename: "tiny.mp4" });
+    const ok = store.AssetStore.reserve({
+      kind: "upload",
+      filename: "tiny.mp4",
+    });
     expect(ok.id).toStartWith("ast_");
 
     const q = store.checkQuota(1000);
@@ -200,21 +223,36 @@ describe("writeAtomic", () => {
     expect(rec.byteSize).toBe(7);
     expect(await Bun.file(p).text()).toBe("PNGDATA");
     // No .part siblings left behind.
-    expect(fs.readdirSync(store.root).filter((f) => f.includes(".part-"))).toEqual([]);
+    expect(
+      fs.readdirSync(store.root).filter((f) => f.includes(".part-")),
+    ).toEqual([]);
   });
 
   test("writeAtomic on unknown id returns null", async () => {
     const { store } = makeStore();
-    expect(await store.ArtifactStore.writeAtomic("art_00000000000000000000000000000000", "x")).toBeNull();
+    expect(
+      await store.ArtifactStore.writeAtomic(
+        "art_00000000000000000000000000000000",
+        "x",
+      ),
+    ).toBeNull();
   });
 });
 
 describe("descriptors never leak paths", () => {
   test("describe exposes id/name/size/mime only", () => {
     const { store } = makeStore();
-    const { id } = store.ArtifactStore.reserve({ kind: "output", filename: "export.webm" });
+    const { id } = store.ArtifactStore.reserve({
+      kind: "output",
+      filename: "export.webm",
+    });
     const desc = store.ArtifactStore.describe(id)!;
-    expect(desc).toMatchObject({ id, name: "export.webm", ext: "webm", mime: "video/webm" });
+    expect(desc).toMatchObject({
+      id,
+      name: "export.webm",
+      ext: "webm",
+      mime: "video/webm",
+    });
     expect("path" in (desc as Record<string, unknown>)).toBe(false);
     expect(JSON.stringify(desc)).not.toContain(os.tmpdir());
   });
@@ -223,7 +261,10 @@ describe("descriptors never leak paths", () => {
 describe("fail-path tracking", () => {
   test("a reserve with no bytes is a tracked row, reaped as stale", () => {
     const { store, db } = makeStore();
-    const { id } = store.AssetStore.reserve({ kind: "upload", filename: "crash.mp4" });
+    const { id } = store.AssetStore.reserve({
+      kind: "upload",
+      filename: "crash.mp4",
+    });
     // Crashed between reserve and finalize: row exists, zero bytes on disk.
     expect(store.AssetStore.get(id)?.status).toBe("reserved");
 
@@ -241,7 +282,11 @@ describe("fail-path tracking", () => {
 describe("sweepExpired + reconcile", () => {
   test("expired unowned files are reaped; live-job-owned are kept", async () => {
     const { store } = makeStore({ isJobAlive: (id) => id === "job-live" });
-    const dead = store.AssetStore.reserve({ kind: "upload", filename: "d.mp4", ttlMs: 0 });
+    const dead = store.AssetStore.reserve({
+      kind: "upload",
+      filename: "d.mp4",
+      ttlMs: 0,
+    });
     const live = store.AssetStore.reserve({
       kind: "upload",
       filename: "l.mp4",
@@ -262,7 +307,10 @@ describe("sweepExpired + reconcile", () => {
 
   test("pinned paths survive the stale-reserved reap", () => {
     const { store, db } = makeStore();
-    const { id, path: p } = store.AssetStore.reserve({ kind: "upload", filename: "slow.mp4" });
+    const { id, path: p } = store.AssetStore.reserve({
+      kind: "upload",
+      filename: "slow.mp4",
+    });
     db.prepare(`UPDATE files SET updatedAt = ? WHERE id = ?`).run(
       Date.now() - RESERVED_STALE_MS - 1000,
       id,
@@ -274,7 +322,10 @@ describe("sweepExpired + reconcile", () => {
 
   test("reconcile purges rows with missing bytes and deletes orphans", async () => {
     const { store } = makeStore();
-    const { id, path: p } = store.ArtifactStore.reserve({ kind: "output", filename: "gone.mp4" });
+    const { id, path: p } = store.ArtifactStore.reserve({
+      kind: "output",
+      filename: "gone.mp4",
+    });
     await Bun.write(p, "render");
     store.ArtifactStore.finalize(id);
     fs.unlinkSync(p); // wiped tmp: row without bytes
@@ -291,7 +342,13 @@ describe("sweepExpired + reconcile", () => {
 
     // Idempotent: second run finds nothing.
     const again = store.reconcile();
-    expect(again).toMatchObject({ expired: 0, staleReserved: 0, missing: 0, orphans: 0, bytesFreed: 0 });
+    expect(again).toMatchObject({
+      expired: 0,
+      staleReserved: 0,
+      missing: 0,
+      orphans: 0,
+      bytesFreed: 0,
+    });
   });
 
   test("young .part files are left alone by reconcile", async () => {
@@ -308,7 +365,11 @@ describe("stats / checkQuota / managedBytes", () => {
   test("stats reflect finalized bytes by role and kind", async () => {
     const { store } = makeStore();
     const a = store.AssetStore.reserve({ kind: "upload", filename: "a.mp4" });
-    const b = store.ArtifactStore.reserve({ kind: "output", filename: "b.mp4", ownerJobId: "j" });
+    const b = store.ArtifactStore.reserve({
+      kind: "output",
+      filename: "b.mp4",
+      ownerJobId: "j",
+    });
     await Bun.write(a.path, "1234");
     await Bun.write(b.path, "12345678");
     store.AssetStore.finalize(a.id);

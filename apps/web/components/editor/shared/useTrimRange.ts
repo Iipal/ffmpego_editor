@@ -10,8 +10,7 @@ export const TRIM_SLIDER_MAX_FALLBACK = 30;
 
 export type TrimRangeTuple = [number, number];
 export type TrimRangeUpdater =
-  | TrimRangeTuple
-  | ((prev: TrimRangeTuple) => TrimRangeTuple);
+  TrimRangeTuple | ((prev: TrimRangeTuple) => TrimRangeTuple);
 
 type UseTrimRangeOptions = {
   /** Full media duration; init/clamp effects and clamping are skipped while <= 0. */

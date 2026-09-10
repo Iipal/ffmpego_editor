@@ -8,11 +8,7 @@ import {
   UPLOAD_ID_HEADER,
   UPLOAD_ID_QUERY,
 } from "@repo/contracts";
-import {
-  AssetStore,
-  FileStoreQuotaError,
-  store,
-} from "../storage/index.js";
+import { AssetStore, FileStoreQuotaError, store } from "../storage/index.js";
 
 const app = new Hono();
 

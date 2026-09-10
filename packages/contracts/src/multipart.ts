@@ -26,4 +26,5 @@ export const UPLOAD_ID_QUERY = "uploadId";
 /** Request-id correlation header (see errors.resolveRequestId). */
 export const REQUEST_ID_HEADER = "x-request-id";
 
-export type MultipartField = (typeof MULTIPART_FIELDS)[keyof typeof MULTIPART_FIELDS];
+export type MultipartField =
+  (typeof MULTIPART_FIELDS)[keyof typeof MULTIPART_FIELDS];

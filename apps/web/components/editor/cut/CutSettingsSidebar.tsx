@@ -15,10 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Film } from "lucide-react";
-import {
-  MobileLayoutService,
-  mobileLayoutService,
-} from "@/lib/mobile-layout";
+import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { ZoneSliders } from "./ZoneSliders";
 import type { CutMode } from "./types";
@@ -125,7 +122,11 @@ export function CutSettingsSidebar({
                     : (v as number);
                   setStackedLayout((p) => ({
                     ...p,
-                    splitRatio: mobileLayoutService.clamp(val, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT),
+                    splitRatio: mobileLayoutService.clamp(
+                      val,
+                      MobileLayoutService.MIN_SPLIT,
+                      MobileLayoutService.MAX_SPLIT,
+                    ),
                   }));
                 }}
               />

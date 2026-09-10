@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun run --watch src/index.ts",
     "build": "tsc",
-    "lint": "tsc --noEmit",
+    "lint": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "start": "bun run dist/index.js"

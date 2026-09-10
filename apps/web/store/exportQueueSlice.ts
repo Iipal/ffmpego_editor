@@ -20,12 +20,7 @@ export type ExportQueueItemStatus =
   | "cancelled";
 
 export type ExportQueueItemKind =
-  | "crop"
-  | "mobile"
-  | "subtitles"
-  | "cut"
-  | "bulk"
-  | "audio-extract";
+  "crop" | "mobile" | "subtitles" | "cut" | "bulk" | "audio-extract";
 
 export interface ExportQueueItem {
   id: string;

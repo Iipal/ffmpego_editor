@@ -9,10 +9,14 @@ import type { CutMode } from "./types";
 export function useCutLayouts() {
   const [mode, setMode] = useState<CutMode>("full-size");
   const [stackedLayout, setStackedLayout] = useState<MobileLayout>(
-    () => mobileLayoutService.loadPrefForMode("stacked") ?? mobileLayoutService.createDefaultLayout("stacked", 0.5),
+    () =>
+      mobileLayoutService.loadPrefForMode("stacked") ??
+      mobileLayoutService.createDefaultLayout("stacked", 0.5),
   );
   const [singleLayout, setSingleLayout] = useState<MobileLayout>(
-    () => mobileLayoutService.loadPrefForMode("full") ?? mobileLayoutService.createDefaultLayout("full", 0.5),
+    () =>
+      mobileLayoutService.loadPrefForMode("full") ??
+      mobileLayoutService.createDefaultLayout("full", 0.5),
   );
   const [watermarkStack, setWatermarkStack] = useState(true);
   const [watermarkSingle, setWatermarkSingle] = useState(true);

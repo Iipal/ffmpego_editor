@@ -98,7 +98,10 @@ export interface EnvelopeOptions {
 }
 
 /** Build an envelope body; status comes from ERROR_STATUS. */
-export function errorEnvelope(code: ErrorCode, opts: EnvelopeOptions): ErrorEnvelope {
+export function errorEnvelope(
+  code: ErrorCode,
+  opts: EnvelopeOptions,
+): ErrorEnvelope {
   const body: ErrorEnvelope = { code, message: opts.message };
   if (opts.issues?.length) body.issues = opts.issues;
   if (opts.requestId) body.requestId = opts.requestId;
@@ -118,10 +121,7 @@ export function resolveRequestId(header: string | null | undefined): string {
 }
 
 /** Legacy `{ error, issues? }` shape — accepted on read, never emitted. */
-export function messageFromUnknown(
-  payload: unknown,
-  fallback: string,
-): string {
+export function messageFromUnknown(payload: unknown, fallback: string): string {
   if (!payload || typeof payload !== "object") return fallback;
   const p = payload as Record<string, unknown>;
   if (typeof p.message === "string" && p.message) return p.message;
@@ -151,7 +151,8 @@ export interface FfmpegClassification {
 
 const INPUT_HINT_RE =
   /invalid (data|argument)|no such file|not found|unsupport|invalid input|could not find|error opening|no video stream|no audio stream/i;
-const RESOURCE_HINT_RE = /out of memory|cannot allocate|no space left|disk quota/i;
+const RESOURCE_HINT_RE =
+  /out of memory|cannot allocate|no space left|disk quota/i;
 
 export function classifyFfmpegExit(
   exitCode: number | null,
@@ -159,7 +160,11 @@ export function classifyFfmpegExit(
 ): FfmpegClassification {
   const tail = logTail ?? "";
   if (exitCode === 0) {
-    return { code: "TRANSCODE_FAILED", retryable: false, message: "FFmpeg reported success." };
+    return {
+      code: "TRANSCODE_FAILED",
+      retryable: false,
+      message: "FFmpeg reported success.",
+    };
   }
   // SIGKILL/SIGTERM — typically OOM-killer or external kill, worth a retry.
   if (exitCode === 137 || exitCode === 143) {

@@ -208,9 +208,7 @@ describe("request id + legacy compat", () => {
   });
 
   test("message/issues read envelope and legacy shapes", () => {
-    expect(
-      messageFromUnknown({ code: "X", message: "new" }, "fb"),
-    ).toBe("new");
+    expect(messageFromUnknown({ code: "X", message: "new" }, "fb")).toBe("new");
     expect(messageFromUnknown({ error: "old" }, "fb")).toBe("old");
     expect(messageFromUnknown(null, "fb")).toBe("fb");
     expect(issuesFromUnknown({ issues: ["a", 1, "b"] })).toEqual(["a", "b"]);

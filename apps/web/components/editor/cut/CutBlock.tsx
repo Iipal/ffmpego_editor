@@ -61,11 +61,19 @@ export const CutBlock = memo(function CutBlock({
           const ns = mobileLayoutService.clamp(o.start + dt, 0, o.end - minLen);
           onChange(cut.id, { ...o, start: Math.round(ns * 100) / 100 });
         } else if (st.kind === "r") {
-          const ne = mobileLayoutService.clamp(o.end + dt, o.start + minLen, duration);
+          const ne = mobileLayoutService.clamp(
+            o.end + dt,
+            o.start + minLen,
+            duration,
+          );
           onChange(cut.id, { ...o, end: Math.round(ne * 100) / 100 });
         } else {
           const len = o.end - o.start;
-          const ns = mobileLayoutService.clamp(o.start + dt, 0, Math.max(0, duration - len));
+          const ns = mobileLayoutService.clamp(
+            o.start + dt,
+            0,
+            Math.max(0, duration - len),
+          );
           onChange(cut.id, {
             ...o,
             start: Math.round(ns * 100) / 100,

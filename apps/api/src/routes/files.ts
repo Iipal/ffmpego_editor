@@ -55,16 +55,24 @@ export function streamFile(
   if (rangeHeader) {
     const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
     if (!m || (m[1] === "" && m[2] === "")) {
-      return errResponse("RANGE_INVALID", { message: "Invalid Range header." }, {
-        "Content-Range": `bytes */${total}`,
-      });
+      return errResponse(
+        "RANGE_INVALID",
+        { message: "Invalid Range header." },
+        {
+          "Content-Range": `bytes */${total}`,
+        },
+      );
     }
     let start = m[1] === "" ? total - Number(m[2]) : Number(m[1]);
     let end = m[2] === "" ? total - 1 : Number(m[2]);
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
-      return errResponse("RANGE_INVALID", { message: "Invalid Range header." }, {
-        "Content-Range": `bytes */${total}`,
-      });
+      return errResponse(
+        "RANGE_INVALID",
+        { message: "Invalid Range header." },
+        {
+          "Content-Range": `bytes */${total}`,
+        },
+      );
     }
     start = Math.max(0, Math.min(start, total - 1));
     end = Math.max(start, Math.min(end, total - 1));

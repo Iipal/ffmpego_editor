@@ -82,7 +82,11 @@ export function MobilePreviewShared({
       const c = canvasFullRef.current;
       if (c) {
         c.width = Math.round(baseW * dpr);
-        c.height = Math.round(baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W) * dpr);
+        c.height = Math.round(
+          baseW *
+            (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W) *
+            dpr,
+        );
         c.style.width = `${baseW}px`;
         c.style.height = `${baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W)}px`;
       }
@@ -90,7 +94,8 @@ export function MobilePreviewShared({
       const top = canvasTopRef.current;
       const bottom = canvasBottomRef.current;
       const split = layout.splitRatio;
-      const totalH = baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
+      const totalH =
+        baseW * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
       if (top) {
         const h = totalH * split;
         top.width = Math.round(baseW * dpr);
@@ -249,7 +254,8 @@ export function MobilePreviewShared({
           )}
         </div>
         <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-          {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · Full 9:16
+          {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · Full
+          9:16
         </div>
       </div>
     );
@@ -309,8 +315,8 @@ export function MobilePreviewShared({
         )}
       </div>
       <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-        {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · {(splitPx * 100).toFixed(0)}% /{" "}
-        {((1 - splitPx) * 100).toFixed(0)}%
+        {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} ·{" "}
+        {(splitPx * 100).toFixed(0)}% / {((1 - splitPx) * 100).toFixed(0)}%
       </div>
     </div>
   );

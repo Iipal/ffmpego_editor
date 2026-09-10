@@ -201,7 +201,10 @@ export function defaultStoreRoot(): string {
 
 export const DEFAULT_QUOTA_BYTES = 50 * 1024 * 1024 * 1024;
 
-export function createFileStore(database: Database, opts: FileStoreOptions = {}) {
+export function createFileStore(
+  database: Database,
+  opts: FileStoreOptions = {},
+) {
   const root = opts.root ?? defaultStoreRoot();
   const quotaBytes = opts.quotaBytes ?? DEFAULT_QUOTA_BYTES;
   const isJobAlive = opts.isJobAlive ?? (() => true);
@@ -346,7 +349,9 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
       }
     }
     database
-      .prepare(`UPDATE files SET status = 'active', byteSize = ?, updatedAt = ? WHERE id = ?`)
+      .prepare(
+        `UPDATE files SET status = 'active', byteSize = ?, updatedAt = ? WHERE id = ?`,
+      )
       .run(Math.max(0, Math.floor(size)), Date.now(), id);
     return get(id);
   }
@@ -405,10 +410,9 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
 
   /** Bump updatedAt so slow-but-live sessions aren't reaped as stale. */
   function touch(id: string): void {
-    database.prepare(`UPDATE files SET updatedAt = ? WHERE id = ?`).run(
-      Date.now(),
-      id,
-    );
+    database
+      .prepare(`UPDATE files SET updatedAt = ? WHERE id = ?`)
+      .run(Date.now(), id);
   }
 
   /**
@@ -418,12 +422,27 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
    */
   function release(id: string): ReleaseResult {
     const rec = get(id);
-    if (!rec) return { id, deleted: false, bytesFreed: 0, alreadyGone: true, refCount: 0 };
+    if (!rec)
+      return {
+        id,
+        deleted: false,
+        bytesFreed: 0,
+        alreadyGone: true,
+        refCount: 0,
+      };
     if (rec.refCount > 1) {
       database
-        .prepare(`UPDATE files SET refCount = refCount - 1, updatedAt = ? WHERE id = ?`)
+        .prepare(
+          `UPDATE files SET refCount = refCount - 1, updatedAt = ? WHERE id = ?`,
+        )
         .run(Date.now(), id);
-      return { id, deleted: false, bytesFreed: 0, alreadyGone: false, refCount: rec.refCount - 1 };
+      return {
+        id,
+        deleted: false,
+        bytesFreed: 0,
+        alreadyGone: false,
+        refCount: rec.refCount - 1,
+      };
     }
     const { bytes } = unlinkBestEffort(rec.path);
     deleteRow(id);
@@ -481,10 +500,21 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
    * (crashed between reserve and finalize). Live job-owned files are never
    * touched — keep-until-delete.
    */
-  function sweepExpired(now: number = Date.now(), pinned: Set<string> = new Set()): SweepResult {
-    const out: SweepResult = { expired: 0, staleReserved: 0, missing: 0, orphans: 0, bytesFreed: 0 };
+  function sweepExpired(
+    now: number = Date.now(),
+    pinned: Set<string> = new Set(),
+  ): SweepResult {
+    const out: SweepResult = {
+      expired: 0,
+      staleReserved: 0,
+      missing: 0,
+      orphans: 0,
+      bytesFreed: 0,
+    };
     const expired = database
-      .prepare(`SELECT id, ownerJobId FROM files WHERE expiresAt IS NOT NULL AND expiresAt < ?`)
+      .prepare(
+        `SELECT id, ownerJobId FROM files WHERE expiresAt IS NOT NULL AND expiresAt < ?`,
+      )
       .all(now) as Array<{ id: string; ownerJobId: string | null }>;
     for (const { id, ownerJobId } of expired) {
       if (ownerJobId !== null && isJobAlive(ownerJobId)) continue;
@@ -497,7 +527,12 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
       .prepare(
         `SELECT id, path, ownerJobId, updatedAt FROM files WHERE status = 'reserved' AND updatedAt < ?`,
       )
-      .all(staleCutoff) as Array<{ id: string; path: string; ownerJobId: string | null; updatedAt: number }>;
+      .all(staleCutoff) as Array<{
+      id: string;
+      path: string;
+      ownerJobId: string | null;
+      updatedAt: number;
+    }>;
     for (const { id, path: p, ownerJobId } of stale) {
       // A reserved row owned by a live job is mid-render (ffmpeg writes
       // directly to the reserved path) — only reap when ownerless/dead.
@@ -518,7 +553,10 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
    * files with no owning row (crash orphans). No filename regexes.
    * Idempotent: a second run finds nothing and frees zero bytes.
    */
-  function reconcile(now: number = Date.now(), opts: { pin?: Set<string> } = {}): SweepResult {
+  function reconcile(
+    now: number = Date.now(),
+    opts: { pin?: Set<string> } = {},
+  ): SweepResult {
     const pinned = opts.pin ?? new Set<string>();
     const out = sweepExpired(now, pinned);
 
@@ -535,7 +573,9 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
 
     const owned = new Set(
       (
-        database.prepare(`SELECT path FROM files`).all() as Array<{ path: string }>
+        database.prepare(`SELECT path FROM files`).all() as Array<{
+          path: string;
+        }>
       ).map((r) => r.path),
     );
     let entries: string[] = [];
@@ -571,7 +611,9 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
     byKind: Record<string, number>;
   } {
     const rows = database
-      .prepare(`SELECT role, kind, COALESCE(SUM(byteSize), 0) AS bytes, COUNT(*) AS n FROM files GROUP BY role, kind`)
+      .prepare(
+        `SELECT role, kind, COALESCE(SUM(byteSize), 0) AS bytes, COUNT(*) AS n FROM files GROUP BY role, kind`,
+      )
       .all() as Array<{ role: string; kind: string; bytes: number; n: number }>;
     const byRole: Record<string, number> = {};
     const byKind: Record<string, number> = {};
@@ -587,9 +629,17 @@ export function createFileStore(database: Database, opts: FileStoreOptions = {})
   }
 
   /** Quota pre-check for routes that want a 507 with a clear message. */
-  function checkQuota(sizeHint: number): { ok: boolean; managedBytes: number; quotaBytes: number } {
+  function checkQuota(sizeHint: number): {
+    ok: boolean;
+    managedBytes: number;
+    quotaBytes: number;
+  } {
     const managed = managedBytes();
-    return { ok: managed + Math.max(0, sizeHint) <= quotaBytes, managedBytes: managed, quotaBytes };
+    return {
+      ok: managed + Math.max(0, sizeHint) <= quotaBytes,
+      managedBytes: managed,
+      quotaBytes,
+    };
   }
 
   const roleApi = (role: FileRole) => ({

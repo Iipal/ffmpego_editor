@@ -42,7 +42,13 @@ describe("export presets", () => {
     expect(migratePreset(null).ok).toBe(false);
     expect(migratePreset("mp4").ok).toBe(false);
     expect(
-      migratePreset({ version: 1, id: "x", name: "x", target: "nope", settings: {} }).ok,
+      migratePreset({
+        version: 1,
+        id: "x",
+        name: "x",
+        target: "nope",
+        settings: {},
+      }).ok,
     ).toBe(false);
   });
 });

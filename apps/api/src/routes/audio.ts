@@ -35,7 +35,11 @@ async function resolveInput(c: Context) {
   if (uploadId) {
     const consumed = consumeUpload(uploadId);
     if (!consumed) return null;
-    return { assetId: null as string | null, inputPath: consumed.path, remove: false };
+    return {
+      assetId: null as string | null,
+      inputPath: consumed.path,
+      remove: false,
+    };
   }
   const form = await c.req.formData().catch(() => null);
   const file = form?.get(MULTIPART_FIELDS.file);

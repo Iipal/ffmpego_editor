@@ -59,7 +59,8 @@ export const PortraitPreview = memo(function PortraitPreview({
           </span>
         </div>
         <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-          {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · Full 9:16
+          {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · Full
+          9:16
         </div>
       </div>
     );
@@ -99,7 +100,8 @@ export const PortraitPreview = memo(function PortraitPreview({
         </div>
       </div>
       <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-        {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} · {(deferredSplit * 100).toFixed(0)}% /{" "}
+        {MobileLayoutService.OUTPUT_W} × {MobileLayoutService.OUTPUT_H} ·{" "}
+        {(deferredSplit * 100).toFixed(0)}% /{" "}
         {((1 - deferredSplit) * 100).toFixed(0)}%
       </div>
     </div>

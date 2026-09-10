@@ -7,11 +7,20 @@
  * - v1: `{ version: 1, kind, settings }` wrapper (current).
  */
 import { z } from "zod";
-import { cutSettingsSchema, genericSettingsSchema, mobileSettingsSchema } from "./settings";
+import {
+  cutSettingsSchema,
+  genericSettingsSchema,
+  mobileSettingsSchema,
+} from "./settings";
 
 export const PLAN_VERSION = 1 as const;
 
-export const RENDER_KINDS = ["generic", "mobile", "mobile-subtitles", "cut"] as const;
+export const RENDER_KINDS = [
+  "generic",
+  "mobile",
+  "mobile-subtitles",
+  "cut",
+] as const;
 export type RenderKind = (typeof RENDER_KINDS)[number];
 
 export const JOB_STATES = [
@@ -60,7 +69,9 @@ export type PlanMigration =
   | { ok: false; issues: string[]; reason: "invalid" | "unsupported-version" };
 
 /** Detect the render kind of a legacy (v0) bare settings object. */
-export function detectLegacyKind(raw: Record<string, unknown>): RenderKind | null {
+export function detectLegacyKind(
+  raw: Record<string, unknown>,
+): RenderKind | null {
   if (Array.isArray(raw.cuts)) return "cut";
   if (raw.mobileLayout && typeof raw.mobileLayout === "object") return "mobile";
   if (typeof raw.exportFormat === "string") return "generic";
@@ -77,7 +88,11 @@ export function migrateRenderPlan(
   defaultKind: RenderKind = "generic",
 ): PlanMigration {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { ok: false, issues: ["plan: must be a JSON object"], reason: "invalid" };
+    return {
+      ok: false,
+      issues: ["plan: must be a JSON object"],
+      reason: "invalid",
+    };
   }
   const obj = raw as Record<string, unknown>;
   if (obj.version === undefined) {
@@ -96,7 +111,11 @@ export function migrateRenderPlan(
     }
     return {
       ok: true,
-      plan: { version: PLAN_VERSION, kind, settings: parsed.data } as RenderPlan,
+      plan: {
+        version: PLAN_VERSION,
+        kind,
+        settings: parsed.data,
+      } as RenderPlan,
     };
   }
   if (obj.version !== PLAN_VERSION) {

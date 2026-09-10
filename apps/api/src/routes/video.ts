@@ -14,7 +14,15 @@ import {
   type RenderKind,
 } from "@repo/contracts";
 import { isVisualFiltersDefault } from "@repo/ffmpeg-filters";
-import { buildFFmpegArgs, telegramWebmTgDuration, TELEGRAM_WEBM_TG_TARGET_BYTES, TELEGRAM_WEBM_TG_CRF_STEP, TELEGRAM_WEBM_TG_CRF_MIN, TELEGRAM_WEBM_TG_CRF_MAX, clampTelegramCrf } from "../utils/ffmpegBuilder.js";
+import {
+  buildFFmpegArgs,
+  telegramWebmTgDuration,
+  TELEGRAM_WEBM_TG_TARGET_BYTES,
+  TELEGRAM_WEBM_TG_CRF_STEP,
+  TELEGRAM_WEBM_TG_CRF_MIN,
+  TELEGRAM_WEBM_TG_CRF_MAX,
+  clampTelegramCrf,
+} from "../utils/ffmpegBuilder.js";
 import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { consumeUpload } from "./upload.js";
@@ -147,7 +155,9 @@ function releaseJobFiles(
     job.inputFileId ? null : job.temporaryInputPath,
     job.outputFileId ? null : job.outputPath,
     job.alternateFileId ? null : job.alternateOutputPath,
-    ...((job.subtitleFileIds?.length ?? 0) > 0 ? [] : (job.subtitlePaths ?? [])),
+    ...((job.subtitleFileIds?.length ?? 0) > 0
+      ? []
+      : (job.subtitlePaths ?? [])),
   ].filter((x): x is string => !!x);
   for (const p of legacyPaths) {
     try {
@@ -347,7 +357,12 @@ async function resolveInputFile(
     throw e;
   }
   AssetStore.finalize(id);
-  return { assetId: id, temporaryPath: tmp, filename: file.name, isChunked: false };
+  return {
+    assetId: id,
+    temporaryPath: tmp,
+    filename: file.name,
+    isChunked: false,
+  };
 }
 
 /**
@@ -570,11 +585,7 @@ async function runWebmTgCrfSearch(
         }
         if (size === target) break;
         const next = crf - step;
-        if (
-          next < TELEGRAM_WEBM_TG_CRF_MIN ||
-          visited.has(next)
-        )
-          break;
+        if (next < TELEGRAM_WEBM_TG_CRF_MIN || visited.has(next)) break;
         crf = next;
       } else {
         try {
@@ -584,11 +595,7 @@ async function runWebmTgCrfSearch(
         // best is the closest fit from above — stop instead of oscillating.
         if (bestCrf !== null) break;
         const next = crf + step;
-        if (
-          next > TELEGRAM_WEBM_TG_CRF_MAX ||
-          visited.has(next)
-        )
-          break;
+        if (next > TELEGRAM_WEBM_TG_CRF_MAX || visited.has(next)) break;
         crf = next;
       }
     }
@@ -1003,7 +1010,8 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   }
   // Prefer keys subtitle_0, subtitle_1 etc, sorted numerically
   const pngEntries = entries.filter(
-    ([k, v]) => v instanceof File && k.startsWith(MULTIPART_FIELDS.subtitleFilePrefix),
+    ([k, v]) =>
+      v instanceof File && k.startsWith(MULTIPART_FIELDS.subtitleFilePrefix),
   );
   if (pngEntries.length) {
     pngEntries.sort((a, b) => {
@@ -1043,7 +1051,9 @@ app.post("/transcode/mobile/subtitles", async (c) => {
       // clamp instead of reject? but reject if clearly outside
     }
     if (s.x < 0 || s.x > 100 || s.y < 0 || s.y > 100) {
-      return err(c, "SUBTITLES_INVALID", { message: "Subtitle x/y must be 0-100" });
+      return err(c, "SUBTITLES_INVALID", {
+        message: "Subtitle x/y must be 0-100",
+      });
     }
   }
 
@@ -1158,9 +1168,11 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   });
   claimInputAsset(subtitleAssetId, subtitleIsChunked, jobId);
   const started = enqueue(jobId, () =>
-    runTranscode(jobId, originalArgs, Math.max(0.001, trimEnd - trimStart)).finally(() =>
-      settleJobFiles(jobId),
-    ),
+    runTranscode(
+      jobId,
+      originalArgs,
+      Math.max(0.001, trimEnd - trimStart),
+    ).finally(() => settleJobFiles(jobId)),
   );
   if (!started) {
     rollbackQueuedJob(jobId);
@@ -1391,8 +1403,7 @@ app.post("/transcode", async (c) => {
       crop: settings.crop ?? { x: 0, y: 0, width: 100, height: 100 },
       format,
       fps: isWebmTg ? undefined : settings.exportFps,
-      crf:
-        settings.exportFormat === "mov" ? undefined : settings.exportQuality,
+      crf: settings.exportFormat === "mov" ? undefined : settings.exportQuality,
       customArgs: custom.args,
       visualFilters: visualFilters as never,
       extraVideoFilters: custom.extraVf,
@@ -1439,8 +1450,12 @@ app.post("/transcode", async (c) => {
     if (isWebmTg) {
       // Iterative CRF search (±2) toward TELEGRAM_WEBM_TG_TARGET_BYTES.
       const startCrf = clampTelegramCrf(settings.exportQuality);
-      const cropSetting =
-        settings.crop ?? { x: 0, y: 0, width: 100, height: 100 };
+      const cropSetting = settings.crop ?? {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      };
       await runWebmTgCrfSearch(
         jobId,
         (crf, attemptPath) =>
@@ -1822,7 +1837,10 @@ app.get("/transcode/download/:jobId", async (c) => {
   if (rec) {
     ArtifactStore.syncSize(rec.id);
     const fresh = ArtifactStore.get(rec.id);
-    return streamFile(fresh ?? rec, c.req.header("Range") ?? c.req.header("range"));
+    return streamFile(
+      fresh ?? rec,
+      c.req.header("Range") ?? c.req.header("range"),
+    );
   }
   const filePath = job.outputPath;
   let stat: { size: number };

@@ -17,13 +17,25 @@ export function cropPercentToPixels(
   sourceWidth: number,
   sourceHeight: number,
 ): PixelCrop {
-  const cw = Math.max(1, Math.min(sourceWidth, Math.round((crop.width / 100) * sourceWidth)));
-  const ch = Math.max(1, Math.min(sourceHeight, Math.round((crop.height / 100) * sourceHeight)));
+  const cw = Math.max(
+    1,
+    Math.min(sourceWidth, Math.round((crop.width / 100) * sourceWidth)),
+  );
+  const ch = Math.max(
+    1,
+    Math.min(sourceHeight, Math.round((crop.height / 100) * sourceHeight)),
+  );
   return {
     cw,
     ch,
-    cx: Math.max(0, Math.min(sourceWidth - cw, Math.round((crop.x / 100) * sourceWidth))),
-    cy: Math.max(0, Math.min(sourceHeight - ch, Math.round((crop.y / 100) * sourceHeight))),
+    cx: Math.max(
+      0,
+      Math.min(sourceWidth - cw, Math.round((crop.x / 100) * sourceWidth)),
+    ),
+    cy: Math.max(
+      0,
+      Math.min(sourceHeight - ch, Math.round((crop.y / 100) * sourceHeight)),
+    ),
   };
 }
 
@@ -35,7 +47,12 @@ export function zoneToPixels(
 ): PixelCrop {
   return cropPercentToPixels(
     normalized
-      ? { x: zone.x * 100, y: zone.y * 100, width: zone.width * 100, height: zone.height * 100 }
+      ? {
+          x: zone.x * 100,
+          y: zone.y * 100,
+          width: zone.width * 100,
+          height: zone.height * 100,
+        }
       : zone,
     sourceWidth,
     sourceHeight,
@@ -119,7 +136,9 @@ function isDefaultEq(eq: EqSettings): boolean {
   );
 }
 
-export function isVisualFiltersDefault(v: VisualFilters | undefined | null): boolean {
+export function isVisualFiltersDefault(
+  v: VisualFilters | undefined | null,
+): boolean {
   if (!v) return true;
   return (
     isDefaultEq(v.eq) &&
@@ -137,14 +156,22 @@ export function normalizeVisualFilters(
   const d = DEFAULT_VISUAL_FILTERS;
   return {
     eq: {
-      brightness: clamp(Number(input?.eq?.brightness ?? d.eq.brightness), -1, 1),
+      brightness: clamp(
+        Number(input?.eq?.brightness ?? d.eq.brightness),
+        -1,
+        1,
+      ),
       contrast: clamp(Number(input?.eq?.contrast ?? d.eq.contrast), 0, 2),
       saturation: clamp(Number(input?.eq?.saturation ?? d.eq.saturation), 0, 3),
       gamma: clamp(Number(input?.eq?.gamma ?? d.eq.gamma), 0.1, 10),
     },
     denoise: {
       enabled: !!input?.denoise?.enabled,
-      strength: clamp(Number(input?.denoise?.strength ?? d.denoise.strength), 0, 10),
+      strength: clamp(
+        Number(input?.denoise?.strength ?? d.denoise.strength),
+        0,
+        10,
+      ),
     },
     deshake: { enabled: !!input?.deshake?.enabled },
     transform: {
@@ -225,7 +252,8 @@ export function buildVisualVideoFilters(v: VisualFilters): string[] {
  */
 export function buildCanvasCssFilter(v: VisualFilters): string {
   const parts: string[] = [];
-  if (v.eq.brightness !== 0) parts.push(`brightness(${fmt(1 + v.eq.brightness)})`);
+  if (v.eq.brightness !== 0)
+    parts.push(`brightness(${fmt(1 + v.eq.brightness)})`);
   if (v.eq.contrast !== 1) parts.push(`contrast(${fmt(v.eq.contrast)})`);
   if (v.eq.saturation !== 1) parts.push(`saturate(${fmt(v.eq.saturation)})`);
   return parts.join(" ");

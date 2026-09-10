@@ -30,7 +30,11 @@ export function useCutList({ duration }: { duration: number }) {
         toast.error("Video duration unknown yet");
         return;
       }
-      const t = mobileLayoutService.clamp(currentTime, 0, Math.max(0, duration - 0.3));
+      const t = mobileLayoutService.clamp(
+        currentTime,
+        0,
+        Math.max(0, duration - 0.3),
+      );
       const end = mobileLayoutService.clamp(t + 2, t + 0.2, duration);
       if (end - t < 0.2) {
         toast.error("Not enough room at playhead");

@@ -4,11 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 export type JobStatus =
-  | "queued"
-  | "processing"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "queued" | "processing" | "completed" | "failed" | "cancelled";
 
 export interface JobRow {
   jobId: string;

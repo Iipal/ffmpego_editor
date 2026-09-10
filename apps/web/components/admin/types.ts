@@ -6,11 +6,7 @@ import type { HealthSnapshot } from "@/lib/health";
 // statuses queued|processing|completed|failed|cancelled, logTail tail log,
 // queuePosition for queued jobs, queue stats on the list response.
 export type JobStatus =
-  | "queued"
-  | "processing"
-  | "completed"
-  | "failed"
-  | "cancelled";
+  "queued" | "processing" | "completed" | "failed" | "cancelled";
 
 export interface JobEntry {
   jobId: string;

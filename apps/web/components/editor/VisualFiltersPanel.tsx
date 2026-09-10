@@ -75,9 +75,21 @@ export function VisualFiltersPanel() {
         <h4 className="text-xs font-semibold">Color</h4>
         {(
           [
-            { key: "brightness", label: "Brightness", min: -1, max: 1, step: 0.01 },
+            {
+              key: "brightness",
+              label: "Brightness",
+              min: -1,
+              max: 1,
+              step: 0.01,
+            },
             { key: "contrast", label: "Contrast", min: 0, max: 2, step: 0.01 },
-            { key: "saturation", label: "Saturation", min: 0, max: 3, step: 0.01 },
+            {
+              key: "saturation",
+              label: "Saturation",
+              min: 0,
+              max: 3,
+              step: 0.01,
+            },
             { key: "gamma", label: "Gamma", min: 0.1, max: 10, step: 0.1 },
           ] as const
         ).map((row) => {
@@ -156,8 +168,7 @@ export function VisualFiltersPanel() {
                       ...previous,
                       denoise: {
                         ...previous.denoise,
-                        strength:
-                          DEFAULT_VISUAL_FILTERS.denoise.strength,
+                        strength: DEFAULT_VISUAL_FILTERS.denoise.strength,
                       },
                     }))
                   }
@@ -312,7 +323,9 @@ export function VisualFiltersPanel() {
           </Button>
         </div>
         <pre className="overflow-auto rounded-md border border-kumo-line bg-kumo-recessed p-2 text-[11px] leading-4 whitespace-pre-wrap break-all">
-          <code>{vf.length ? vf.join(",") : "(no visual filters — passthrough)"}</code>
+          <code>
+            {vf.length ? vf.join(",") : "(no visual filters — passthrough)"}
+          </code>
         </pre>
         {notes.map((note) => (
           <p key={note} className="text-[11px] leading-4 text-kumo-subtle">

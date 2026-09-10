@@ -34,7 +34,9 @@ function readStored(): HistoryEntry[] {
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (e): e is HistoryEntry =>
-        !!e && typeof e === "object" && typeof (e as HistoryEntry).jobId === "string",
+        !!e &&
+        typeof e === "object" &&
+        typeof (e as HistoryEntry).jobId === "string",
     );
   } catch {
     return [];
@@ -43,7 +45,10 @@ function readStored(): HistoryEntry[] {
 
 function persist(entries: HistoryEntry[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_ENTRIES)));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(entries.slice(0, MAX_ENTRIES)),
+    );
   } catch {}
 }
 
@@ -61,10 +66,10 @@ export function useHistoryStore() {
 
 export function trackHistoryEntry(entry: HistoryEntry): void {
   historyStore.setState((p) => {
-    const entries = [entry, ...p.entries.filter((e) => e.jobId !== entry.jobId)].slice(
-      0,
-      MAX_ENTRIES,
-    );
+    const entries = [
+      entry,
+      ...p.entries.filter((e) => e.jobId !== entry.jobId),
+    ].slice(0, MAX_ENTRIES);
     persist(entries);
     return { entries };
   });
@@ -80,7 +85,9 @@ export function untrackHistoryEntry(jobId: string): void {
 
 export function renameHistoryEntry(jobId: string, label: string): void {
   historyStore.setState((p) => {
-    const entries = p.entries.map((e) => (e.jobId === jobId ? { ...e, label } : e));
+    const entries = p.entries.map((e) =>
+      e.jobId === jobId ? { ...e, label } : e,
+    );
     persist(entries);
     return { entries };
   });

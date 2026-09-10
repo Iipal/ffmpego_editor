@@ -6,7 +6,7 @@
     "dev": "next dev -p 3050",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
+    "lint": "prettier --write .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -34,8 +34,6 @@
     "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "10.10.0",
-    "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
     "typescript": "7.0.2"
   },

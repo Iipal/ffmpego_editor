@@ -4,5 +4,8 @@
   "private": true,
   "exports": {
     "./tsconfig.json": "./tsconfig.json"
+  },
+  "scripts": {
+    "lint": "prettier --write ."
   }
 }

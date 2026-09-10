@@ -69,7 +69,8 @@ export function migratePreset(raw: unknown): MigratePresetResult {
           ? r.id
           : `custom:${Math.random().toString(36).slice(2, 10)}`,
       name: typeof r.name === "string" && r.name ? r.name : "Imported preset",
-      description: typeof r.description === "string" ? r.description : undefined,
+      description:
+        typeof r.description === "string" ? r.description : undefined,
       target: r.target ?? "transcode",
       settings: r.settings ?? {},
       audioFormat: r.audioFormat,
@@ -79,7 +80,10 @@ export function migratePreset(raw: unknown): MigratePresetResult {
     return { ok: true, preset: parsed.data, reason: "migrated-v0" };
   }
   if (r.version !== PRESET_VERSION) {
-    return { ok: false, reason: `unsupported preset version ${String(r.version)}` };
+    return {
+      ok: false,
+      reason: `unsupported preset version ${String(r.version)}`,
+    };
   }
   const parsed = exportPresetSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, reason: "invalid preset body" };
@@ -107,37 +111,74 @@ function builtin(
 
 /** Shipped defaults. Ids are stable — user edits never mutate these. */
 export const BUILTIN_PRESETS: readonly ExportPreset[] = [
-  builtin("source-archive", "Source-quality archive", "Near-lossless MP4, full resolution, original pacing.", "transcode", {
-    exportFormat: "mp4",
-    exportQuality: 16,
-    exportSpeed: 1,
-    filenameSuffix: "_archive",
-  }),
-  builtin("tg-animated-sticker", "Telegram Sticker", "Specific Telegram sticker preset: 30fps, width 512px, VP9, no audio, up to 3s. Trim, crop, filename and quality apply.", "transcode", {
-    exportFormat: "webm-tg",
-    exportQuality: 25,
-    exportSpeed: 1,
-    filenameSuffix: "_tg"
-  }),
-  builtin("youtube", "YouTube", "H.264 MP4, 30fps, balanced quality for uploads.", "transcode", {
-    exportFormat: "mp4",
-    exportFps: 30,
-    exportQuality: 20,
-    exportSpeed: 1,
-    filenameSuffix: "_youtube",
-  }),
-  builtin("shorts-reels", "Shorts / Reels", "Vertical-friendly MP4 at 60fps. Crop to 9:16 first.", "transcode", {
-    exportFormat: "mp4",
-    exportFps: 60,
-    exportQuality: 20,
-    exportSpeed: 1,
-    filenameSuffix: "_shorts",
-  }),
-  builtin("gif-preview", "GIF preview", "Small silent GIF for quick sharing. Audio is dropped.", "transcode", {
-    exportFormat: "gif",
-    exportFps: 15,
-    exportSpeed: 1,
-    filenameSuffix: "_preview",
-  }),
-  builtin("audio-only", "Audio only", "Extract the audio track as MP3, no video.", "audio-extract", {}, "mp3"),
+  builtin(
+    "source-archive",
+    "Source-quality archive",
+    "Near-lossless MP4, full resolution, original pacing.",
+    "transcode",
+    {
+      exportFormat: "mp4",
+      exportQuality: 16,
+      exportSpeed: 1,
+      filenameSuffix: "_archive",
+    },
+  ),
+  builtin(
+    "tg-animated-sticker",
+    "Telegram Sticker",
+    "Specific Telegram sticker preset: 30fps, width 512px, VP9, no audio, up to 3s. Trim, crop, filename and quality apply.",
+    "transcode",
+    {
+      exportFormat: "webm-tg",
+      exportQuality: 25,
+      exportSpeed: 1,
+      filenameSuffix: "_tg",
+    },
+  ),
+  builtin(
+    "youtube",
+    "YouTube",
+    "H.264 MP4, 30fps, balanced quality for uploads.",
+    "transcode",
+    {
+      exportFormat: "mp4",
+      exportFps: 30,
+      exportQuality: 20,
+      exportSpeed: 1,
+      filenameSuffix: "_youtube",
+    },
+  ),
+  builtin(
+    "shorts-reels",
+    "Shorts / Reels",
+    "Vertical-friendly MP4 at 60fps. Crop to 9:16 first.",
+    "transcode",
+    {
+      exportFormat: "mp4",
+      exportFps: 60,
+      exportQuality: 20,
+      exportSpeed: 1,
+      filenameSuffix: "_shorts",
+    },
+  ),
+  builtin(
+    "gif-preview",
+    "GIF preview",
+    "Small silent GIF for quick sharing. Audio is dropped.",
+    "transcode",
+    {
+      exportFormat: "gif",
+      exportFps: 15,
+      exportSpeed: 1,
+      filenameSuffix: "_preview",
+    },
+  ),
+  builtin(
+    "audio-only",
+    "Audio only",
+    "Extract the audio track as MP3, no video.",
+    "audio-extract",
+    {},
+    "mp3",
+  ),
 ];

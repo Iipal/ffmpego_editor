@@ -91,12 +91,9 @@ export const visualFiltersSchema = z.object({
     .object({
       flipH: z.boolean().default(false),
       flipV: z.boolean().default(false),
-      rotate: z.union([
-        z.literal(0),
-        z.literal(90),
-        z.literal(180),
-        z.literal(270),
-      ]).default(0),
+      rotate: z
+        .union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)])
+        .default(0),
     })
     .default({ flipH: false, flipV: false, rotate: 0 }),
 });
@@ -251,8 +248,7 @@ export function normalizeTrimAlias<
 }
 
 export type SettingsParse<T> =
-  | { ok: true; data: T }
-  | { ok: false; issues: string[] };
+  { ok: true; data: T } | { ok: false; issues: string[] };
 
 /** Flatten zod issues to `path.to.field: message` strings. */
 export function flattenIssues(error: z.ZodError): string[] {

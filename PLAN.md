@@ -47,10 +47,10 @@
 1. **User Selects File** $\rightarrow$ `VideoUploader.tsx` generates a local browser Blob URL for instant video player preview.
 2. **Metadata Inspection (Task 6.4)** $\rightarrow$ The file is sent to Hono `/api/metadata`. `ffprobe` extracts exact native specs (e.g., $1920 \times 1080$, $59.94\text{ fps}$, $128.42\text{s}$) and returns them to the frontend.
 3. **Store Hydration** $\rightarrow$ `TanStack Store` initializes the editor state:
-* Sets exact crop bounds using real pixel dimensions.
-* Sets default export format and framerate to match source metadata.
-* Sets precise trim duration bounds.
 
+- Sets exact crop bounds using real pixel dimensions.
+- Sets default export format and framerate to match source metadata.
+- Sets precise trim duration bounds.
 
 4. **User Interacts** $\rightarrow$ Player controls, trim handles, crop boxes, and settings panels react to and update the `TanStack Store` in real-time.
 5. **Transcode Execution** $\rightarrow$ User hits export, sending the store state + source file to the Hono backend to build and run the final `ffmpeg` command.
@@ -64,15 +64,15 @@
 - [x] **Task 1.1: Shadcn Component Installation**
   - Execute: `cd apps/web && bunx --bun shadcn@latest add card button input slider select label textarea tooltip`
 - [x] **Task 1.2: Global Store Setup**
- - Create `apps/web/store/useVideoStore.ts` using `@tanstack/react-store`.
- - Define state properties:
-   - `file: File | null`
-   - `mediaUrl: string | null`
-   - `currentTime: number`
-   - `duration: number`
-   - `isPlaying: boolean`
-   - `isMuted: boolean`
-   - `volume: number` (0 to 1)
+- Create `apps/web/store/useVideoStore.ts` using `@tanstack/react-store`.
+- Define state properties:
+  - `file: File | null`
+  - `mediaUrl: string | null`
+  - `currentTime: number`
+  - `duration: number`
+  - `isPlaying: boolean`
+  - `isMuted: boolean`
+  - `volume: number` (0 to 1)
 - [x] **Task 1.3: Drag-and-Drop Video Uploader**
   - Create `apps/web/components/editor/VideoUploader.tsx`.
   - Restrict accepted MIME types strictly to `video/mp4` and `video/webm`.
@@ -81,8 +81,6 @@
   - Create `apps/web/components/editor/VideoPlayer.tsx` using a native HTML `<video>` element wrapped in a relative container.
   - Bind `ref` to the video element to handle programmatic `play()`, `pause()`, volume, and `currentTime` updates.
   - Implement a `timeupdate` event listener on the video element to keep `useVideoStore.currentTime` synchronized.
-
-
 
 ---
 
@@ -101,8 +99,6 @@
 - [x] **Task 2.4: Native Fullscreen Integration**
   - Implement a Fullscreen handler targeting the wrapper `div` of the Video Player using the standard HTML Fullscreen API (`requestFullscreen()`).
 
-
-
 ---
 
 ### Phase 3: Interactive Timeline & Trim Controller
@@ -115,11 +111,9 @@
   - Render a dual-handle range slider (or custom drag handles) representing `trimStart` and `trimEnd`.
   - Render a playhead bar showing `currentTime` relative to the track width.
 - [x] **Task 3.3: Sync Video Playback with Trim Range**
-  -  Write an effect inside `VideoPlayer.tsx` listening to `currentTime`.
-  -  **Rule:** If `currentTime` exceeds `trimRange[1]`, reset `currentTime` to `trimRange[0]`.
-  -  **Rule:** If the user clicks play when `currentTime` is outside the `trimRange`, automatically seek to `trimRange[0]` before playing.
-
-
+  - Write an effect inside `VideoPlayer.tsx` listening to `currentTime`.
+  - **Rule:** If `currentTime` exceeds `trimRange[1]`, reset `currentTime` to `trimRange[0]`.
+  - **Rule:** If the user clicks play when `currentTime` is outside the `trimRange`, automatically seek to `trimRange[0]` before playing.
 
 ---
 
@@ -141,8 +135,6 @@
   - Apply dynamic CSS transforms (`transform: scale(...) translate(...)`) to the container `<video>` element based on the current crop bounding box.
   - When the user finishes cropping, smoothly transition the view so the selected crop area fills the active player view space.
 
-
-
 ---
 
 ### Phase 5: Editor Sidebar & Configuration Panels
@@ -163,11 +155,8 @@
     - `60 fps`
     - Custom numeric input.
 
-
 - [x] **Task 5.4: FFmpeg Raw Arguments Input**
   - Add a Shadcn `Textarea` for optional custom FFmpeg CLI flags (e.g., `-vf eq=contrast=1.2 -b:v 2M`).
-
-
 
 ---
 
@@ -183,33 +172,34 @@
   - Output path: `os.tmpdir()/temp_<jobId>.<ext>` (kept until the user deletes the job; downloading does not delete).
   - Lossless MP4: `-c:v libx264 -crf 0 -pix_fmt yuv444p`.
 
-
 - [x] **Task 6.2: Hono Transcode Endpoint**
   - In `apps/api/src/index.ts`, expose a POST endpoint `/api/transcode`.
   - Receive the file payload and execution settings.
   - Use `Bun.spawn()` to invoke local `ffmpeg`.
   - Stream progress output (parsed from FFmpeg stderr) back via SSE (`/api/transcode/progress`).
 
-
 - [x] **Task 6.3: Client Mutation & Progress Bar**
- - In `apps/web`, create a TanStack Query mutation to trigger processing.
- - Display a Shadcn `Progress` bar and toaster notification (`Sonner`) when processing starts, finishes, or errors out.
+- In `apps/web`, create a TanStack Query mutation to trigger processing.
+- Display a Shadcn `Progress` bar and toaster notification (`Sonner`) when processing starts, finishes, or errors out.
 
 Here is the addition for your `PLAN.md`. This task introduces an inspection endpoint using `ffprobe` (which comes bundled alongside `ffmpeg`) to inspect the video right when the user selects or uploads it.
 
 ### Phase 7: Video Metadata Inspection Endpoint (`ffprobe`)**
+
 - [x] **Backend metadata inspection**
 - **Objective:** Read and return source video technical specifications (exact duration, dimensions, native framerate, bitrates, video/audio codecs) directly to the frontend state as soon as a video file is loaded.
 - **Backend Implementation (`apps/api/src/routes/metadata.ts`):**
 - Create a Hono POST endpoint `/api/metadata`.
 - Receive the temporary local file path or raw file buffer.
 - Spawn `ffprobe` via `Bun.spawn()` to extract JSON metadata without decoding the media:
+
 ```bash
 ffprobe -v quiet -print_format json -show_format -show_streams <inputFile>
 
 ```
 
 - Parse the `stdout` buffer and structure the JSON response:
+
 ```ts
 interface VideoMetadata {
   filename: string;
@@ -217,13 +207,13 @@ interface VideoMetadata {
   durationSeconds: number;
   width: number;
   height: number;
-  frameRate: number;       // calculated from r_frame_rate (e.g., "60/1" -> 60)
-  videoCodec: string;      // e.g., "h264", "vp9"
-  audioCodec?: string;     // e.g., "aac", "opus"
+  frameRate: number; // calculated from r_frame_rate (e.g., "60/1" -> 60)
+  videoCodec: string; // e.g., "h264", "vp9"
+  audioCodec?: string; // e.g., "aac", "opus"
   bitrateKbps: number;
 }
-
 ```
+
 - **Frontend Integration (`apps/web`):**
 - [x] **Frontend metadata hydration**
 - Create a TanStack Query hook `useVideoMetadataMutation()` in `apps/web/hooks/useVideoMetadata.ts`.

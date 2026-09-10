@@ -15,7 +15,7 @@ Every API error response uses exactly this shape:
   "issues": ["trimRange: ..."], // optional — per-field reasons (400s)
   "requestId": "abc-123", // log correlation (honors `x-request-id`)
   "jobId": "…", // only when the error belongs to a job
-  "details": { "neededBytes": 1, "quotaBytes": 2 } // machine-readable extras
+  "details": { "neededBytes": 1, "quotaBytes": 2 }, // machine-readable extras
 }
 ```
 
@@ -47,13 +47,13 @@ if (!res.ok) {
 `classifyFfmpegExit(exitCode, logTail)` maps process results to the same
 error vocabulary so SSE terminal states and API errors agree:
 
-| Input | `code` | `retryable` |
-|---|---|---|
-| `0` | `TRANSCODE_FAILED` ("reported success") | no |
-| `137` / `143` (SIGKILL/SIGTERM, often OOM) | `TRANSCODE_FAILED` | **yes** |
-| stderr matches `out of memory|cannot allocate|no space left|disk quota` | `QUOTA_EXCEEDED` | **yes** |
-| stderr matches `invalid data|no such file|unsupported|…` | `UNSUPPORTED_MEDIA` | no |
-| anything else non-zero | `TRANSCODE_FAILED` | no |
+| Input                                      | `code`                                  | `retryable`   |
+| ------------------------------------------ | --------------------------------------- | ------------- |
+| `0`                                        | `TRANSCODE_FAILED` ("reported success") | no            |
+| `137` / `143` (SIGKILL/SIGTERM, often OOM) | `TRANSCODE_FAILED`                      | **yes**       |
+| stderr matches `out of memory              | cannot allocate                         | no space left | disk quota` | `QUOTA_EXCEEDED`    | **yes** |
+| stderr matches `invalid data               | no such file                            | unsupported   | …`          | `UNSUPPORTED_MEDIA` | no      |
+| anything else non-zero                     | `TRANSCODE_FAILED`                      | no            |
 
 ## Settings schemas
 

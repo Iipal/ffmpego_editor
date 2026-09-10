@@ -8,10 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  closeComparison,
-  useCompareStore,
-} from "@/store/compareSlice";
+import { closeComparison, useCompareStore } from "@/store/compareSlice";
 
 /** Global side-by-side source vs render comparison, opened on export success. */
 export function CompareDialog() {
@@ -31,7 +28,9 @@ export function CompareDialog() {
           >
             {state.title}
           </DialogTitle>
-          {state.meta ? <DialogDescription>{state.meta}</DialogDescription> : null}
+          {state.meta ? (
+            <DialogDescription>{state.meta}</DialogDescription>
+          ) : null}
         </DialogHeader>
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -75,7 +74,6 @@ export function CompareDialog() {
                 />
               ) : null}
               {state.outputUrl && state.outputKind === "image" ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={state.outputUrl}
                   alt="Render output"

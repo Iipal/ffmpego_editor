@@ -4,9 +4,9 @@ Local-only video editor — trim, crop, reframe 16:9 → 9:16, burn subtitles,
 batch-convert folders. Next.js frontend, Hono API on Bun, local
 `ffmpeg`/`ffprobe`. **100% local:** videos never leave your machine.
 
-| App | Command | URL |
-|---|---|---|
-| `apps/web` | `next dev -p 3050` | http://localhost:3050 |
+| App        | Command                        | URL                   |
+| ---------- | ------------------------------ | --------------------- |
+| `apps/web` | `next dev -p 3050`             | http://localhost:3050 |
 | `apps/api` | `bun run --watch src/index.ts` | http://localhost:3100 |
 
 ```bash
@@ -59,12 +59,12 @@ flowchart LR
     A -. uses .-> CT & TY & FF
 ```
 
-| Package | Single source of truth for |
-|---|---|
-| `@repo/contracts` | zod settings schemas, render plans (`migrateRenderPlan`), multipart keys (`MULTIPART_FIELDS`, `UPLOAD_ID_*`), error envelope (`ERROR_STATUS`, `classifyFfmpegExit`) |
-| `@repo/types` | `TranscodeProgress/Response`, `FFprobeReport`, `MobileLayout/CropZone`, `Subtitle/*`, `CutSegment` |
-| `@repo/ffmpeg-filters` | `cropPercentToPixels`/`zoneToPixels`, visual-filter builders — canvas preview and exporter can't drift |
-| `@repo/ui` + `@repo/config` | Shadcn primitives, Tailwind/TS/ESLint configs (web-only for `ui`) |
+| Package                     | Single source of truth for                                                                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@repo/contracts`           | zod settings schemas, render plans (`migrateRenderPlan`), multipart keys (`MULTIPART_FIELDS`, `UPLOAD_ID_*`), error envelope (`ERROR_STATUS`, `classifyFfmpegExit`) |
+| `@repo/types`               | `TranscodeProgress/Response`, `FFprobeReport`, `MobileLayout/CropZone`, `Subtitle/*`, `CutSegment`                                                                  |
+| `@repo/ffmpeg-filters`      | `cropPercentToPixels`/`zoneToPixels`, visual-filter builders — canvas preview and exporter can't drift                                                              |
+| `@repo/ui` + `@repo/config` | Shadcn primitives, Tailwind/TS/ESLint configs (web-only for `ui`)                                                                                                   |
 
 ## 3. Frontend → backend: one export, end to end
 
@@ -154,7 +154,7 @@ files (`/storage/stats`, `/files/:id/download`). Full table: `apps/api/README.md
 bun install
 bunx turbo dev        # web :3050 + api :3100
 bunx turbo build      # production builds
-bunx turbo lint       # eslint
+bunx turbo lint       # prettier --write .
 NEXT_PUBLIC_API_URL=http://localhost:3100 bunx turbo dev  # point web elsewhere
 ```
 
