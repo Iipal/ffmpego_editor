@@ -8,7 +8,7 @@ import { mobileLayoutService } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
-import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
+import { googleFonts } from "@/lib/subtitles/googleFonts";
 import { NOOP, initAppOnce } from "./heavy-modules";
 import { getSubtitleTrack } from "./subtitle-helpers";
 import { useSubtitleExport } from "./useSubtitleExport";
@@ -137,7 +137,7 @@ export function useSubtitleEditor() {
       ),
     );
     for (const f of uniq) {
-      ensureGoogleFontLoaded(f).catch(NOOP);
+      googleFonts.ensureGoogleFontLoaded(f).catch(NOOP);
     }
   }, [deferredSubtitles]);
 

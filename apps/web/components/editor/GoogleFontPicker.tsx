@@ -16,11 +16,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import {
-  ensureGoogleFontLoaded,
-  fetchGoogleFontsMeta,
-  isCyrillicSupported,
-} from "@/lib/subtitles/googleFonts";
+import { googleFonts } from "@/lib/subtitles/googleFonts";
 import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -56,7 +52,7 @@ export function GoogleFontPicker({
 
   useEffect(() => {
     let cancelled = false;
-    fetchGoogleFontsMeta()
+    googleFonts.fetchGoogleFontsMeta()
       .then((metas) => {
         if (cancelled) return;
         const families = metas.map((m) => m.family);
@@ -88,7 +84,7 @@ export function GoogleFontPicker({
 
   // ensure selected font is loaded for preview
   useEffect(() => {
-    if (value) ensureGoogleFontLoaded(value).catch(() => {});
+    if (value) googleFonts.ensureGoogleFontLoaded(value).catch(() => {});
   }, [value]);
 
   // reset query when closing to show initial 25 again
@@ -111,7 +107,7 @@ export function GoogleFontPicker({
     const q = query.trim().toLowerCase();
     const out: string[] = [];
     for (const f of fonts) {
-      if (cyrillicOnly && !isCyrillicSupported(f)) continue;
+      if (cyrillicOnly && !googleFonts.isCyrillicSupported(f)) continue;
       if (q && !f.toLowerCase().includes(q)) continue;
       out.push(f);
       if (out.length >= 25) break;
@@ -174,7 +170,7 @@ export function GoogleFontPicker({
                   (
                   {cyrillicOnly
                     ? filteredFonts.length
-                    : fonts.filter((f) => isCyrillicSupported(f)).length}{" "}
+                    : fonts.filter((f) => googleFonts.isCyrillicSupported(f)).length}{" "}
                   з підтримкою)
                 </span>
               </Label>
@@ -224,20 +220,20 @@ export function GoogleFontPicker({
                 filteredFonts.map((f) => {
                   const name = displayName(f);
                   const isSelected = value === f || displayName(value) === name;
-                  const supportsCy = isCyrillicSupported(f);
+                  const supportsCy = googleFonts.isCyrillicSupported(f);
                   return (
                     <CommandItem
                       key={f}
                       value={f}
                       onSelect={async (currentValue: string) => {
                         try {
-                          await ensureGoogleFontLoaded(currentValue);
+                          await googleFonts.ensureGoogleFontLoaded(currentValue);
                         } catch {}
                         onValueChange(currentValue);
                         setOpen(false);
                       }}
                       onMouseEnter={() => {
-                        ensureGoogleFontLoaded(f).catch(() => {});
+                        googleFonts.ensureGoogleFontLoaded(f).catch(() => {});
                       }}
                       className={cn(
                         "flex items-center gap-2 py-2",

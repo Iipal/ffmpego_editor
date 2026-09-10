@@ -71,7 +71,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `save-blob-file.ts`      | `SaveBlobFile` service: `saveBlobFile.save/fetchDownload/pickerTypesForExt`                                        |
 | `preload.ts`             | hover/focus intent preloads (`preloadUploadChunked`)                                                               |
 | `utils.ts`               | `cn` re-export, `NOOP` default callback                                                                            |
-| `subtitles/`             | PNG render, Google Fonts, `SubtitleStorage` service (types+defaults+storage)                                       |
+| `subtitles/`             | PNG render, `GoogleFonts` + `SubtitleStorage` services                                                             |
 
 ## Shared packages used
 

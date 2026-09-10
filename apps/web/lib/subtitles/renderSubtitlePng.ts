@@ -1,6 +1,6 @@
 "use client";
 import type { Subtitle } from "./subtitleStorage";
-import { ensureGoogleFontLoaded } from "./googleFonts";
+import { googleFonts } from "./googleFonts";
 
 export interface RenderedSubtitlePng {
   blob: Blob;
@@ -66,7 +66,7 @@ export async function renderSubtitlePng(
   // Use font family (may be Google Font) — dynamically import via Google Fonts CDN
   const fontFamily = style.fontFamily || "Inter, sans-serif";
   try {
-    await ensureGoogleFontLoaded(fontFamily);
+    await googleFonts.ensureGoogleFontLoaded(fontFamily);
   } catch {}
   // Ensure fonts are loaded if possible (best effort)
   try {
