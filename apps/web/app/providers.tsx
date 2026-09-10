@@ -10,7 +10,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompareDialog } from "@/components/export/CompareDialog";
 import { QueueDock } from "@/components/export/QueueDock";
 import { useGlobalShortcuts } from "@/components/command/useGlobalShortcuts";
-import { ThemeProvider } from "@/providers/ThemeProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -33,12 +32,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useGlobalShortcuts();
 
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>{children}</TooltipProvider>
-        <CompareDialog />
-        <QueueDock />
-      </QueryClientProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>{children}</TooltipProvider>
+      <CompareDialog />
+      <QueueDock />
+    </QueryClientProvider>
   );
 }

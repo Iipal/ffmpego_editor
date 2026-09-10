@@ -283,7 +283,8 @@ flowchart LR
 - `providers.tsx`: `QueryClientProvider` (`staleTime` 5 s, no refocus),
   `hydrateSourceStore` + `subscribeToTrimPersistence` on mount, global
   `CompareDialog` + `QueueDock` + `useGlobalShortcuts` (single-key transport
-  via `lib/playback-bus.ts`).
+  via `lib/playback-bus.ts`), `next-themes` `ThemeProvider`
+  (`attribute="class"`, system default).
 - Shared UI: `components/ui/*` (Shadcn: button, dialog, slider, select,
   sonner `Toaster`, tooltip…), `providers/ThemeProvider.tsx`,
   `components/ui/ThemeToggle.tsx`.

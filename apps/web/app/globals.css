@@ -5,7 +5,7 @@
 
 @source "../../node_modules/@cloudflare/kumo/dist/**/*.{js,ts,jsx,tsx}";
 
-@custom-variant dark (&:is(.dark *, [data-mode="dark"] *, [data-theme="dark"] *));
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
@@ -143,9 +143,7 @@
   --sidebar-ring: var(--focus-ring);
 }
 
-.dark,
-[data-mode="dark"],
-[data-theme="dark"] {
+.dark {
   --bg: oklch(10% 0 0);
   --surface: oklch(17% 0 0);
   --surface-warm: oklch(15% 0 0);
@@ -530,8 +528,7 @@
     background-color: oklch(21% 0.006 285.885 / 0.5);
   }
 
-  .dark .enterprise-overlay,
-  [data-mode="dark"] .enterprise-overlay {
+  .dark .enterprise-overlay {
     background-color: oklch(21% 0.006 285.885 / 0.7);
   }
 
