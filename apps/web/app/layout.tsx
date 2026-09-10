@@ -34,8 +34,24 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
       data-theme="kumo"
+      suppressHydrationWarning
     >
       <body className="min-h-full antialiased bg-background text-foreground">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function () {
+                try {
+                  var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var root = document.documentElement;
+                  root.classList.toggle('dark', isDark);
+                  root.setAttribute('data-mode', isDark ? 'dark' : 'light');
+                  root.setAttribute('data-theme', isDark ? 'dark' : 'kumo');
+                } catch (_) {}
+              })();
+            `,
+          }}
+        />
         <Providers>
           <Toaster />
           <div className="flex min-h-screen w-full items-stretch bg-kumo-canvas">

@@ -34,11 +34,17 @@ export function useAudioPreview({
   muted: boolean;
 }) {
   const tracksRef = useRef(tracks);
+  const tracksByIndexRef = useRef(
+    new Map(tracks.map((track) => [track.trackIndex, track])),
+  );
   const volumeRef = useRef(volume);
   const mutedRef = useRef(muted);
   const entriesRef = useRef<AudioEntry[]>([]);
   const contextRef = useRef<AudioContext | null>(null);
   tracksRef.current = tracks;
+  tracksByIndexRef.current = new Map(
+    tracks.map((track) => [track.trackIndex, track]),
+  );
   volumeRef.current = volume;
   mutedRef.current = muted;
 
@@ -85,9 +91,7 @@ export function useAudioPreview({
       const duration = Number.isFinite(video.duration) ? video.duration : 0;
       const playbackVolume = mutedRef.current ? 0 : volumeRef.current;
       for (const entry of entries) {
-        const track = tracksRef.current.find(
-          (candidate) => candidate.trackIndex === entry.trackIndex,
-        );
+        const track = tracksByIndexRef.current.get(entry.trackIndex);
         if (!track) continue;
         let multiplier = playbackVolume * 10 ** (track.gainDb / 20);
         if (isMutedAt(track, time)) multiplier = 0;
@@ -219,9 +223,7 @@ export function useAudioPreview({
     const time = video.currentTime;
     const duration = Number.isFinite(video.duration) ? video.duration : 0;
     for (const entry of entriesRef.current) {
-      const track = tracks.find(
-        (candidate) => candidate.trackIndex === entry.trackIndex,
-      );
+      const track = tracksByIndexRef.current.get(entry.trackIndex);
       if (!track) continue;
       let multiplier = muted ? 0 : volume * 10 ** (track.gainDb / 20);
       if (isMutedAt(track, time)) multiplier = 0;

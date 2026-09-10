@@ -24,7 +24,7 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
 
-  const activeIndex = tabs.findIndex((t) => t.id === activeTab);
+  const tabIds = tabs.map((tab) => tab.id).join("|");
 
   useEffect(() => {
     const el = tabRefs.current.get(activeTab);
@@ -36,7 +36,7 @@ const TabSwitcher: React.FC<TabSwitcherProps> = ({
       left: rect.left - listRect.left,
       width: rect.width,
     });
-  }, [activeTab, tabs]);
+  }, [activeTab, tabIds]);
 
   // Keep indicator in sync on resize
   useEffect(() => {

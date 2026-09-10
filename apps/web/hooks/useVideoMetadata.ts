@@ -123,6 +123,8 @@ export function useVideoMetadataMutation() {
             : null),
         };
       });
+
+      toast.info(`Updated the store ${metadata.bitrateKbps}`);
     },
     onError: (error) => {
       setSourceState((p) => ({ ...p, uploadStatus: "error" }));
@@ -191,8 +193,7 @@ export function useExtendedVideoMetadataMutation() {
     onError: (error) => {
       setSourceState((p) => ({ ...p, uploadStatus: "error" }));
       toast.error("Could not read extended video info.", {
-        description:
-          error instanceof Error ? error.message : undefined,
+        description: error instanceof Error ? error.message : undefined,
       });
     },
   });

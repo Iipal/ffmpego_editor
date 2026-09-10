@@ -149,9 +149,14 @@ export function useBulkEditorState() {
 
   // -- derived ---------------------------------------------------------------
 
-  const selectedCount = items.filter((it) => it.selected).length;
-  const completedCount = items.filter((it) => it.status === "completed").length;
-  const failedCount = items.filter((it) => it.status === "failed").length;
+  let selectedCount = 0;
+  let completedCount = 0;
+  let failedCount = 0;
+  for (const item of items) {
+    if (item.selected) selectedCount += 1;
+    if (item.status === "completed") completedCount += 1;
+    if (item.status === "failed") failedCount += 1;
+  }
   const splitLabel = stackedLayout
     ? `${Math.round(stackedLayout.splitRatio * 100)} / ${Math.round((1 - stackedLayout.splitRatio) * 100)}`
     : "—";

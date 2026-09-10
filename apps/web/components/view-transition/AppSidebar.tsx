@@ -12,16 +12,19 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "ffmpego-sidebar-collapsed";
+const STORAGE_KEY = "ffmpego-sidebar-collapsed:v1";
+const LEGACY_STORAGE_KEY = "ffmpego-sidebar-collapsed";
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored =
+        localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
       if (stored !== null) {
         setCollapsed(stored === "1");
+        localStorage.setItem(STORAGE_KEY, stored);
       } else if (window.innerWidth < 768) {
         setCollapsed(true);
       }

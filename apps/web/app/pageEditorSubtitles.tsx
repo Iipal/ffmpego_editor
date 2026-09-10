@@ -84,7 +84,7 @@ export default function PageEditorSubtitles() {
         }
         fileName={e.file?.name ?? ""}
         sourceLabel={
-          e.sourceWidth && e.sourceHeight
+          e.sourceWidth > 0 && e.sourceHeight > 0
             ? `${e.sourceWidth} × ${e.sourceHeight} px`
             : "—"
         }

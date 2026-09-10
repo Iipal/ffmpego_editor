@@ -35,10 +35,22 @@ import {
 // Each feature passes its own reset; behavior is preserved verbatim.
 
 export type VideoReset = (
-  prev: SourceSlice & CropSlice & CutSlice & MobileSlice & SubtitleSlice,
+  prev: {
+    source: SourceSlice;
+    crop: CropSlice;
+    cut: CutSlice;
+    mobile: MobileSlice;
+    subtitle: SubtitleSlice;
+  },
   file: File,
   mediaUrl: string,
-) => Partial<SourceSlice & CropSlice & CutSlice & MobileSlice & SubtitleSlice>;
+) => {
+  source?: Partial<SourceSlice>;
+  crop?: Partial<CropSlice>;
+  cut?: Partial<CutSlice>;
+  mobile?: Partial<MobileSlice>;
+  subtitle?: Partial<SubtitleSlice>;
+};
 
 export function validateVideoFile(file: File | undefined): file is File {
   if (!file) return false;
@@ -70,30 +82,33 @@ export const UploadOtherButton = memo(function UploadOtherButton({
   const metadataMutation = useVideoMetadataMutation();
 
   const onPick = useCallback(
-    (file: File | undefined) => {
+    async (file: File | undefined) => {
       if (!validateVideoFile(file)) return;
       const mediaUrl = URL.createObjectURL(file);
+
       if (clearTrimCache) {
         try {
           localStorage.removeItem("ffmpeg_editor_trimRange_v1");
         } catch {}
       }
+
       const previous = {
-        ...sourceStore.state,
-        ...cropStore.state,
-        ...cutStore.state,
-        ...mobileStore.state,
-        ...subtitleStore.state,
+        source: sourceStore.state,
+        crop: cropStore.state,
+        cut: cutStore.state,
+        mobile: mobileStore.state,
+        subtitle: subtitleStore.state,
       };
       const resetState = reset(previous, file, mediaUrl);
+
       setSourceState((prev) => {
         if (prev.mediaUrl) URL.revokeObjectURL(prev.mediaUrl);
-        return { ...prev, file, mediaUrl, ...resetState };
+        return { ...prev, file, mediaUrl, ...(resetState.source || {}) };
       });
-      setCropState((prev) => ({ ...prev, ...resetState }));
-      setCutState((prev) => ({ ...prev, ...resetState }));
-      setMobileState((prev) => ({ ...prev, ...resetState }));
-      setSubtitleState((prev) => ({ ...prev, ...resetState }));
+      setCropState((prev) => ({ ...prev, ...(resetState.crop || {}) }));
+      setCutState((prev) => ({ ...prev, ...(resetState.cut || {}) }));
+      setMobileState((prev) => ({ ...prev, ...(resetState.mobile || {}) }));
+      setSubtitleState((prev) => ({ ...prev, ...(resetState.subtitle || {}) }));
       metadataMutation.mutate(file);
     },
     [metadataMutation, reset, clearTrimCache],
