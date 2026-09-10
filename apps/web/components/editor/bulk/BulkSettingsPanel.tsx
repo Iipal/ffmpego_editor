@@ -13,7 +13,7 @@ export type BulkSettingsPanelProps = {
   useWatermark: boolean;
   splitLabel: string;
   layoutError: string | null;
-  isExporting: boolean;
+  activeExports: number;
   selectedCount: number;
   onPickInput: () => void;
   onPickOutput: () => void;
@@ -29,7 +29,7 @@ export function BulkSettingsPanel({
   useWatermark,
   splitLabel,
   layoutError,
-  isExporting,
+  activeExports,
   selectedCount,
   onPickInput,
   onPickOutput,
@@ -56,7 +56,6 @@ export function BulkSettingsPanel({
             size="sm"
             variant="secondary"
             onClick={onPickInput}
-            disabled={isExporting}
             className="h-7 shrink-0 rounded-md text-xs"
           >
             <FolderInput className="size-3.5" aria-hidden />
@@ -74,7 +73,6 @@ export function BulkSettingsPanel({
             size="sm"
             variant="secondary"
             onClick={onPickOutput}
-            disabled={isExporting}
             className="h-7 shrink-0 rounded-md text-xs"
           >
             <FolderOutput className="size-3.5" aria-hidden />
@@ -86,7 +84,6 @@ export function BulkSettingsPanel({
           <Switch
             checked={useWatermark}
             onCheckedChange={onWatermarkChange}
-            disabled={isExporting}
           />
         </div>
         <div className="flex items-center justify-between gap-2">
@@ -100,7 +97,6 @@ export function BulkSettingsPanel({
             size="sm"
             variant="secondary"
             onClick={onSync}
-            disabled={isExporting}
             className="h-7 shrink-0 rounded-md text-xs"
           >
             <RefreshCw className="size-3.5" aria-hidden />
@@ -113,13 +109,16 @@ export function BulkSettingsPanel({
         <Button
           className="w-full"
           onClick={onBulkExport}
-          disabled={isExporting || selectedCount === 0 || !!layoutError}
+          disabled={selectedCount === 0 || !!layoutError}
         >
           <Film className="size-3.5" aria-hidden />
-          {isExporting ? "Exporting…" : `Bulk Export (${selectedCount})`}
+          {activeExports > 0
+            ? `Bulk Export (${selectedCount}) · ${activeExports} running`
+            : `Bulk Export (${selectedCount})`}
         </Button>
         <p className="text-[10px] leading-3 text-kumo-subtle">
-          Files render one by one, full length (trim ignored), 1080×1920. Each
+          Selected files are submitted to the export queue at once (renders
+          run via the API queue), full length (trim ignored), 1080×1920. Each
           finished file saves to the output folder automatically.
         </p>
       </CardContent>

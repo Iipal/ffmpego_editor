@@ -61,13 +61,15 @@ export default function PageEditorSubtitles() {
           <Button
             size="sm"
             onClick={e.handleExport}
-            disabled={e.isExporting}
+            disabled={e.isPreparing}
             onMouseEnter={preloadExportChunks}
             onFocus={preloadExportChunks}
           >
-            {e.isExporting
-              ? "Exporting…"
-              : `Export 9:16 + ${e.deferredSubtitles.length} subtitles`}
+            {e.isPreparing
+              ? "Preparing…"
+              : e.activeExports > 0
+                ? `Export 9:16 + ${e.deferredSubtitles.length} subtitles (+${e.activeExports} queued)`
+                : `Export 9:16 + ${e.deferredSubtitles.length} subtitles`}
           </Button>
         </div>
       </div>

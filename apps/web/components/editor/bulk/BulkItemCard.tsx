@@ -15,7 +15,6 @@ export type BulkItemCardProps = {
   item: BulkItem;
   stackedLayout: MobileLayout | null;
   useWatermark: boolean;
-  isExporting: boolean;
   expanded?: boolean;
   onExpand?: (id: string) => void;
   onPatch: (id: string, patch: Partial<BulkItem>) => void;
@@ -29,12 +28,16 @@ export function BulkItemCard({
   item: it,
   stackedLayout,
   useWatermark,
-  isExporting,
   expanded = false,
   onExpand,
   onPatch,
   onMeta,
 }: BulkItemCardProps) {
+  const rowActive =
+    it.status === "uploading" ||
+    it.status === "queued" ||
+    it.status === "processing" ||
+    it.status === "saving";
   const preview = stackedLayout ? (
     <CellPreview
       url={it.url}
@@ -56,7 +59,7 @@ export function BulkItemCard({
           <Checkbox
             checked={it.selected}
             onCheckedChange={(v) => onPatch(it.id, { selected: v === true })}
-            disabled={isExporting}
+            disabled={rowActive}
             aria-label={`Include ${it.name} in bulk export`}
             className="mt-0.5"
           />

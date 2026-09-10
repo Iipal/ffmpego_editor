@@ -88,14 +88,3 @@ export function setCachedLayout(l: MobileLayout) {
   }
 }
 
-import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
-
-export async function downloadAndSaveMobile(
-  jobId: string,
-  filename: string,
-): Promise<string> {
-  const { API_BASE_URL } = await import("@/lib/api-client");
-  const downloadUrl = `${API_BASE_URL}/api/transcode/download/${jobId}`;
-  const blob = await fetchDownloadBlob(downloadUrl);
-  return saveBlobFile(blob, filename);
-}

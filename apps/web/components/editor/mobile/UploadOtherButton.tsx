@@ -21,12 +21,6 @@ const mobileReset: VideoReset = (): ReturnType<VideoReset> => ({
     bitrateKbps: 0,
     ffprobeReport: null,
   },
-  cut: {
-    transcodeStatus: "idle",
-    transcodeProgress: 0,
-    transcodeOutputPath: null,
-    transcodeError: null,
-  },
 });
 
 export const UploadOtherButton = memo(function UploadOtherButton() {

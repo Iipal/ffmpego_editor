@@ -45,7 +45,7 @@ export function CutSettingsSidebar({
   exportPlaceholder,
   cutsCount,
   overlapCount,
-  isExporting,
+  activeExports,
   onExport,
 }: {
   mode: CutMode;
@@ -70,7 +70,7 @@ export function CutSettingsSidebar({
   exportPlaceholder: string;
   cutsCount: number;
   overlapCount: number;
-  isExporting: boolean;
+  activeExports: number;
   onExport: () => void;
 }) {
   return (
@@ -193,14 +193,17 @@ export function CutSettingsSidebar({
         <Button
           className="w-full"
           onClick={onExport}
-          disabled={cutsCount === 0 || overlapCount > 0 || isExporting}
+          disabled={cutsCount === 0 || overlapCount > 0}
         >
           <Film className="size-3.5" aria-hidden />
-          {isExporting ? "Exporting…" : `Export ${cutsCount} cut(s)`}
+          {activeExports > 0
+            ? `Export ${cutsCount} cut(s) (+${activeExports} queued)`
+            : `Export ${cutsCount} cut(s)`}
         </Button>
         <p className="text-[10px] leading-3 text-kumo-subtle">
           Renders POST /transcode/cut with cuts + mode {mode}. Output{" "}
           {mode === "full-size" ? "original size" : "1080×1920"} · 30fps mp4.
+          Exports run in the background queue (see the dock).
         </p>
       </CardContent>
     </Card>

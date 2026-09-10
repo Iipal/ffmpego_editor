@@ -9,7 +9,7 @@ export type BulkHeaderProps = {
   completedCount: number;
   failedCount: number;
   splitLabel: string;
-  isExporting: boolean;
+  activeExports: number;
   onSelectAll: () => void;
   onSelectNone: () => void;
   onBulkExport: () => void;
@@ -22,7 +22,7 @@ export function BulkHeader({
   completedCount,
   failedCount,
   splitLabel,
-  isExporting,
+  activeExports,
   onSelectAll,
   onSelectNone,
   onBulkExport,
@@ -85,10 +85,12 @@ export function BulkHeader({
         <Button
           size="sm"
           onClick={onBulkExport}
-          disabled={isExporting || selectedCount === 0}
+          disabled={selectedCount === 0}
           className="h-7 rounded-md text-xs font-medium"
         >
-          {isExporting ? "Exporting…" : `Bulk Export (${selectedCount})`}
+          {activeExports > 0
+            ? `Bulk Export (${selectedCount}) · ${activeExports} running`
+            : `Bulk Export (${selectedCount})`}
         </Button>
       </div>
     </header>

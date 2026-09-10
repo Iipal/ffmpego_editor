@@ -75,10 +75,6 @@ export function VideoUploader() {
         exportQuality: 23,
         playbackSpeed: 1,
         exportSpeed: 1,
-        transcodeStatus: "idle",
-        transcodeProgress: 0,
-        transcodeOutputPath: null,
-        transcodeError: null,
       }));
       setCropState((previous) => ({
         ...previous,

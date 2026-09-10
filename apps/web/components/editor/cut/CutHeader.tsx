@@ -13,7 +13,7 @@ export function CutHeader({
   currentTime,
   duration,
   overlapCount,
-  isExporting,
+  activeExports,
   onClear,
   onExport,
 }: {
@@ -24,7 +24,7 @@ export function CutHeader({
   currentTime: number;
   duration: number;
   overlapCount: number;
-  isExporting: boolean;
+  activeExports: number;
   onClear: () => void;
   onExport: () => void;
 }) {
@@ -75,11 +75,13 @@ export function CutHeader({
         <Button
           size="sm"
           onClick={onExport}
-          disabled={cutsCount === 0 || overlapCount > 0 || isExporting}
+          disabled={cutsCount === 0 || overlapCount > 0}
           className="h-7 rounded-md text-xs font-medium"
         >
           <Film className="size-3.5" aria-hidden />
-          {isExporting ? "Exporting…" : `Export ${cutsCount} cut(s)`}
+          {activeExports > 0
+            ? `Export ${cutsCount} cut(s) (+${activeExports} queued)`
+            : `Export ${cutsCount} cut(s)`}
         </Button>
       </div>
     </header>

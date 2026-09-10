@@ -97,7 +97,8 @@ flowchart LR
 ```
 
 - State: `useMobilePageState` (layout/selection/playback/validation),
-  export: `useMobileExport` → `POST /api/transcode/mobile`.
+  export: `useMobileExport` → `exportQueue.enqueue` (`POST /api/transcode/mobile`
+  via the export queue).
 - `MobileArea` — control/readout surface; `SourcePanel` — source + zone stage;
   `PreviewPanel`/`PortraitPreview` — split slider + 1080×1920 renderer;
   `ZoneCard`/`ZoneOverlay` — per-zone x/y/w/h sliders; `SourceStage` — canvas.
@@ -133,8 +134,9 @@ flowchart LR
 ```
 
 - State: `useBulkEditorState` (`components/editor/bulk/hooks.ts`);
-  export: `useBulkExport` loops `POST /api/transcode/mobile` per item,
-  saves via directory handle.
+  export: `useBulkExport` submits every selected file to `exportQueue.enqueue`
+  (`POST /api/transcode/mobile`) at once — per-item rows mirror queue
+  progress and finished files save via directory handle.
 
 **`/editor/cut` — `CutEditorPage`** (multi-cut assembly):
 
@@ -179,19 +181,27 @@ flowchart LR
     Meta --> Chunk{over 256MB?}
     Chunk -- no --> Form[uploadFormWithProgress]
     Chunk -- yes --> Big[uploadFileChunked<br/>/upload/init-chunk-complete]
-    Form --> TR[transcode mutation<br/>POST /transcode*]
+    Form --> TR[exportQueue.enqueue<br/>lib/export-queue.ts]
     Big --> TR
-    TR --> SSE[awaitTranscodeCompletion<br/>SSE progressUrl]
-    SSE --> Save([save-blob-file<br/>download])
+    TR --> SSE[subscribeTranscodeProgress<br/>SSE progressUrl]
+    SSE --> Save([saveBlobFile + openComparison<br/>or custom onFinish])
+    SSE -. live progress .-> QD[QueueDock + AppNav badge<br/>store/exportQueueSlice]
 ```
 
 - `lib/upload-chunked.ts`: `shouldUseChunked`, `uploadFileChunked`,
   `uploadFormWithProgress`, `CHUNKED_THRESHOLD_BYTES`.
-- `lib/transcode-progress.ts`: `awaitTranscodeCompletion` (shared SSE waiter).
+- `lib/export-queue.ts`: `ExportQueue` class service (`exportQueue` singleton)
+  — `enqueue` (fire-and-forget upload → job POST → SSE → download/save;
+  429 retry, in-flight gate, orphan guard), `cancel`, `dismiss`.
+  Progress mapping: upload 0–50, queued 50,
+  processing 50–95, saving 97, completed 100.
+- `lib/transcode-progress.ts`: `subscribeTranscodeProgress` (SSE subscriber
+  with reconnect) + `awaitTranscodeCompletion` (promise wrapper, admin use).
 - `lib/transcode-jobs.ts`: `cancelTranscodeJob`, `parseRetryAfterMs`,
   `TranscodeHttpError`, `queuedLabel`, `withLogTail`.
-- `hooks/use-ffmpeg-mutations.ts`: `useTranscodeMutation`
-  (`POST /api/transcode` + SSE + download save).
+- `store/exportQueueSlice.ts` + `components/export/QueueDock.tsx`: queue rows,
+  dock pill/panel (`QueueDock`), nav widgets — `QueueActivityNav` (expanded
+  nav, click toggles the dock) / `QueueActivityBadge` (collapsed nav, opens).
 - `lib/preflight.ts`: `preflightExport`, `probeApiConnectivity`.
 - `lib/export-history.ts` + `store/exportHistorySlice.ts`:
   `trackHistoryEntry`, `retryHistoryEntry`, `renameJob`.
@@ -210,6 +220,7 @@ flowchart LR
         MOB[mobileSlice<br/>loop flag]
         HIS[exportHistorySlice<br/>entries]
         CMP[compareSlice<br/>compare dialog]
+        EQ[exportQueueSlice<br/>queue rows, dock]
     end
     subgraph Server["TanStack Query (async)"]
         MD[POST /metadata]
@@ -221,7 +232,8 @@ flowchart LR
 ```
 
 - `providers.tsx`: `QueryClientProvider` (`staleTime` 5 s, no refocus),
-  `hydrateSourceStore` + `subscribeToTrimPersistence` on mount.
+  `hydrateSourceStore` + `subscribeToTrimPersistence` on mount, global
+  `CompareDialog` + `QueueDock`.
 - Shared UI: `components/ui/*` (Shadcn: button, dialog, slider, select,
   sonner `Toaster`, tooltip…), `providers/ThemeProvider.tsx`,
   `components/ui/ThemeToggle.tsx`.

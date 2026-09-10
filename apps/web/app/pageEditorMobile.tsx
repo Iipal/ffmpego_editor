@@ -17,7 +17,7 @@ import { TrimControls } from "@/components/editor/TrimControls";
 
 export default function MobileEditorPage() {
   const s = useMobilePageState();
-  const { onExport, isExporting } = useMobileExport({
+  const { onExport, activeExports } = useMobileExport({
     file: s.file,
     validationError: s.validationError,
     trimRange: s.trimRange,
@@ -41,7 +41,7 @@ export default function MobileEditorPage() {
         sourceLabel={s.sourceLabel}
         outputLabel={s.outputLabel}
         validationError={s.validationError}
-        isExporting={isExporting}
+        activeExports={activeExports}
         onExport={onExport}
         onReset={s.handleResetAll}
       />

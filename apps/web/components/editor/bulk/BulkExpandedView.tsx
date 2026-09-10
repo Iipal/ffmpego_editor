@@ -25,7 +25,6 @@ export type BulkExpandedViewProps = {
   item: BulkItem;
   stackedLayout: MobileLayout | null;
   useWatermark: boolean;
-  isExporting: boolean;
   onClose: () => void;
   onPatch: (id: string, patch: Partial<BulkItem>) => void;
   onMeta: (
@@ -223,11 +222,15 @@ export function BulkExpandedView({
   item,
   stackedLayout,
   useWatermark,
-  isExporting,
   onClose,
   onPatch,
   onMeta,
 }: BulkExpandedViewProps) {
+  const rowActive =
+    item.status === "uploading" ||
+    item.status === "queued" ||
+    item.status === "processing" ||
+    item.status === "saving";
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -310,7 +313,7 @@ export function BulkExpandedView({
               onCheckedChange={(v) =>
                 onPatch(item.id, { selected: v === true })
               }
-              disabled={isExporting}
+              disabled={rowActive}
               aria-label={`Include ${item.name} in bulk export`}
               className="mt-0.5"
             />

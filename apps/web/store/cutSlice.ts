@@ -16,19 +16,6 @@ export interface CutSlice {
   presetTarget: "transcode" | "audio-extract";
   audioFormat: "mp3" | "wav";
   isSidebarOpen: boolean;
-  transcodeStatus:
-    | "idle"
-    | "queued"
-    | "processing"
-    | "completed"
-    | "failed"
-    | "cancelled";
-  transcodeProgress: number;
-  transcodeOutputPath: string | null;
-  transcodeError: string | null;
-  transcodeJobId: string | null;
-  transcodeQueuePosition: number | null;
-  transcodeLogTail: string | null;
 }
 
 export const initialCutSlice: CutSlice = {
@@ -45,13 +32,6 @@ export const initialCutSlice: CutSlice = {
   presetTarget: "transcode",
   audioFormat: "mp3",
   isSidebarOpen: true,
-  transcodeStatus: "idle",
-  transcodeProgress: 0,
-  transcodeOutputPath: null,
-  transcodeError: null,
-  transcodeJobId: null,
-  transcodeQueuePosition: null,
-  transcodeLogTail: null,
 };
 
 export const cutStore = createStore<CutSlice>(initialCutSlice);

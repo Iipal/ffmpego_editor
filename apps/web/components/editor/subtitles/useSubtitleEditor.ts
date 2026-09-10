@@ -212,7 +212,7 @@ export function useSubtitleEditor() {
     [setSubtitles],
   );
 
-  const { isExporting, handleExport } = useSubtitleExport({
+  const { isPreparing, handleExport, activeExports } = useSubtitleExport({
     file,
     trimStart,
     trimEnd,
@@ -238,7 +238,8 @@ export function useSubtitleEditor() {
     trackCount,
     trimStart,
     trimEnd,
-    isExporting,
+    isPreparing,
+    activeExports,
     retimeSubtitlesToTrim,
     handleExport,
     ...mutations,

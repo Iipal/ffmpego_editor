@@ -23,7 +23,7 @@ export function BulkEmptyState({
   return (
     <EmptyStateShell
       title="Mobile bulk export"
-      description="Render a whole folder to 9:16 stacked two-zone portrait. Uses the zones saved in the Mobile editor, full length, one by one."
+      description="Render a whole folder to 9:16 stacked two-zone portrait. Uses the zones saved in the Mobile editor, full length, submitted to the export queue."
     >
       <Card className="p-6 sm:p-8">
         <CardContent className="p-0">

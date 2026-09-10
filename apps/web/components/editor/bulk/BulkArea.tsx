@@ -28,7 +28,7 @@ export type BulkAreaProps = {
   useWatermark: boolean;
   inputFolderName: string | null;
   outputDirName: string | null;
-  isExporting: boolean;
+  activeExports: number;
   onSync: () => void;
   onOutput: () => void;
 };
@@ -43,7 +43,7 @@ export const BulkArea = memo(function BulkArea({
   useWatermark,
   inputFolderName,
   outputDirName,
-  isExporting,
+  activeExports,
   onSync,
   onOutput,
 }: BulkAreaProps) {
@@ -71,13 +71,13 @@ export const BulkArea = memo(function BulkArea({
               >
                 {useWatermark ? "watermark on" : "watermark off"}
               </span>
-              {isExporting ? (
+              {activeExports > 0 ? (
                 <span className="inline-flex items-center gap-1 text-[11px] font-normal text-kumo-brand">
                   <span
                     className="size-1.5 rounded-full bg-kumo-brand animate-pulse"
                     aria-hidden
                   />
-                  exporting
+                  {activeExports} exporting
                 </span>
               ) : null}
             </span>
@@ -100,7 +100,6 @@ export const BulkArea = memo(function BulkArea({
             size="sm"
             variant="secondary"
             onClick={onSync}
-            disabled={isExporting}
             className="h-7 gap-1.5 rounded-md text-xs"
             title="Re-read zones from the Mobile editor"
             aria-label="Sync zones from Mobile editor"
@@ -112,7 +111,6 @@ export const BulkArea = memo(function BulkArea({
             size="sm"
             variant="ghost"
             onClick={onOutput}
-            disabled={isExporting}
             className="h-7 gap-1.5 rounded-md text-xs"
             title="Pick output folder"
             aria-label="Pick output folder"
@@ -196,7 +194,7 @@ export const BulkArea = memo(function BulkArea({
         <SlidersHorizontal className="size-3 shrink-0" aria-hidden />
         <span>
           Zones come from the Mobile editor — press Sync zones after changing
-          them · files render one by one
+          them · renders run through the export queue
         </span>
       </div>
     </div>

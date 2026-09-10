@@ -63,7 +63,12 @@ import {
 import { useSelector } from "@tanstack/react-store";
 import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
-import { useTranscodeMutation } from "@/hooks/use-ffmpeg-mutations";
+import { exportQueue } from "@/lib/export-queue";
+import { assertGenericSettings } from "@/lib/validate-settings";
+import {
+  exportQueueStore,
+  isQueueItemActive,
+} from "@/store/exportQueueSlice";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { VisualFiltersPanel } from "@/components/editor/VisualFiltersPanel";
 import { filterStore, setFilterState } from "@/store/filterSlice";
@@ -122,7 +127,23 @@ export function Sidebar() {
   const state = { ...source, ...crop, ...cut };
   const metadataMutation = useVideoMetadataMutation();
   const extendedMetadataMutation = useExtendedVideoMetadataMutation();
-  const transcodeMutation = useTranscodeMutation();
+  const queueItems = useSelector(exportQueueStore).items;
+  const editorQueueItems = useMemo(
+    () =>
+      queueItems.filter(
+        (i) => i.kind === "crop" || i.kind === "audio-extract",
+      ),
+    [queueItems],
+  );
+  const activeExports = useMemo(
+    () => editorQueueItems.filter(isQueueItemActive),
+    [editorQueueItems],
+  );
+  const activeExport = activeExports[0] ?? null;
+  const lastFailure = useMemo(
+    () => editorQueueItems.find((i) => i.status === "failed") ?? null,
+    [editorQueueItems],
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const update = (value: Partial<SourceSlice & CropSlice & CutSlice>) => {
     const sourceKeys = new Set<keyof SourceSlice>(
@@ -218,10 +239,6 @@ export function Sidebar() {
     setCutState((previous) => ({
       ...previous,
       exportFilename: defaultFilename,
-      transcodeStatus: "idle",
-      transcodeProgress: 0,
-      transcodeOutputPath: null,
-      transcodeError: null,
     }));
     metadataMutation.mutate(file);
     extendedMetadataMutation.reset();
@@ -386,117 +403,93 @@ export function Sidebar() {
     toast.success(`Preset deleted: ${selectedPreset.name}`);
   };
 
-  const runAudioExtract = async () => {
-    if (!state.file) return;
-    if (!(await gatePreflight())) return;
-    toast.loading("Extracting audio...", { id: "transcode" });
-    setCutState((p) => ({
-      ...p,
-      transcodeStatus: "processing",
-      transcodeProgress: 50,
-      transcodeError: null,
-    }));
-    try {
-      const form = new FormData();
-      form.append("file", state.file);
-      const res = await fetch(
-        `${API_BASE_URL}/api/audio/extract?format=${state.audioFormat}`,
-        { method: "POST", body: form },
-      );
-      if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as unknown;
-        throw new Error(
-          serverErrorMessage(j) ?? `Extract failed: ${res.status}`,
+  const startAudioExtract = () => {
+    const file = state.file;
+    if (!file) return;
+    const name = `${state.exportFilename || basename || "audio"}.${state.audioFormat}`;
+    exportQueue.enqueue({
+      kind: "audio-extract",
+      endpoint: `/api/audio/extract?format=${state.audioFormat}`,
+      file,
+      label: name,
+      async run(report) {
+        report({ status: "processing", progress: 50 });
+        const form = new FormData();
+        form.append("file", file);
+        const res = await fetch(
+          `${API_BASE_URL}/api/audio/extract?format=${state.audioFormat}`,
+          { method: "POST", body: form },
         );
-      }
-      const blob = await res.blob();
-      const name = `${state.exportFilename || basename || "audio"}.${state.audioFormat}`;
-      const saved = await saveBlobFile(blob, name);
-      trackHistoryEntry({
-        jobId: `extract-${Date.now()}`,
-        endpoint: "/api/audio/extract",
-        kind: "audio-extract",
-        label: saved,
-        createdAt: Date.now(),
-        audioFormat: state.audioFormat,
-      });
-      openComparison({
-        title: saved,
-        sourceUrl: source.mediaUrl,
-        outputUrl: URL.createObjectURL(blob),
-        outputKind: "audio",
-        meta: "Audio-only pull",
-      });
-      setCutState((p) => ({
-        ...p,
-        transcodeStatus: "completed",
-        transcodeProgress: 100,
-        transcodeOutputPath: saved,
-      }));
-      toast.success("Audio extracted.", {
-        id: "transcode",
-        description: saved,
-      });
-    } catch (error) {
-      setCutState((p) => ({
-        ...p,
-        transcodeStatus: "failed",
-        transcodeError:
-          error instanceof Error ? error.message : "Extract failed.",
-      }));
-      toast.error("Audio extract failed.", {
-        id: "transcode",
-        description: error instanceof Error ? error.message : undefined,
-      });
-    }
+        if (!res.ok) {
+          const j = (await res.json().catch(() => null)) as unknown;
+          throw new Error(
+            serverErrorMessage(j) ?? `Extract failed: ${res.status}`,
+          );
+        }
+        return res.blob();
+      },
+      async onFinish({ blob }) {
+        const saved = await saveBlobFile(blob, name);
+        trackHistoryEntry({
+          jobId: `extract-${Date.now()}`,
+          endpoint: "/api/audio/extract",
+          kind: "audio-extract",
+          label: saved,
+          createdAt: Date.now(),
+          audioFormat: state.audioFormat,
+        });
+        openComparison({
+          title: saved,
+          sourceUrl: source.mediaUrl,
+          outputUrl: URL.createObjectURL(blob),
+          outputKind: "audio",
+          meta: "Audio-only pull",
+        });
+      },
+    });
   };
   const startExport = async () => {
     if (!state.file) return;
     if (state.presetTarget === "audio-extract") {
-      await runAudioExtract();
+      startAudioExtract();
       return;
     }
     if (!(await gatePreflight())) return;
 
-    console.log(state);
-
-    toast.loading("Exporting video...", { id: "transcode" });
-    transcodeMutation.mutate(
-      {
-        file: state.file,
-        crop: state.crop,
-        customFFmpegArgs: state.customFFmpegArgs,
-        exportFormat: state.exportFormat,
-        exportFps: state.exportFps,
-        exportFilename: state.exportFilename,
-        exportQuality: state.exportQuality,
-        exportSpeed: state.exportSpeed,
-        sourceHeight: state.sourceHeight,
-        sourceWidth: state.sourceWidth,
-        trimRange: state.trimRange,
-        watermark: state.watermark,
-        ignoreTrim: state.ignoreTrim,
-        audioTrackIndex: state.audioTrackIndex,
-        audioTracks: audio.tracks.length
-          ? getAudioRenderSettings(audio.tracks)
-          : undefined,
-        visualFilters: isVisualFiltersDefault(visualFilters)
-          ? undefined
-          : structuredClone(visualFilters),
-      },
-      {
-        onSuccess: (result) =>
-          toast.success("Video exported.", {
-            id: "transcode",
-            description: result.outputFile?.name ?? "Export complete",
-          }),
-        onError: (error) =>
-          toast.error("Video export failed.", {
-            id: "transcode",
-            description: error.message,
-          }),
-      },
-    );
+    const settings = {
+      crop: state.crop,
+      visualFilters: isVisualFiltersDefault(visualFilters)
+        ? undefined
+        : structuredClone(visualFilters),
+      customFFmpegArgs: state.customFFmpegArgs,
+      exportFormat: state.exportFormat,
+      exportFps: state.exportFps,
+      exportFilename: state.exportFilename,
+      exportQuality: state.exportQuality,
+      exportSpeed: state.exportSpeed,
+      sourceHeight: state.sourceHeight,
+      sourceWidth: state.sourceWidth,
+      trimRange: state.trimRange,
+      watermark: state.watermark,
+      ignoreTrim: state.ignoreTrim,
+      audioTrackIndex: state.audioTrackIndex,
+      audioTracks: audio.tracks.length
+        ? getAudioRenderSettings(audio.tracks)
+        : undefined,
+    };
+    // Fail fast on malformed settings (same schemas the API enforces)
+    // before spending upload bytes.
+    assertGenericSettings(JSON.stringify(settings));
+    const ext = state.exportFormat === "webm-tg" ? "webm" : state.exportFormat;
+    const label = `${state.exportFilename || basename || "export"}.${ext}`;
+    exportQueue.enqueue({
+      kind: "crop",
+      endpoint: "/api/transcode",
+      file: state.file,
+      settingsJson: JSON.stringify(settings),
+      label,
+      meta: "Export complete",
+    });
   };
   const getExtendedInfo = () => {
     if (!state.file) return;
@@ -1069,34 +1062,40 @@ export function Sidebar() {
                 </div>
               </>
             )}
-            {state.uploadStatus === "uploading" &&
-              state.uploadStage === "transcode" && <UploadProgress />}
-            {(state.transcodeStatus === "processing" ||
-              state.transcodeStatus === "queued") && (
+            {activeExport ? (
               <div className="space-y-1">
-                {state.transcodeStatus === "queued" && (
-                  <p className="text-xs text-kumo-subtle" aria-live="polite">
-                    {state.transcodeQueuePosition != null
-                      ? `Queued #${state.transcodeQueuePosition + 1} — waiting for a worker…`
-                      : "Queued — waiting for a worker…"}
-                  </p>
-                )}
+                <div
+                  className="flex items-center justify-between text-xs text-kumo-subtle"
+                  aria-live="polite"
+                >
+                  <span>
+                    {activeExport.status === "queued"
+                      ? activeExport.queuePosition != null
+                        ? `Queued #${activeExport.queuePosition + 1} — waiting for a worker…`
+                        : "Queued — waiting for a worker…"
+                      : activeExport.status === "uploading"
+                        ? `Uploading export ${Math.round(activeExport.progress)}%`
+                        : activeExport.status === "saving"
+                          ? "Saving file…"
+                          : `Exporting ${Math.round(activeExport.progress)}%`}
+                  </span>
+                  {activeExports.length > 1 && (
+                    <span className="tabular-nums">
+                      {activeExports.length} in queue
+                    </span>
+                  )}
+                </div>
                 <Progress
-                  value={state.transcodeProgress}
+                  value={activeExport.progress}
                   aria-label="Export progress"
                 />
               </div>
-            )}
-            {state.transcodeStatus === "cancelled" && (
-              <p className="text-xs text-kumo-subtle" aria-live="polite">
-                Export cancelled — job kept in Admin for inspection.
-              </p>
-            )}
-            {state.transcodeStatus === "failed" && state.transcodeError && (
+            ) : null}
+            {lastFailure?.error ? (
               <p className="text-xs text-red-600 wrap-break-word">
-                {state.transcodeError}
+                {lastFailure.error}
               </p>
-            )}
+            ) : null}
             <div className="space-y-1 text-[11px] leading-4" aria-live="polite">
               {preflight.summary.map((line) => (
                 <p key={line} className="text-kumo-subtle">
@@ -1121,7 +1120,6 @@ export function Sidebar() {
               className="w-full"
               onClick={startExport}
               disabled={
-                transcodeMutation.isPending ||
                 state.sourceWidth === 0 ||
                 state.sourceHeight === 0 ||
                 !preflight.ok
@@ -1129,11 +1127,7 @@ export function Sidebar() {
             >
               {state.presetTarget === "audio-extract"
                 ? "Extract audio"
-                : transcodeMutation.isPending
-                  ? state.transcodeStatus === "queued"
-                    ? "Queued for export…"
-                    : `Exporting ${Math.round(state.transcodeProgress)}%`
-                  : "Export video"}
+                : "Export video"}
             </Button>
           </CollapsibleContent>
         </Collapsible>

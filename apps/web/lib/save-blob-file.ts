@@ -7,6 +7,24 @@ export type SavePickerTypes = Array<{
   accept: Record<string, string[]>;
 }>;
 
+const PICKER_TYPES_BY_EXT: Record<string, { description: string; mime: string }> = {
+  mp4: { description: "MP4 video", mime: "video/mp4" },
+  webm: { description: "WebM video", mime: "video/webm" },
+  mov: { description: "QuickTime video", mime: "video/quicktime" },
+  mkv: { description: "Matroska video", mime: "video/x-matroska" },
+  gif: { description: "GIF image", mime: "image/gif" },
+  mp3: { description: "MP3 audio", mime: "audio/mpeg" },
+  wav: { description: "WAV audio", mime: "audio/wav" },
+};
+
+// Save-picker accept entry for an output extension (defaults to MP4 video
+// like the legacy flows).
+export function pickerTypesForExt(ext: string): SavePickerTypes {
+  const known = PICKER_TYPES_BY_EXT[ext.toLowerCase()];
+  if (!known) return pickerTypesForExt("mp4");
+  return [{ description: known.description, accept: { [known.mime]: [`.${ext.toLowerCase()}`] } }];
+}
+
 export async function saveBlobFile(
   blob: Blob,
   filename: string,

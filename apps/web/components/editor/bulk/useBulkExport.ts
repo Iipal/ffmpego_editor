@@ -1,19 +1,16 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
+import { useSelector } from "@tanstack/react-store";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { baseNameOf } from "./helpers";
 import type { BulkItem, FsDirHandle } from "./types";
-import { fetchDownloadBlob, saveBlobFile } from "@/lib/save-blob-file";
-import { awaitTranscodeCompletion } from "@/lib/transcode-progress";
-import {
-  TranscodeCancelledError,
-  throwTranscodeHttpError,
-} from "@/lib/transcode-jobs";
+import { exportQueue } from "@/lib/export-queue";
 import { assertMobileSettings } from "@/lib/validate-settings";
-import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import { saveBlobFile } from "@/lib/save-blob-file";
 import { openComparison } from "@/store/compareSlice";
+import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 
 export type UseBulkExportArgs = {
   itemsRef: { current: BulkItem[] };
@@ -25,8 +22,9 @@ export type UseBulkExportArgs = {
 };
 
 /**
- * Sequential bulk export: upload → transcode (SSE progress) → save.
- * Logic moved verbatim from `app/pageEditorMobileBulk.tsx`.
+ * Fire-and-forget bulk export: every selected file is submitted to the
+ * export queue at once and the API queue bounds ffmpeg concurrency.
+ * Per-item rows mirror queue progress; results land in the chosen folder.
  */
 export function useBulkExport({
   itemsRef,
@@ -36,10 +34,13 @@ export function useBulkExport({
   useWatermark,
   patchItem,
 }: UseBulkExportArgs) {
-  const [isExporting, setIsExporting] = useState(false);
+  const queueItems = useSelector(exportQueueStore).items;
+  const activeExports = useMemo(
+    () => selectKindActive(queueItems, "bulk"),
+    [queueItems],
+  );
 
-  const onBulkExport = useCallback(async () => {
-    if (isExporting) return;
+  const onBulkExport = useCallback(() => {
     if (!stackedLayout || layoutError) {
       toast.error(layoutError ?? "Invalid layout");
       return;
@@ -55,16 +56,7 @@ export function useBulkExport({
       toast.error("Nothing to export — select files first");
       return;
     }
-    setIsExporting(true);
-    const [{ API_BASE_URL }, chunkedMod] = await Promise.all([
-      import("@/lib/api-client"),
-      import("@/lib/upload-chunked"),
-    ]);
-    const { shouldUseChunked, uploadFileChunked, uploadFormWithProgress } =
-      chunkedMod;
-    let done = 0;
-    let failed = 0;
-
+    const single = queue.length === 1;
     for (const item of queue) {
       const { id, file } = item;
       const meta = itemsRef.current.find((it) => it.id === id);
@@ -73,139 +65,81 @@ export function useBulkExport({
       const sh = meta?.height || 1080;
       const outName = `${baseNameOf(file.name)}_mobile_1080x1920.mp4`;
       const base = baseNameOf(file.name);
+      const settingsJson = JSON.stringify({
+        mobileLayout: stackedLayout,
+        sourceWidth: sw,
+        sourceHeight: sh,
+        trimRange: [0, duration > 0 ? duration : 0.001],
+        ignoreTrim: true,
+        ignoreTrimSettings: true,
+        exportFormat: "mp4",
+        exportFps: 30,
+        exportFilename: base,
+        exportQuality: 10,
+        exportSpeed: 1,
+        customFFmpegArgs: "",
+        watermark: useWatermark,
+      });
+      // Pre-submit: same schemas the API enforces — fail before upload bytes.
+      assertMobileSettings(settingsJson);
       patchItem(id, { status: "uploading", progress: 0, error: null });
-      try {
-        const settingsJson = JSON.stringify({
-          mobileLayout: stackedLayout,
-          sourceWidth: sw,
-          sourceHeight: sh,
-          trimRange: [0, duration > 0 ? duration : 0.001],
-          ignoreTrim: true,
-          ignoreTrimSettings: true,
-          exportFormat: "mp4",
-          exportFps: 30,
-          exportFilename: base,
-          exportQuality: 10,
-          exportSpeed: 1,
-          customFFmpegArgs: "",
-          watermark: useWatermark,
-        });
-        // Pre-upload: same schemas the API enforces — fail before upload bytes.
-        assertMobileSettings(settingsJson);
-        let jobId: string;
-        let progressUrl: string;
-        const onUpload = (sent: number, total: number) =>
+      exportQueue.enqueue({
+        kind: "bulk",
+        endpoint: "/api/transcode/mobile",
+        file,
+        settingsJson,
+        label: outName,
+        meta: "Bulk export",
+        silentSuccess: true,
+        silentEnqueue: true,
+        onUploadProgress: (sent, total) =>
           patchItem(id, {
             progress: total ? Math.round((sent / total) * 50) : 0,
-          });
-        if (shouldUseChunked(file)) {
-          const { uploadId } = await uploadFileChunked(file, {
-            onProgress: onUpload,
-          });
-          patchItem(id, { progress: 50 });
-          const fd = new FormData();
-          fd.append("settings", settingsJson);
-          const res = await fetch(`${API_BASE_URL}/api/transcode/mobile`, {
-            method: "POST",
-            headers: { "x-upload-id": uploadId },
-            body: fd,
-          });
-          if (!res.ok) {
-            const payload = (await res.json().catch(() => null)) as {
-              error?: string;
-            } | null;
-            // B2: shapes 429 (queue full + Retry-After) distinctly.
-            throwTranscodeHttpError(res, payload);
-          }
-          const j = (await res.json()) as {
-            jobId: string;
-            progressUrl: string;
-          };
-          jobId = j.jobId;
-          progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
-        } else {
-          const fd = new FormData();
-          fd.append("file", file);
-          fd.append("settings", settingsJson);
-          const j = await uploadFormWithProgress<{
-            jobId: string;
-            progressUrl: string;
-          }>("/api/transcode/mobile", fd, { onUploadProgress: onUpload });
-          jobId = j.jobId;
-          progressUrl = new URL(j.progressUrl, API_BASE_URL).toString();
-        }
-        patchItem(id, { status: "processing", progress: 50 });
-        trackHistoryEntry({
-          jobId,
-          endpoint: "/api/transcode/mobile",
-          kind: "transcode",
-          label: outName,
-          createdAt: Date.now(),
-          settingsJson,
-        });
-        await awaitTranscodeCompletion(progressUrl, (progress, info) => {
-          // B2: reflect server queue state per item instead of jumping to 50%+.
-          if (info?.status === "queued") {
-            patchItem(id, { status: "queued", progress: 50 });
+          }),
+        onProgress: (info) =>
+          patchItem(id, { status: info.status, progress: info.progress }),
+        onError: (message) =>
+          patchItem(id, {
+            status: message === null ? "cancelled" : "failed",
+            progress: 0,
+            error: message,
+          }),
+        onFinish: async ({ blob }) => {
+          if (outputDirHandle) {
+            const fh = await outputDirHandle.getFileHandle(outName, {
+              create: true,
+            });
+            const w = await fh.createWritable();
+            await w.write(blob);
+            await w.close();
           } else {
-            patchItem(id, {
-              status: "processing",
-              progress: 50 + Math.round((progress / 100) * 45),
+            await saveBlobFile(blob, outName);
+          }
+          patchItem(id, { status: "completed", progress: 100 });
+          if (single) {
+            openComparison({
+              title: outName,
+              sourceUrl: null,
+              outputUrl: URL.createObjectURL(blob),
+              outputKind: "video",
+              meta: "Bulk export",
             });
           }
-        });
-        patchItem(id, { status: "saving", progress: 97 });
-        const blob = await fetchDownloadBlob(
-          `${API_BASE_URL}/api/transcode/download/${jobId}`,
-        );
-        if (outputDirHandle) {
-          const fh = await outputDirHandle.getFileHandle(outName, {
-            create: true,
-          });
-          const w = await fh.createWritable();
-          await w.write(blob);
-          await w.close();
-        } else {
-          await saveBlobFile(blob, outName);
-        }
-        patchItem(id, { status: "completed", progress: 100 });
-        openComparison({
-          title: outName,
-          sourceUrl: null,
-          outputUrl: URL.createObjectURL(blob),
-          outputKind: "video",
-          meta: "Bulk export",
-        });
-        done++;
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : "Export failed";
-        if ((e as DOMException)?.name === "AbortError") {
-          patchItem(id, { status: "idle", progress: 0 });
-        } else if (e instanceof TranscodeCancelledError) {
-          // B2: cooperatively cancelled server-side; row kept for inspection.
-          patchItem(id, { status: "cancelled", progress: 0, error: msg });
-          failed++;
-        } else {
-          patchItem(id, { status: "failed", progress: 0, error: msg });
-          failed++;
-        }
-      }
+        },
+      });
     }
-    setIsExporting(false);
-    if (failed === 0)
-      toast.success(`Bulk export done — ${done} file${done === 1 ? "" : "s"}`);
-    else
-      toast.error(
-        `Bulk export finished with ${failed} failure${failed === 1 ? "" : "s"} (${done} ok)`,
-      );
+    toast.info(
+      `Queued ${queue.length} file${queue.length === 1 ? "" : "s"} for bulk export`,
+      { id: "export-queue" },
+    );
   }, [
-    isExporting,
     stackedLayout,
     layoutError,
+    itemsRef,
     outputDirHandle,
     useWatermark,
     patchItem,
   ]);
 
-  return { isExporting, onBulkExport };
+  return { activeExports, onBulkExport };
 }

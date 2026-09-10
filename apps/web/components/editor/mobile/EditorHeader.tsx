@@ -10,7 +10,7 @@ type EditorHeaderProps = {
   sourceLabel: string;
   outputLabel: string;
   validationError: string | null;
-  isExporting: boolean;
+  activeExports: number;
   onExport: () => void;
   onReset: () => void;
 };
@@ -21,7 +21,7 @@ export function EditorHeader({
   sourceLabel,
   outputLabel,
   validationError,
-  isExporting,
+  activeExports,
   onExport,
   onReset,
 }: EditorHeaderProps) {
@@ -81,10 +81,10 @@ export function EditorHeader({
         <Button
           size="sm"
           onClick={onExport}
-          disabled={!!validationError || isExporting}
+          disabled={!!validationError}
           className="h-7 rounded-md text-xs font-medium"
         >
-          {isExporting ? "Exporting…" : "Export 9:16"}
+          {activeExports > 0 ? `Export 9:16 (+${activeExports} queued)` : "Export 9:16"}
         </Button>
       </div>
     </header>

@@ -76,8 +76,8 @@ flowchart LR
     Big -- yes --> Up[chunked upload<br/>init-chunk-complete]
     Form --> TR[POST /transcode*]
     Up --> TR
-    TR --> SSE[SSE progressUrl<br/>awaitTranscodeCompletion]
-    SSE --> Save([download<br/>save-blob-file])
+    TR --> SSE[SSE progressUrl<br/>export queue<br/>lib/export-queue.ts]
+    SSE --> Save([download<br/>saveBlobFile])
 ```
 
 `uploadId` (`x-upload-id` header / query / multipart field) is reused across

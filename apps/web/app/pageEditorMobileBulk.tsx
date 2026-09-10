@@ -35,7 +35,7 @@ export default function MobileBulkEditorPage() {
     failedCount,
   } = useBulkEditorState();
 
-  const { isExporting, onBulkExport } = useBulkExport({
+  const { activeExports, onBulkExport } = useBulkExport({
     itemsRef,
     stackedLayout,
     layoutError,
@@ -97,7 +97,7 @@ export default function MobileBulkEditorPage() {
         completedCount={completedCount}
         failedCount={failedCount}
         splitLabel={splitLabel}
-        isExporting={isExporting}
+        activeExports={activeExports}
         onSelectAll={() => setAllSelected(true)}
         onSelectNone={() => setAllSelected(false)}
         onBulkExport={onBulkExport}
@@ -114,7 +114,7 @@ export default function MobileBulkEditorPage() {
         useWatermark={useWatermark}
         inputFolderName={inputFolderName}
         outputDirName={outputDirName}
-        isExporting={isExporting}
+        activeExports={activeExports}
         onSync={syncLayout}
         onOutput={() => void pickOutputFolder()}
       />
@@ -125,7 +125,6 @@ export default function MobileBulkEditorPage() {
           item={expandedItem}
           stackedLayout={stackedLayout}
           useWatermark={useWatermark}
-          isExporting={isExporting}
           onClose={handleCollapse}
           onPatch={patchItem}
           onMeta={handleMeta}
@@ -140,7 +139,6 @@ export default function MobileBulkEditorPage() {
               item={it}
               stackedLayout={stackedLayout}
               useWatermark={useWatermark}
-              isExporting={isExporting}
               expanded={it.id === expandedId}
               onExpand={handleExpand}
               onPatch={patchItem}
@@ -157,7 +155,7 @@ export default function MobileBulkEditorPage() {
             useWatermark={useWatermark}
             splitLabel={splitLabel}
             layoutError={layoutError}
-            isExporting={isExporting}
+            activeExports={activeExports}
             selectedCount={selectedCount}
             onPickInput={pickInputFolder}
             onPickOutput={pickOutputFolder}

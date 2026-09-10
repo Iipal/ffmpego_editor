@@ -32,10 +32,6 @@ const cropReset: VideoReset = (_prev, file): ReturnType<VideoReset> => ({
   },
   cut: {
     exportFilename: stripExtension(file.name),
-    transcodeStatus: "idle",
-    transcodeProgress: 0,
-    transcodeOutputPath: null,
-    transcodeError: null,
   },
 });
 

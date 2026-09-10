@@ -14,12 +14,6 @@ const cutReset: VideoReset = (): ReturnType<VideoReset> => ({
     sourceWidth: 0,
     sourceHeight: 0,
   },
-  cut: {
-    transcodeStatus: "idle",
-    transcodeProgress: 0,
-    transcodeOutputPath: null,
-    transcodeError: null,
-  },
 });
 
 export const UploadOtherButton = memo(function UploadOtherButton() {

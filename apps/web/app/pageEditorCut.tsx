@@ -94,7 +94,7 @@ export default function CutEditorPage() {
 
   const { exportName, setExportName } = useExportName();
 
-  const { isExporting, onExport } = useCutExport({
+  const { activeExports, onExport } = useCutExport({
     file,
     cuts,
     overlapIds,
@@ -140,7 +140,7 @@ export default function CutEditorPage() {
         currentTime={currentTime}
         duration={duration}
         overlapCount={overlapIds.size}
-        isExporting={isExporting}
+        activeExports={activeExports}
         onClear={clearCuts}
         onExport={onExport}
       />
@@ -221,7 +221,7 @@ export default function CutEditorPage() {
             exportPlaceholder={file ? stripExtension(file.name) : "cut"}
             cutsCount={cuts.length}
             overlapCount={overlapIds.size}
-            isExporting={isExporting}
+            activeExports={activeExports}
             onExport={onExport}
           />
         </div>

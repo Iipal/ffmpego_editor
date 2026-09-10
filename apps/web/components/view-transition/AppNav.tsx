@@ -12,6 +12,10 @@ import {
   Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  QueueActivityBadge,
+  QueueActivityNav,
+} from "@/components/export/QueueDock";
 
 type NavItem = { href: string; label: string; icon: React.ReactNode };
 
@@ -142,6 +146,15 @@ export function AppNav({
           </Link>
         );
       })}
+      {collapsed ? (
+        <QueueActivityBadge
+          className={orientation === "vertical" ? "self-center" : undefined}
+        />
+      ) : (
+        <QueueActivityNav
+          className={orientation === "vertical" ? "self-center" : undefined}
+        />
+      )}
     </nav>
   );
 }
