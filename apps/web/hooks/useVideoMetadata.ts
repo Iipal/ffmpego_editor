@@ -10,7 +10,7 @@ import {
   uploadFileChunked,
   uploadFormWithProgress,
 } from "@/lib/upload-chunked";
-import { serverErrorMessage } from "@/lib/transcode-jobs";
+import { transcodeJobs } from "@/lib/transcode-jobs";
 
 function setUploadProgress(sent: number, total: number) {
   const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
@@ -65,7 +65,7 @@ export function useVideoMetadataMutation() {
         if (!res.ok) {
           const err = (await res.json().catch(() => null)) as unknown;
           throw new Error(
-            serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
+            transcodeJobs.serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
           );
         }
         return (await res.json()) as VideoMetadata;
@@ -164,7 +164,7 @@ export function useExtendedVideoMetadataMutation() {
         if (!res.ok) {
           const err = (await res.json().catch(() => null)) as unknown;
           throw new Error(
-            serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
+            transcodeJobs.serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
           );
         }
         return (await res.json()) as VideoMetadata;

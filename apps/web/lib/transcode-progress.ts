@@ -13,7 +13,7 @@
 // `logTail` (last ffmpeg stderr lines) which is appended to the rejection
 // so toasts/store show an actionable error instead of a bare message.
 
-import { TranscodeCancelledError, withLogTail } from "./transcode-jobs";
+import { TranscodeCancelledError, transcodeJobs } from "./transcode-jobs";
 
 export type TranscodeProgressEvent = {
   status: string;
@@ -82,7 +82,7 @@ export function subscribeTranscodeProgress(
         }
         if (p.status === "failed") {
           dispose();
-          handlers.onFailed?.(withLogTail(p.error, p.logTail));
+          handlers.onFailed?.(transcodeJobs.withLogTail(p.error, p.logTail));
         }
         if (p.status === "cancelled") {
           dispose();

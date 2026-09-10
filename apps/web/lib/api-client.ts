@@ -2,11 +2,11 @@
 //
 // Editors never `fetch()` the backend directly — they go through the
 // `apiClient` singleton below (`apiClient.get/post/formPost/...`), which owns
-// base-URL resolution, JSON envelope error shaping (via `serverErrorMessage`),
+// base-URL resolution, JSON envelope error shaping (via `transcodeJobs`),
 // and the `x-upload-id` chunked-upload POST variant. `exportQueue`,
 // `upload-chunked`, `transcode-jobs`, and the admin/m Metadata hooks are all
 // thin callers over this service.
-import { serverErrorMessage } from "./transcode-jobs";
+import { transcodeJobs } from "./transcode-jobs";
 import type {
   FFprobeReport,
   TranscodeProgress,
@@ -192,7 +192,7 @@ class APIClient {
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
       throw new Error(
-        serverErrorMessage(payload) ?? `API error: ${res.status}`,
+        transcodeJobs.serverErrorMessage(payload) ?? `API error: ${res.status}`,
       );
     }
     return res.blob();
@@ -209,7 +209,7 @@ class APIClient {
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
       throw new Error(
-        serverErrorMessage(payload) ?? `API error: ${res.status}`,
+        transcodeJobs.serverErrorMessage(payload) ?? `API error: ${res.status}`,
       );
     }
     return res.json() as Promise<T>;

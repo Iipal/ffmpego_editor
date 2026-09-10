@@ -197,7 +197,8 @@ flowchart LR
   processing 50–95, saving 97, completed 100.
 - `lib/transcode-progress.ts`: `subscribeTranscodeProgress` (SSE subscriber
   with reconnect) + `awaitTranscodeCompletion` (promise wrapper, admin use).
-- `lib/transcode-jobs.ts`: `cancelTranscodeJob`, `parseRetryAfterMs`,
+- `lib/transcode-jobs.ts` (`TranscodeJobs` service:
+  `transcodeJobs.cancelTranscodeJob/serverErrorMessage`), `parseRetryAfterMs`,
   `TranscodeHttpError`, `queuedLabel`, `withLogTail`.
 - `store/exportQueueSlice.ts` + `components/export/QueueDock.tsx`: queue rows,
   dock pill/panel (`QueueDock`), nav widgets — `QueueActivityNav` (expanded

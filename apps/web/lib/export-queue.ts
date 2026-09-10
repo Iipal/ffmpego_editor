@@ -36,8 +36,7 @@ import { sourceStore } from "@/store/sourceSlice";
 import {
   TranscodeCancelledError,
   TranscodeHttpError,
-  cancelTranscodeJob,
-  throwTranscodeHttpError,
+  transcodeJobs,
 } from "./transcode-jobs";
 import { subscribeTranscodeProgress } from "./transcode-progress";
 import {
@@ -185,7 +184,7 @@ class ExportQueue {
     runner.abort.abort();
     runner.closeSse?.();
     if (runner.jobId) {
-      void cancelTranscodeJob(runner.jobId).catch(() => {});
+      void transcodeJobs.cancelTranscodeJob(runner.jobId).catch(() => {});
     }
   }
 
@@ -307,7 +306,7 @@ class ExportQueue {
     }
     if (!response) throw new Error("Export submission failed.");
     if (runner.orphaned) {
-      void cancelTranscodeJob(response.jobId).catch(() => {});
+      void transcodeJobs.cancelTranscodeJob(response.jobId).catch(() => {});
       throw new TranscodeCancelledError();
     }
 
@@ -388,7 +387,7 @@ class ExportQueue {
       });
       if (!res.ok) {
         const payload = (await res.json().catch(() => null)) as unknown;
-        throwTranscodeHttpError(res, payload);
+        transcodeJobs.throwTranscodeHttpError(res, payload);
       }
       return (await res.json()) as TranscodeResponse;
     }

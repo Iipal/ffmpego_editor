@@ -4,7 +4,7 @@ import type { RefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { cancelTranscodeJob, serverErrorMessage } from "@/lib/transcode-jobs";
+import { transcodeJobs } from "@/lib/transcode-jobs";
 import { JOB_ID_RE } from "./helpers";
 
 export function useAdminMutations(invalidateRef: RefObject<() => void>) {
@@ -22,7 +22,7 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
       if (!res.ok) {
         const j = (await res.json().catch(() => null)) as unknown;
         throw new Error(
-          serverErrorMessage(j) ?? `Delete failed: ${res.status}`,
+          transcodeJobs.serverErrorMessage(j) ?? `Delete failed: ${res.status}`,
         );
       }
       return res.json() as Promise<unknown>;
@@ -94,7 +94,7 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
   const cancelOneMutation = useMutation({
     mutationFn: async (jobId: string) => {
       if (!JOB_ID_RE.test(jobId)) throw new Error("Invalid jobId");
-      return cancelTranscodeJob(jobId);
+      return transcodeJobs.cancelTranscodeJob(jobId);
     },
     onSuccess: (status) => {
       toast.success(

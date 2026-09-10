@@ -76,7 +76,7 @@ import {
   setAudioState,
 } from "@/store/audioSlice";
 import { apiClient } from "@/lib/api-client";
-import { serverErrorMessage } from "@/lib/transcode-jobs";
+import { transcodeJobs } from "@/lib/transcode-jobs";
 import { saveBlobFile } from "@/lib/save-blob-file";
 import { exportPresets, type ExportPreset } from "@/lib/export-presets";
 import { preflight } from "@/lib/preflight";
@@ -414,7 +414,8 @@ export function Sidebar() {
         if (!res.ok) {
           const j = (await res.json().catch(() => null)) as unknown;
           throw new Error(
-            serverErrorMessage(j) ?? `Extract failed: ${res.status}`,
+            transcodeJobs.serverErrorMessage(j) ??
+              `Extract failed: ${res.status}`,
           );
         }
         return res.blob();

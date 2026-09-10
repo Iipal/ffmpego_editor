@@ -9,7 +9,7 @@
 import { apiClient, type TranscodeResponse } from "./api-client";
 import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
-import { throwTranscodeHttpError } from "./transcode-jobs";
+import { transcodeJobs } from "./transcode-jobs";
 import {
   shouldUseChunked,
   uploadFileChunked,
@@ -144,7 +144,7 @@ class ExportHistory {
       });
       if (!res.ok) {
         const err = (await res.json().catch(() => null)) as unknown;
-        throwTranscodeHttpError(res, err);
+        transcodeJobs.throwTranscodeHttpError(res, err);
       }
       return (await res.json()) as TranscodeResponse;
     }

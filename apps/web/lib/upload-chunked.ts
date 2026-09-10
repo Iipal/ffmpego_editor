@@ -3,7 +3,7 @@
 // so Bun never buffers the whole file in RAM. Progress is reportable per chunk.
 
 import { apiClient } from "./api-client";
-import { serverErrorMessage, shapeXhrError } from "./transcode-jobs";
+import { transcodeJobs } from "./transcode-jobs";
 
 export interface ChunkedUploadOptions {
   chunkSize?: number; // default 8MB — tuned for LAN/localhost throughput vs memory
@@ -89,7 +89,8 @@ export async function uploadFileChunked(
         if (!res.ok) {
           const e = (await res.json().catch(() => null)) as unknown;
           throw new Error(
-            serverErrorMessage(e) ?? `Chunk ${i} failed: ${res.status}`,
+            transcodeJobs.serverErrorMessage(e) ??
+              `Chunk ${i} failed: ${res.status}`,
           );
         }
         sent += buf.byteLength;
@@ -115,7 +116,8 @@ export async function uploadFileChunked(
   if (!completeRes.ok) {
     const e = (await completeRes.json().catch(() => null)) as unknown;
     throw new Error(
-      serverErrorMessage(e) ?? `Upload complete failed: ${completeRes.status}`,
+      transcodeJobs.serverErrorMessage(e) ??
+        `Upload complete failed: ${completeRes.status}`,
     );
   }
   const complete = (await completeRes.json()) as ChunkedUploadResult;
@@ -158,9 +160,9 @@ export function uploadFormWithProgress<T>(
         // B2: carry HTTP status + Retry-After so callers can shape 429
         // (queue full) distinctly from validation errors.
         // B4: serverErrorMessage includes zod `issues` when present.
-        const serverError = serverErrorMessage(xhr.response);
+        const serverError = transcodeJobs.serverErrorMessage(xhr.response);
         reject(
-          shapeXhrError(
+          transcodeJobs.shapeXhrError(
             xhr.status,
             serverError,
             xhr.getResponseHeader("Retry-After"),

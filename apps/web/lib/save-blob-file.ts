@@ -3,7 +3,7 @@
 // shaping. Deduped from cut / subtitles / mobile / bulk export flows (were
 // 4 copies). Editors go through the `saveBlobFile` singleton below instead
 // of touching the picker / object URLs directly.
-import { serverErrorMessage } from "./transcode-jobs";
+import { transcodeJobs } from "./transcode-jobs";
 
 /** File-picker accept entries (`showSaveFilePicker` `types` option). */
 export type SavePickerTypes = Array<{
@@ -85,7 +85,8 @@ class SaveBlobFile {
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
       throw new Error(
-        serverErrorMessage(payload) ?? `Download failed: ${res.status}`,
+        transcodeJobs.serverErrorMessage(payload) ??
+          `Download failed: ${res.status}`,
       );
     }
     return res.blob();
