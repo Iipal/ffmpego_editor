@@ -179,18 +179,36 @@ class APIClient {
   }
 
   /**
+   * POST a multipart form that reuses a chunked-upload sparse temp file via
+   * the `x-upload-id` header and return the raw output `Blob` (audio-extract
+   * pulls over a reused session). Mirrors `postWithUploadId` for blob
+   * endpoints; failures throw with the envelope message.
+   */
+  async postBlobWithUploadId(
+    endpoint: string,
+    uploadId: string,
+    init?: RequestInit,
+  ): Promise<Blob> {
+    return this.postBlob(endpoint, null, {
+      ...init,
+      headers: { "x-upload-id": uploadId, ...init?.headers },
+    });
+  }
+
+  /**
    * POST a `FormData` body and return the raw output `Blob` (audio-extract
-   * pulls). Failures throw with the envelope message, mirroring `formPost`.
+   * pulls). A null form sends a bodiless POST (used with `x-upload-id`
+   * reuse). Failures throw with the envelope message, mirroring `formPost`.
    */
   async postBlob(
     endpoint: string,
-    form: FormData,
+    form: FormData | null,
     init?: RequestInit,
   ): Promise<Blob> {
     const res = await fetch(this.url(endpoint), {
       ...init,
       method: "POST",
-      body: form,
+      body: form ?? undefined,
     });
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;

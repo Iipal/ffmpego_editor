@@ -69,8 +69,7 @@ import {
   getAudioRenderSettings,
   setAudioState,
 } from "@/store/audioSlice";
-import { apiClient } from "@/lib/api-client";
-import { transcodeJobs } from "@/lib/transcode-jobs";
+import { audioUpload } from "@/lib/audio-upload";
 import { saveBlobFile } from "@/lib/save-blob-file";
 import { exportPresets, type ExportPreset } from "@/lib/export-presets";
 import { preflight } from "@/lib/preflight";
@@ -402,20 +401,12 @@ export function Sidebar() {
       label: name,
       async run(report) {
         report({ status: "processing", progress: 50 });
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch(
-          apiClient.url(`/api/audio/extract?format=${state.audioFormat}`),
-          { method: "POST", body: form },
+        // Large files reuse the shared chunked session (uploaded once for
+        // analysis/preview); small files keep the direct FormData path.
+        return audioUpload.postBlob(
+          `/api/audio/extract?format=${state.audioFormat}`,
+          file,
         );
-        if (!res.ok) {
-          const j = (await res.json().catch(() => null)) as unknown;
-          throw new Error(
-            transcodeJobs.serverErrorMessage(j) ??
-              `Extract failed: ${res.status}`,
-          );
-        }
-        return res.blob();
       },
       async onFinish({ blob }) {
         const saved = await saveBlobFile.save(blob, name);

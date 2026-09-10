@@ -10,6 +10,7 @@ import { apiClient, type TranscodeResponse } from "./api-client";
 import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import { transcodeJobs } from "./transcode-jobs";
+import { audioUpload } from "./audio-upload";
 import { uploadChunked } from "./upload-chunked";
 import { sourceStore } from "@/store/sourceSlice";
 import {
@@ -113,11 +114,11 @@ class ExportHistory {
     label: string,
   ): Promise<Blob> {
     const file = this.currentFile();
-    const form = new FormData();
-    form.append("file", file);
-    const blob = await apiClient.postBlob(
+    // Large files reuse the shared chunked session (uploaded once for
+    // analysis/preview); small files keep the direct FormData path.
+    const blob = await audioUpload.postBlob(
       `/api/audio/extract?format=${audioFormat}`,
-      form,
+      file,
     );
     trackHistoryEntry({
       jobId: `extract-${Date.now()}`,

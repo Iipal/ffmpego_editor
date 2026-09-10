@@ -22,7 +22,7 @@ import {
 import { sourceStore } from "@/store/sourceSlice";
 import { usePlayheadTime } from "@/store/playheadSlice";
 import { formatTime } from "@/lib/format-time";
-import { apiClient } from "@/lib/api-client";
+import { audioUpload } from "@/lib/audio-upload";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
 import { AudioWaveform } from "./AudioWaveform";
 
@@ -57,16 +57,18 @@ function TrackControls({
       });
   };
   const extract = async (format: "mp3" | "wav") => {
-    const form = new FormData();
-    form.append("file", file);
-    const response = await fetch(
-      apiClient.url(
+    // Large files reuse the shared chunked session (uploaded once for
+    // analysis/preview); small files keep the direct FormData path.
+    let blob: Blob;
+    try {
+      blob = await audioUpload.postBlob(
         `/api/audio/extract?format=${format}&track=${track.trackIndex}`,
-      ),
-      { method: "POST", body: form },
-    );
-    if (!response.ok) return;
-    const url = URL.createObjectURL(await response.blob());
+        file,
+      );
+    } catch {
+      return;
+    }
+    const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `${file.name.replace(/\.[^.]+$/, "")}-track-${track.trackIndex + 1}.${format}`;

@@ -218,6 +218,10 @@ flowchart LR
 
 - `lib/upload-chunked.ts` (`UploadChunked` service:
   `uploadChunked.shouldUseChunked/uploadFile/uploadForm`).
+- `lib/audio-upload.ts` (`AudioUpload` service:
+  `audioUpload.ensureTransport/postJson/postBlob`): audio analysis, preview
+  pulls and extracts share one chunked upload (>256 MB) via `x-upload-id`
+  instead of re-sending the file per call; small files keep direct FormData.
 - `lib/export-queue.ts`: `ExportQueue` class service (`exportQueue` singleton)
   — `enqueue` (fire-and-forget upload → job POST → SSE → download/save;
   429 retry, in-flight gate, orphan guard), `cancel`, `dismiss`.

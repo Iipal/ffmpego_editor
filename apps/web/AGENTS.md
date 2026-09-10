@@ -103,7 +103,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 - `useVideoMetadata.ts` (initial + extended probe; extended takes
   `{file,includeFrames,includePackets}`), `useAudioAnalysis.ts`,
-  `useAudioPreview.ts`, `useSharedMobileLayout.ts`
+  `useAudioPreview.ts` (both via `audio-upload` session reuse, not raw
+  FormData), `useSharedMobileLayout.ts`
 - `useHealth.ts` (`GET /health` readiness poll)
 - `useStorageStats.ts` (`GET /storage/stats` 30 s poll + sweep mutation)
 - `useUploadSessions.ts` (`GET /upload/sessions` 10 s poll + abort mutation)
@@ -120,7 +121,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 #### Transport & export pipeline
 
 - `api-client.ts` — `APIClient` service:
-  `apiClient.url/get/post/formPost/patch/delete/postBlob`
+  `apiClient.url/get/post/formPost/postWithUploadId/patch/delete/postBlob/postBlobWithUploadId`
 - `export-queue.ts` — `ExportQueue` service:
   `exportQueue.enqueue/cancel/dismiss`
 - `export-history.ts` — `ExportHistory` service:
@@ -144,6 +145,12 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `resumed/resumedBytes` result)
 - `upload-sessions.ts` — session list/status/abort client + `localStorage`
   resume memory (name+size+lastModified key, 6 h TTL)
+- `audio-upload.ts` — `AudioUpload` service:
+  `audioUpload.ensureTransport/postJson/postBlob` (+ `postJsonWith`/
+  `postBlobWith` fan-out variants): one chunked upload (>256 MB) cached per
+  file serves analysis + preview pulls + extracts via `x-upload-id`
+  (status-validated, evict + retry once on FILE_REQUIRED); small files keep
+  direct FormData
 
 #### Readiness & storage snapshots
 

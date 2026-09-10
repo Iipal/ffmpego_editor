@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { apiClient } from "@/lib/api-client";
+import { audioUpload } from "@/lib/audio-upload";
 import type { AudioTrackState } from "@/store/audioSlice";
 
 type AudioEntry = {
@@ -164,18 +164,27 @@ export function useAudioPreview({
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", onEnded);
 
-    void Promise.all(
-      activeTracks.map(async (track) => {
-        const form = new FormData();
-        form.append("file", file);
-        const response = await fetch(
-          apiClient.url(
+    // One shared transport for every enabled track: large files upload once
+    // via a reused chunked session instead of once per track pull.
+    void (async () => {
+      const transport = await audioUpload
+        .ensureTransport(file)
+        .catch(() => null);
+      if (!transport || disposed) return;
+      await Promise.all(
+        activeTracks.map(async (track) => {
+        let blob: Blob;
+        try {
+          blob = await audioUpload.postBlobWith(
             `/api/audio/extract?format=wav&track=${track.trackIndex}`,
-          ),
-          { method: "POST", body: form },
-        );
-        if (!response.ok || disposed) return;
-        const objectUrl = URL.createObjectURL(await response.blob());
+            file,
+            transport,
+          );
+        } catch {
+          return;
+        }
+        if (disposed) return;
+        const objectUrl = URL.createObjectURL(blob);
         if (disposed) {
           URL.revokeObjectURL(objectUrl);
           return;
@@ -195,8 +204,9 @@ export function useAudioPreview({
           lastGain: -1,
         });
         if (!video.paused) void playAudio();
-      }),
-    );
+        }),
+      );
+    })();
 
     return () => {
       disposed = true;

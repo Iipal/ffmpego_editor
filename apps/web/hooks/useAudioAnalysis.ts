@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, type AudioAnalysis } from "@/lib/api-client";
+import type { AudioAnalysis } from "@/lib/api-client";
+import { audioUpload } from "@/lib/audio-upload";
 
 export function useAudioAnalysis(file: File | null, trackIndex: number) {
   return useQuery({
@@ -13,13 +14,14 @@ export function useAudioAnalysis(file: File | null, trackIndex: number) {
       trackIndex,
     ],
     enabled: !!file,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!file) throw new Error("Audio source is required");
-      const form = new FormData();
-      form.append("file", file);
-      return apiClient.formPost<AudioAnalysis>(
+      // Large files upload once via a reused chunked session; small files
+      // keep the direct FormData path.
+      return audioUpload.postJson<AudioAnalysis>(
         `/api/audio/analysis?track=${trackIndex}`,
-        form,
+        file,
+        { signal },
       );
     },
     staleTime: Infinity,
