@@ -65,15 +65,16 @@ import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import { exportQueue } from "@/lib/export-queue";
 import { assertGenericSettings } from "@/lib/validate-settings";
-import {
-  exportQueueStore,
-  isQueueItemActive,
-} from "@/store/exportQueueSlice";
+import { exportQueueStore, isQueueItemActive } from "@/store/exportQueueSlice";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { VisualFiltersPanel } from "@/components/editor/VisualFiltersPanel";
 import { filterStore, setFilterState } from "@/store/filterSlice";
 import { isVisualFiltersDefault } from "@repo/ffmpeg-filters";
-import { audioStore, getAudioRenderSettings, setAudioState } from "@/store/audioSlice";
+import {
+  audioStore,
+  getAudioRenderSettings,
+  setAudioState,
+} from "@/store/audioSlice";
 import { apiClient } from "@/lib/api-client";
 import { serverErrorMessage } from "@/lib/transcode-jobs";
 import { saveBlobFile } from "@/lib/save-blob-file";
@@ -122,9 +123,7 @@ export function Sidebar() {
   const queueItems = useSelector(exportQueueStore).items;
   const editorQueueItems = useMemo(
     () =>
-      queueItems.filter(
-        (i) => i.kind === "crop" || i.kind === "audio-extract",
-      ),
+      queueItems.filter((i) => i.kind === "crop" || i.kind === "audio-extract"),
     [queueItems],
   );
   const activeExports = useMemo(
@@ -421,7 +420,7 @@ export function Sidebar() {
         return res.blob();
       },
       async onFinish({ blob }) {
-        const saved = await saveBlobFile(blob, name);
+        const saved = await saveBlobFile.save(blob, name);
         trackHistoryEntry({
           jobId: `extract-${Date.now()}`,
           endpoint: "/api/audio/extract",
@@ -810,16 +809,17 @@ export function Sidebar() {
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedPreset && !exportPresets.isBuiltin(selectedPreset.id) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={deleteSelectedPreset}
-                    aria-label="Delete preset"
-                  >
-                    Delete
-                  </Button>
-                )}
+                {selectedPreset &&
+                  !exportPresets.isBuiltin(selectedPreset.id) && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={deleteSelectedPreset}
+                      aria-label="Delete preset"
+                    >
+                      Delete
+                    </Button>
+                  )}
               </div>
               {selectedPreset?.description && (
                 <p className="text-[11px] leading-4 text-kumo-subtle">
@@ -1023,7 +1023,11 @@ export function Sidebar() {
                               {track.title ? ` · ${track.title}` : ""}
                             </p>
                             <p className="truncate text-[11px] text-kumo-subtle">
-                              {[track.language, track.codec, `${track.channels}ch`]
+                              {[
+                                track.language,
+                                track.codec,
+                                `${track.channels}ch`,
+                              ]
                                 .filter(Boolean)
                                 .join(" · ")}
                             </p>

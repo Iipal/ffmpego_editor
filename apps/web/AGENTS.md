@@ -62,13 +62,13 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `upload-chunked.ts`      | `uploadFileChunked` (>256 MB), `uploadFormWithProgress` (XHR progress), `shouldUseChunked`               |
 | `transcode-progress.ts`  | `subscribeTranscodeProgress` (SSE `progressUrl` fan-out)                                                 |
 | `transcode-jobs.ts`      | `cancelTranscodeJob`, envelope errors (`serverErrorMessage`, `throwTranscodeHttpError`)                  |
-| `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity`                                    |
+| `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity`                          |
 | `validate-settings.ts`   | contracts pre-validation before every `POST`                                                             |
 | `playback-bus.ts`        | `PlaybackBus` service: `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`                               |
 | `video-file.ts`          | accepted input attrs, size guards, filename helpers                                                      |
 | `mobile-layout.ts`       | `MobileLayoutService`: `mobileLayoutService.clamp/normalizeLayout/...`, `MobileLayoutService.OUTPUT_W/H` |
 | `format-time.ts`         | `formatTime` display helper                                                                              |
-| `save-blob-file.ts`      | `saveBlobFile` (picker), `fetchDownloadBlob`, `pickerTypesForExt`                                        |
+| `save-blob-file.ts`      | `SaveBlobFile` service: `saveBlobFile.save/fetchDownload/pickerTypesForExt`                              |
 | `preload.ts`             | hover/focus intent preloads (`preloadUploadChunked`)                                                     |
 | `utils.ts`               | `cn` re-export, `NOOP` default callback                                                                  |
 | `subtitles/`             | PNG render, Google Fonts, defaults, storage, subtitle types                                              |

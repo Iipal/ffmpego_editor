@@ -7,7 +7,7 @@
 // rename a job server-side. Compare opening stays best-effort (advisory), so
 // failures there never reject.
 import { apiClient, type TranscodeResponse } from "./api-client";
-import { fetchDownloadBlob } from "./save-blob-file";
+import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import { throwTranscodeHttpError } from "./transcode-jobs";
 import {
@@ -78,7 +78,7 @@ class ExportHistory {
     meta?: string | null,
   ): Promise<void> {
     try {
-      const blob = await fetchDownloadBlob(
+      const blob = await saveBlobFile.fetchDownload(
         apiClient.url(`/api/transcode/download/${jobId}`),
       );
       openComparison({

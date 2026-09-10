@@ -113,7 +113,7 @@ export function useBulkExport({
             await w.write(blob);
             await w.close();
           } else {
-            await saveBlobFile(blob, outName);
+            await saveBlobFile.save(blob, outName);
           }
           patchItem(id, { status: "completed", progress: 100 });
           if (single) {

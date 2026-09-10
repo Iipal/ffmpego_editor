@@ -20,11 +20,7 @@
 // runner orphaned so the late job id is deleted instead of rendering.
 
 import { apiClient, type TranscodeResponse } from "./api-client";
-import {
-  fetchDownloadBlob,
-  pickerTypesForExt,
-  saveBlobFile,
-} from "./save-blob-file";
+import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import {
   exportQueueStore,
@@ -363,7 +359,7 @@ class ExportQueue {
 
     patchQueueItem(id, { status: "saving", progress: 97 });
     task.onProgress?.({ status: "saving", progress: 97, queuePosition: null });
-    return fetchDownloadBlob(
+    return saveBlobFile.fetchDownload(
       apiClient.url(`/api/transcode/download/${response.jobId}`),
     );
   }
@@ -418,10 +414,10 @@ class ExportQueue {
       if (task.onFinish) {
         await task.onFinish({ jobId, blob });
       } else {
-        const saved = await saveBlobFile(
+        const saved = await saveBlobFile.save(
           blob,
           task.label,
-          pickerTypesForExt(ExportQueue.extOf(task.label)),
+          saveBlobFile.pickerTypesForExt(ExportQueue.extOf(task.label)),
         );
         openComparison({
           title: saved,

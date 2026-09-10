@@ -158,11 +158,10 @@ export function useAdminJobs() {
   const handleDownloadOne = useCallback((job: JobEntry) => {
     void (async () => {
       const { apiClient } = await import("@/lib/api-client");
-      const { fetchDownloadBlob, saveBlobFile } =
-        await import("@/lib/save-blob-file");
+      const { saveBlobFile } = await import("@/lib/save-blob-file");
       const { toast } = await import("sonner");
       try {
-        const blob = await fetchDownloadBlob(
+        const blob = await saveBlobFile.fetchDownload(
           apiClient.url(`/api/transcode/download/${job.jobId}`),
         );
         // The stored job.filename is a bare export name (or the source file
@@ -184,7 +183,7 @@ export function useAdminJobs() {
               : serverExt === "mov"
                 ? "video/quicktime"
                 : "application/octet-stream";
-        const saved = await saveBlobFile(blob, filename, [
+        const saved = await saveBlobFile.save(blob, filename, [
           {
             description: `${serverExt.toUpperCase()} video`,
             accept: { [mimeType]: [`.${serverExt}`] },
