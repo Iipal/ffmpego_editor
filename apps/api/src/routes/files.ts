@@ -10,7 +10,7 @@ import { Hono } from "hono";
 import fs from "node:fs";
 import { systemError, systemLog } from "../observability.js";
 import { err, errResponse } from "../http.js";
-import { listUploads } from "../db.js";
+import { liveUploadPaths } from "../db.js";
 import {
   ArtifactStore,
   AssetStore,
@@ -20,18 +20,9 @@ import {
 
 const app = new Hono();
 
-function lookup(id: string): FileRecord | null {
+export function lookup(id: string): FileRecord | null {
   if (!/^(ast|art)_[0-9a-f]{32}$/.test(id)) return null;
   return ArtifactStore.get(id) ?? AssetStore.get(id);
-}
-
-export function fileDownloadHeaders(rec: FileRecord): Record<string, string> {
-  return {
-    "Content-Type": rec.mime,
-    "Content-Disposition": `attachment; filename="${rec.name}"`,
-    "Cache-Control": "no-store",
-    "Accept-Ranges": "bytes",
-  };
 }
 
 /**
@@ -52,7 +43,12 @@ export function streamFile(
   if (total <= 0) {
     return errResponse("OUTPUT_EMPTY", { message: "File is empty." });
   }
-  const baseHeaders = fileDownloadHeaders(rec);
+  const baseHeaders = {
+    "Content-Type": rec.mime,
+    "Content-Disposition": `attachment; filename="${rec.name}"`,
+    "Cache-Control": "no-store",
+    "Accept-Ranges": "bytes",
+  };
   if (rangeHeader) {
     const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
     if (!m || (m[1] === "" && m[2] === "")) {
@@ -103,7 +99,7 @@ app.post("/storage/sweep", (c) => {
   // live upload sessions are pinned so slow uploads survive the sweep —
   // same shielding as the boot reconcile in src/index.ts. Idempotent: a
   // second run finds nothing and frees zero bytes.
-  const pin = new Set(listUploads().map((u) => u.temporaryPath));
+  const pin = liveUploadPaths();
   const r = store.reconcile(Date.now(), { pin });
   if (r.expired + r.staleReserved + r.missing + r.orphans > 0) {
     systemLog(
@@ -118,9 +114,5 @@ app.get("/files/:id/download", (c) => {
   if (!rec) return err(c, "ASSET_NOT_FOUND", { message: "File not found." });
   return streamFile(rec, c.req.header("Range") ?? c.req.header("range"));
 });
-
-export function resolveFileRecord(id: string): FileRecord | null {
-  return lookup(id);
-}
 
 export default app;

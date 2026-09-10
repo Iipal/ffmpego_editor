@@ -9,24 +9,28 @@
  *   [upload <uploadId>] ...      — per-upload-session events
  */
 
+function log(prefix: string, error: boolean, args: unknown[]): void {
+  (error ? console.error : console.log)(prefix, ...args);
+}
+
 export function systemLog(...args: unknown[]): void {
-  console.log("[api]", ...args);
+  log("[api]", false, args);
 }
 
 export function systemError(...args: unknown[]): void {
-  console.error("[api]", ...args);
+  log("[api]", true, args);
 }
 
 export function jobLog(jobId: string, ...args: unknown[]): void {
-  console.log(`[job ${jobId}]`, ...args);
+  log(`[job ${jobId}]`, false, args);
 }
 
 export function jobError(jobId: string, ...args: unknown[]): void {
-  console.error(`[job ${jobId}]`, ...args);
+  log(`[job ${jobId}]`, true, args);
 }
 
 export function uploadLog(uploadId: string, ...args: unknown[]): void {
-  console.log(`[upload ${uploadId}]`, ...args);
+  log(`[upload ${uploadId}]`, false, args);
 }
 
 let cachedFfmpegVersion: string | null | undefined;

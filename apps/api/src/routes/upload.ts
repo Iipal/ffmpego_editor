@@ -9,7 +9,7 @@ import {
   updateUpload,
 } from "../db.js";
 import { getDiskFreeBytes, uploadLog } from "../observability.js";
-import { err } from "../http.js";
+import { err, quotaExceeded } from "../http.js";
 import {
   AssetStore,
   FileStoreQuotaError,
@@ -89,10 +89,7 @@ app.post("/upload/init", async (c) => {
   }
   const quota = store.checkQuota(totalSize);
   if (!quota.ok) {
-    return err(c, "QUOTA_EXCEEDED", {
-      message: `Storage quota exceeded: need ${totalSize} bytes, quota is ${quota.quotaBytes} bytes`,
-      details: { neededBytes: totalSize, quotaBytes: quota.quotaBytes },
-    });
+    return quotaExceeded(c, totalSize, quota.quotaBytes);
   }
   const uploadId = crypto.randomUUID();
   const safeName = safeFilename(filename, "upload.bin");
@@ -108,10 +105,7 @@ app.post("/upload/init", async (c) => {
     }));
   } catch (e) {
     if (e instanceof FileStoreQuotaError) {
-      return err(c, "QUOTA_EXCEEDED", {
-        message: e.message,
-        details: { neededBytes: e.neededBytes, quotaBytes: e.quotaBytes },
-      });
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     }
     throw e;
   }

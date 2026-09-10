@@ -30,6 +30,18 @@ export function err(
   return c.json(errorEnvelope(code, { ...rest, requestId }), status, headers);
 }
 
+/** Shared 507 for store-quota breaches (reserve paths throw FileStoreQuotaError). */
+export function quotaExceeded(
+  c: Context,
+  neededBytes: number,
+  quotaBytes: number,
+) {
+  return err(c, "QUOTA_EXCEEDED", {
+    message: `Storage quota exceeded: need ${neededBytes} bytes, quota is ${quotaBytes} bytes`,
+    details: { neededBytes, quotaBytes },
+  });
+}
+
 /** Framework-free variant for helpers returning plain Responses. */
 export function errResponse(
   code: ErrorCode,

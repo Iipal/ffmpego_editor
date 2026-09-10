@@ -6,7 +6,7 @@ import metadataRoutes from "./routes/metadata.js";
 import audioRoutes from "./routes/audio.js";
 import uploadRoutes from "./routes/upload.js";
 import filesRoutes from "./routes/files.js";
-import { listUploads, startupSweep } from "./db.js";
+import { liveUploadPaths, startupSweep } from "./db.js";
 import { store } from "./storage/index.js";
 import {
   formatBytes,
@@ -27,7 +27,7 @@ if (sweep.recoveredJobs > 0 || sweep.deletedFiles > 0) {
 // rows whose bytes vanished, and store-root files with no owning row.
 // Live upload sessions are pinned so slow uploads survive a restart sweep.
 {
-  const pin = new Set(listUploads().map((u) => u.temporaryPath));
+  const pin = liveUploadPaths();
   const r = store.reconcile(Date.now(), { pin });
   if (r.expired + r.staleReserved + r.missing + r.orphans > 0) {
     systemLog(

@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 export type JobStatus =
@@ -10,15 +9,10 @@ export interface JobRow {
   jobId: string;
   status: JobStatus;
   progress: number;
-  outputPath: string;
-  alternateOutputPath: string | null;
   error: string | null;
   logTail: string | null;
   exitCode: number | null;
-  temporaryInputPath: string;
-  subtitlePaths: string[];
-  /** Opaque AssetStore/ArtifactStore IDs. Path columns are write-mirrors kept
-   *  for crash-time readability; all live file access goes through the IDs. */
+  /** Opaque AssetStore/ArtifactStore IDs — the only file references. */
   inputFileId: string | null;
   outputFileId: string | null;
   alternateFileId: string | null;
@@ -60,12 +54,8 @@ CREATE TABLE IF NOT EXISTS jobs (
   jobId TEXT PRIMARY KEY,
   status TEXT NOT NULL,
   progress REAL NOT NULL DEFAULT 0,
-  outputPath TEXT NOT NULL,
-  alternateOutputPath TEXT,
   error TEXT,
   logTail TEXT,
-  temporaryInputPath TEXT NOT NULL,
-  subtitlePaths TEXT NOT NULL DEFAULT '[]',
   createdAt INTEGER NOT NULL,
   updatedAt INTEGER NOT NULL,
   kind TEXT NOT NULL DEFAULT 'transcode',
@@ -93,25 +83,38 @@ function ensureColumn(table: string, column: string, ddl: string): void {
   }
 }
 ensureColumn("jobs", "exitCode", "INTEGER");
-// AssetStore/ArtifactStore ownership (opaque file IDs; path cols stay as mirrors).
+// AssetStore/ArtifactStore ownership (opaque file IDs).
 ensureColumn("jobs", "inputFileId", "TEXT");
 ensureColumn("jobs", "outputFileId", "TEXT");
 ensureColumn("jobs", "alternateFileId", "TEXT");
 ensureColumn("jobs", "subtitleFileIds", "TEXT DEFAULT '[]'");
 ensureColumn("uploads", "fileId", "TEXT");
 
+// Dropped: pre-AssetStore path-mirror columns (outputPath,
+// alternateOutputPath, temporaryInputPath, subtitlePaths). Files are
+// referenced by store ID only; jobs table is empty-or-migrated in practice
+// (local dev data), so legacy rows lose their path mirrors here.
+function dropColumn(table: string, column: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
+    name: string;
+  }[];
+  if (cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} DROP COLUMN ${column};`);
+  }
+}
+dropColumn("jobs", "outputPath");
+dropColumn("jobs", "alternateOutputPath");
+dropColumn("jobs", "temporaryInputPath");
+dropColumn("jobs", "subtitlePaths");
+
 function rowToJob(r: Record<string, unknown>): JobRow {
   return {
     jobId: String(r.jobId),
     status: r.status as JobStatus,
     progress: Number(r.progress ?? 0),
-    outputPath: String(r.outputPath),
-    alternateOutputPath: (r.alternateOutputPath as string | null) ?? null,
     error: (r.error as string | null) ?? null,
     logTail: (r.logTail as string | null) ?? null,
     exitCode: (r.exitCode as number | null) ?? null,
-    temporaryInputPath: String(r.temporaryInputPath),
-    subtitlePaths: JSON.parse(String(r.subtitlePaths ?? "[]")) as string[],
     inputFileId: (r.inputFileId as string | null) ?? null,
     outputFileId: (r.outputFileId as string | null) ?? null,
     alternateFileId: (r.alternateFileId as string | null) ?? null,
@@ -126,18 +129,14 @@ function rowToJob(r: Record<string, unknown>): JobRow {
 // ---- Jobs ----
 export function insertJob(job: Omit<JobRow, "updatedAt">): void {
   db.prepare(
-    `INSERT INTO jobs (jobId, status, progress, outputPath, alternateOutputPath, error, logTail, temporaryInputPath, subtitlePaths, inputFileId, outputFileId, alternateFileId, subtitleFileIds, createdAt, updatedAt, kind, filename)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO jobs (jobId, status, progress, error, logTail, inputFileId, outputFileId, alternateFileId, subtitleFileIds, createdAt, updatedAt, kind, filename)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     job.jobId,
     job.status,
     job.progress,
-    job.outputPath,
-    job.alternateOutputPath,
     job.error,
     job.logTail,
-    job.temporaryInputPath,
-    JSON.stringify(job.subtitlePaths),
     job.inputFileId,
     job.outputFileId,
     job.alternateFileId,
@@ -173,7 +172,6 @@ export function updateJob(
       | "error"
       | "logTail"
       | "exitCode"
-      | "alternateOutputPath"
       | "alternateFileId"
       | "filename"
     >
@@ -200,10 +198,6 @@ export function updateJob(
   if (patch.exitCode !== undefined) {
     sets.push("exitCode = ?");
     vals.push(patch.exitCode);
-  }
-  if (patch.alternateOutputPath !== undefined) {
-    sets.push("alternateOutputPath = ?");
-    vals.push(patch.alternateOutputPath);
   }
   if (patch.alternateFileId !== undefined) {
     sets.push("alternateFileId = ?");
@@ -300,9 +294,14 @@ export function listUploads(): UploadRow[] {
   }));
 }
 
+/** Absolute store paths of live upload sessions (pinned across sweeps). */
+export function liveUploadPaths(): Set<string> {
+  return new Set(listUploads().map((u) => u.temporaryPath));
+}
+
 // ---- Startup sweep ----
-// Marks interrupted jobs as failed, deletes partial outputs, removes stale
-// uploads (>6h) and orphan temp files. Runs once at boot.
+// Marks interrupted jobs as failed and removes stale uploads (>6h).
+// Runs once at boot.
 export function startupSweep(): {
   recoveredJobs: number;
   deletedFiles: number;
@@ -318,9 +317,7 @@ export function startupSweep(): {
 
   for (const job of listJobs()) {
     if (job.status === "processing" || job.status === "queued") {
-      // Partial output from killed ffmpeg can never be resumed — delete it.
-      if (job.outputPath) rm(job.outputPath);
-      if (job.alternateOutputPath) rm(job.alternateOutputPath);
+      // Partial outputs stay owned by the failed row (freed on job delete).
       updateJob(job.jobId, {
         status: "failed",
         error: "Server restarted before export completed.",
@@ -336,24 +333,6 @@ export function startupSweep(): {
       deleteUpload(u.uploadId);
     }
   }
-
-  // Sweep orphan temp files older than 24h (crash leftovers with no DB row).
-  try {
-    const day = 24 * 60 * 60 * 1000;
-    const now = Date.now();
-    for (const f of fs.readdirSync(os.tmpdir())) {
-      const isTempOut = f.startsWith("temp_") && /\.(mp4|webm|mov)$/i.test(f);
-      const isSubPng = /-sub\d+\.png$/.test(f);
-      const isJobInput =
-        /^[0-9a-f-]{36}-/.test(f) && /\.(mp4|webm|mov|mkv|png)$/i.test(f);
-      if (!(isTempOut || isSubPng || isJobInput)) continue;
-      const full = path.join(os.tmpdir(), f);
-      try {
-        const age = now - fs.statSync(full).mtimeMs;
-        if (age > day) rm(full);
-      } catch {}
-    }
-  } catch {}
 
   return { recoveredJobs, deletedFiles };
 }

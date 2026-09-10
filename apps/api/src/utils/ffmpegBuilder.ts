@@ -7,20 +7,19 @@ import {
   cropPercentToPixels,
   isVisualFiltersDefault,
   normalizeVisualFilters,
+  zoneToPixels,
   type VisualFilters,
 } from "@repo/ffmpeg-filters";
 
-// server-hoist-static-io: candidate list is static — build once, cache resolved path
+// Watermark PNG ships next to src (import.meta.dir = src/utils → ../assets);
+// the cwd fallback covers dev servers launched with apps/api as cwd.
 const WATERMARK_CANDIDATES = [
   path.join(import.meta.dir, "../assets/minozavr.png"),
-  path.resolve("apps/api/assets/minozavr.png"),
-  path.resolve("assets/minozavr.png"),
-  path.join(process.cwd(), "apps/api/assets/minozavr.png"),
   path.join(process.cwd(), "assets/minozavr.png"),
 ];
 let cachedWatermarkPath: string | null | undefined;
 
-function resolveWatermarkPath(): string {
+export function resolveWatermarkPath(): string {
   if (cachedWatermarkPath !== undefined) return cachedWatermarkPath as string;
   for (const c of WATERMARK_CANDIDATES) {
     try {
@@ -139,13 +138,6 @@ function buildAudioFilter(
 }
 
 /**
- * Fallback output directory when no explicit outputPath is provided.
- * All callers pass an absolute os.tmpdir() path; files are kept until the
- * user deletes the job (no auto-delete on download).
- */
-export const OUTPUT_DIRECTORY = ".";
-
-/**
  * Build encoder-specific FFmpeg args for the selected format.
  *
  * B4: webm no longer silently forces fps=30, scale=512:-1 and -an. It now
@@ -156,7 +148,7 @@ export const OUTPUT_DIRECTORY = ".";
  * The returned args are inserted after the input arguments and before any
  * filter or output path arguments.
  */
-function buildFormatArgs(
+export function buildFormatArgs(
   format: TranscodeOptions["format"],
   crf: number | undefined,
 ) {
@@ -176,10 +168,10 @@ function buildFormatArgs(
         "0",
         "-c:a",
         "libopus",
-      ].flat();
+      ];
     case "gif":
       // Silent preview GIF: callers cap size via scale + fps via -r.
-      return ["-c:v", "gif", "-an"].flat();
+      return ["-c:v", "gif", "-an"];
     case "mov":
       return [
         "-c:v",
@@ -198,7 +190,7 @@ function buildFormatArgs(
         "bt709",
         "-colorspace",
         "bt709",
-      ].flat();
+      ];
     case "mp4":
     default:
       return [
@@ -212,7 +204,7 @@ function buildFormatArgs(
         "yuv420p",
         "-c:a",
         "aac",
-      ].flat();
+      ];
   }
 }
 
@@ -322,12 +314,11 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   // (seek + duration capped at 3s) and crop. Everything else (speed, fps,
   // audio, watermark, mobileLayout, custom args) is ignored on this path.
   if (options.format === "webm-tg") {
-    const outputName =
+    return buildTelegramWebmTgArgs(
+      options,
       options.outputPath ??
-      `${options.filename}${options.outputSuffix ?? ""}.webm`;
-    const finalOutputPath =
-      options.outputPath ?? path.join(OUTPUT_DIRECTORY, outputName);
-    return buildTelegramWebmTgArgs(options, finalOutputPath);
+        `${options.filename}${options.outputSuffix ?? ""}.webm`,
+    );
   }
   // Convert crop rectangle percentages to absolute pixel values.
   // Values are clamped to the source dimensions so FFmpeg never receives
@@ -411,43 +402,13 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   let usedComplex = false;
   if (options.mobileLayout) {
     const ml = options.mobileLayout;
+    // Zones arrive as 0-100 percent (routes scale the 0-1 values up front).
     const toCrop = (z: {
       x: number;
       y: number;
       width: number;
       height: number;
-      zoom: number;
-    }) => {
-      const cw = Math.max(
-        1,
-        Math.min(
-          options.sourceWidth,
-          Math.round((z.width / 100) * options.sourceWidth),
-        ),
-      );
-      const ch = Math.max(
-        1,
-        Math.min(
-          options.sourceHeight,
-          Math.round((z.height / 100) * options.sourceHeight),
-        ),
-      );
-      const cx = Math.max(
-        0,
-        Math.min(
-          options.sourceWidth - cw,
-          Math.round((z.x / 100) * options.sourceWidth),
-        ),
-      );
-      const cy = Math.max(
-        0,
-        Math.min(
-          options.sourceHeight - ch,
-          Math.round((z.y / 100) * options.sourceHeight),
-        ),
-      );
-      return { cw, ch, cx, cy };
-    };
+    }) => zoneToPixels(z, options.sourceWidth, options.sourceHeight, false);
     const hasSpeed = options.speed !== undefined && options.speed !== 1;
     const setpts = hasSpeed
       ? `,${buildSetptsFilter(options.speed as number)}`
@@ -469,7 +430,7 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       return ["-map", audioMap, ...(fallback ? ["-filter:a", fallback] : [])];
     };
     if (ml.mode === "full" && ml.zones[0]) {
-      const c = toCrop(ml.zones[0] as never);
+      const c = toCrop(ml.zones[0]);
       if (wm) {
         // use filter_complex for watermark overlay on top of cropped/scaled video
         const base = `[0:v]crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=1080:1920:flags=lanczos${setpts}[vbase]`;
@@ -504,8 +465,8 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
         else if (af) args.push("-filter:a", af);
       }
     } else if (ml.mode === "stacked" && ml.zones.length >= 2) {
-      const a = toCrop(ml.zones[0] as never);
-      const b = toCrop(ml.zones[1] as never);
+      const a = toCrop(ml.zones[0]);
+      const b = toCrop(ml.zones[1]);
       const split = Math.max(0.2, Math.min(0.8, ml.splitRatio ?? 0.5));
       const h1 = Math.round(1920 * split);
       const h2 = 1920 - h1;
@@ -623,9 +584,8 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   // Pre-parsed via parseCustomArgs (shell-quote + structural denylist).
   if (options.customArgs?.length) args.push(...options.customArgs);
 
-  // Use the explicit outputPath if provided, otherwise fall back to OUTPUT_DIRECTORY.
-  const finalOutputPath =
-    options.outputPath ?? path.join(OUTPUT_DIRECTORY, outputName);
+  // The explicit outputPath, or the bare filename for direct callers.
+  const finalOutputPath = options.outputPath ?? outputName;
 
   args.push("-progress", "pipe:2", "-nostats", finalOutputPath);
 

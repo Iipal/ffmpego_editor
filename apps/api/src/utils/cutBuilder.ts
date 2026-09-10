@@ -1,34 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
 import {
   buildAtempoFilter,
   buildSetptsFilter,
   zoneToPixels,
 } from "@repo/ffmpeg-filters";
-
-// server-hoist-static-io: candidate list is static — build once, cache resolved path
-const WATERMARK_CANDIDATES = [
-  path.join(import.meta.dir, "../assets/minozavr.png"),
-  path.resolve("apps/api/assets/minozavr.png"),
-  path.resolve("assets/minozavr.png"),
-  path.join(process.cwd(), "apps/api/assets/minozavr.png"),
-  path.join(process.cwd(), "assets/minozavr.png"),
-];
-let cachedWatermarkPath: string | undefined;
-
-function resolveWatermarkPath(): string {
-  if (cachedWatermarkPath !== undefined) return cachedWatermarkPath;
-  for (const c of WATERMARK_CANDIDATES) {
-    try {
-      if (fs.existsSync(c)) {
-        cachedWatermarkPath = c;
-        return c;
-      }
-    } catch {}
-  }
-  cachedWatermarkPath = WATERMARK_CANDIDATES[0];
-  return cachedWatermarkPath;
-}
+import { resolveWatermarkPath } from "./ffmpegBuilder.js";
 
 export type CutMode = "full-size" | "2-stack" | "1-stack";
 

@@ -2,13 +2,17 @@ import { Hono } from "hono";
 import { consumeUpload } from "./upload.js";
 import { extractVideoMetadata, type FFprobeReport } from "../utils/metadata.js";
 import { systemError } from "../observability.js";
-import { err } from "../http.js";
+import { err, quotaExceeded } from "../http.js";
 import {
   MULTIPART_FIELDS,
   UPLOAD_ID_HEADER,
   UPLOAD_ID_QUERY,
 } from "@repo/contracts";
-import { AssetStore, FileStoreQuotaError, store } from "../storage/index.js";
+import {
+  AssetStore,
+  FileStoreQuotaError,
+  reserveRequestAsset,
+} from "../storage/index.js";
 
 const app = new Hono();
 
@@ -57,38 +61,15 @@ app.post("/metadata", async (c) => {
       const file = form.get(MULTIPART_FIELDS.file);
       if (!(file instanceof File))
         return err(c, "FILE_REQUIRED", { message: "Video file is required" });
-      const size = Number.isFinite(file.size) ? file.size : 0;
-      const quota = store.checkQuota(size);
-      if (!quota.ok) {
-        return err(c, "QUOTA_EXCEEDED", {
-          message: `Storage quota exceeded: need ${size} bytes, quota is ${quota.quotaBytes} bytes`,
-          details: { neededBytes: size, quotaBytes: quota.quotaBytes },
-        });
-      }
       try {
-        ({ id: assetId, path: temporaryPath } = AssetStore.reserve({
-          kind: "request-input",
-          filename: file.name || "upload.bin",
-          mime: file.type || undefined,
-          sizeHint: size,
-        }));
+        ({ id: assetId, path: temporaryPath } =
+          await reserveRequestAsset(file));
       } catch (e) {
         if (e instanceof FileStoreQuotaError) {
-          return err(c, "QUOTA_EXCEEDED", {
-            message: e.message,
-            details: { neededBytes: e.neededBytes, quotaBytes: e.quotaBytes },
-          });
+          return quotaExceeded(c, e.neededBytes, e.quotaBytes);
         }
         throw e;
       }
-      try {
-        await Bun.write(temporaryPath, file);
-      } catch (e) {
-        if (assetId) AssetStore.release(assetId);
-        assetId = null;
-        throw e;
-      }
-      AssetStore.finalize(assetId);
       filename = file.name;
     }
   }

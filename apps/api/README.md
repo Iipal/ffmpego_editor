@@ -279,8 +279,7 @@ or legacy v0, migrated via `migrateRenderPlan`) + `file` **or** `uploadId`
 - `GET /api/transcode/download/:jobId` — stream completed output (`200` or
   `206` single-range, `Content-Length`, correct MIME). Download ≠ delete.
 - `DELETE /api/transcode/jobs` — bulk clear (`?status=` filter). Kills ffmpeg,
-  releases files, deletes rows, then `store.reconcile()` + legacy `/tmp` sweep
-  when clearing all.
+  releases files, deletes rows, then `store.reconcile()` when clearing all.
 - `DELETE /api/transcode/jobs/:jobId` — hard delete (kill + release + row).
   With `?mode=cancel`: cooperative cancel — kill ffmpeg but **keep** row/files
   for log inspection.

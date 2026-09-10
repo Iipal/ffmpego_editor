@@ -4,7 +4,7 @@ import path from "node:path";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { z } from "zod";
-import { err } from "../http.js";
+import { err, quotaExceeded } from "../http.js";
 import {
   MULTIPART_FIELDS,
   UPLOAD_ID_HEADER,
@@ -34,9 +34,6 @@ import {
   mobileSettingsSchema,
   normalizeTrimAlias,
   parseCustomArgs,
-  type CutSettings,
-  type GenericSettings,
-  type MobileSettings,
 } from "../validation.js";
 import {
   deleteJob,
@@ -51,6 +48,7 @@ import {
   ArtifactStore,
   AssetStore,
   FileStoreQuotaError,
+  reserveRequestAsset,
   safeFilename,
   store,
   type FileDescriptor,
@@ -86,20 +84,15 @@ export function getQueueStats() {
 // js-hoist-regexp: hoist hot-path RegExps out of per-line / per-file loops
 const OUT_TIME_RE = /^out_time_(?:us|ms)=(\d+)$/;
 const LINE_SPLIT_RE = /\r?\n/;
-// Deprecated legacy sweep pattern (pre-AssetStore /tmp names). New files live
-// under the store root and are reconciled by ownership, not by name.
-const LEGACY_JOB_INPUT_RE = /^[0-9a-f-]{36}-/;
 const LOG_TAIL_MAX_LINES = 50;
 const LOG_TAIL_MAX_CHARS = 20_000;
 
 function pushTail(tail: string[], line: string): string[] {
   tail.push(line);
-  while (tail.length > LOG_TAIL_MAX_LINES) tail.shift();
-  let joined = tail.join("\n");
-  while (joined.length > LOG_TAIL_MAX_CHARS && tail.length > 1) {
+  if (tail.length > LOG_TAIL_MAX_LINES)
+    tail.splice(0, tail.length - LOG_TAIL_MAX_LINES);
+  while (tail.join("\n").length > LOG_TAIL_MAX_CHARS && tail.length > 1)
     tail.shift();
-    joined = tail.join("\n");
-  }
   return tail;
 }
 
@@ -128,20 +121,11 @@ function reserveOutputFile(
 /**
  * Release every store file a job owns (input ref, outputs, subtitle PNGs).
  * Idempotent: already-released IDs and missing bytes are logged no-ops.
- * Pre-AssetStore rows (null IDs, mirror paths only) fall back to direct
- * unlink so old databases still clean up fully.
  */
 function releaseJobFiles(
   job: Pick<
     JobRow,
-    | "inputFileId"
-    | "outputFileId"
-    | "alternateFileId"
-    | "subtitleFileIds"
-    | "outputPath"
-    | "alternateOutputPath"
-    | "temporaryInputPath"
-    | "subtitlePaths"
+    "inputFileId" | "outputFileId" | "alternateFileId" | "subtitleFileIds"
   >,
 ): { released: number; alreadyGone: number; bytesFreed: number } {
   const ids = [
@@ -150,24 +134,7 @@ function releaseJobFiles(
     job.alternateFileId,
     ...(job.subtitleFileIds ?? []),
   ].filter((x): x is string => !!x);
-  const res = ArtifactStore.releaseAll(ids);
-  const legacyPaths = [
-    job.inputFileId ? null : job.temporaryInputPath,
-    job.outputFileId ? null : job.outputPath,
-    job.alternateFileId ? null : job.alternateOutputPath,
-    ...((job.subtitleFileIds?.length ?? 0) > 0
-      ? []
-      : (job.subtitlePaths ?? [])),
-  ].filter((x): x is string => !!x);
-  for (const p of legacyPaths) {
-    try {
-      const size = fs.statSync(p).size;
-      fs.unlinkSync(p);
-      res.released++;
-      res.bytesFreed += size;
-    } catch {}
-  }
-  return res;
+  return ArtifactStore.releaseAll(ids);
 }
 
 /**
@@ -295,30 +262,12 @@ function createQueuedJob(
   return getJob(init.jobId)!;
 }
 
-// B4: strict zod schemas (validation.ts) replace the hand-rolled validators.
-// 400s now carry structured `issues`; client/server schema sharing waits on
-// B3 (@repo/types).
-export type TranscodeSettings = GenericSettings;
-export type MobileTranscodeSettings = MobileSettings;
-export type CutTranscodeSettings = CutSettings;
-
 const app = new Hono();
 
 async function resolveInputFile(
-  c: {
-    req: {
-      header: (n: string) => string | undefined;
-      query: (n: string) => string | undefined;
-    };
-  },
+  c: Context,
   form: FormData,
-): Promise<{
-  /** Owning asset record (chunked session file, or fresh request-input). */
-  assetId: string | null;
-  temporaryPath: string;
-  filename: string;
-  isChunked: boolean;
-} | null> {
+): Promise<ResolvedInput | null> {
   const headerId = c.req.header(UPLOAD_ID_HEADER);
   const queryId = c.req.query(UPLOAD_ID_QUERY);
   const fieldId = form.get(MULTIPART_FIELDS.uploadId);
@@ -338,25 +287,8 @@ async function resolveInputFile(
   }
   const file = form.get(MULTIPART_FIELDS.file);
   if (!(file instanceof File)) return null;
-  // Record-before-bytes: reserve the asset row first so a failed write or a
-  // later quota/queue rejection leaves a tracked record, never a stray file.
-  // Throws FileStoreQuotaError (routes map it to 507).
-  const size = Number.isFinite(file.size) ? file.size : 0;
-  const quota = store.checkQuota(size);
-  if (!quota.ok) throw new FileStoreQuotaError(size, quota.quotaBytes);
-  const { id, path: tmp } = AssetStore.reserve({
-    kind: "request-input",
-    filename: file.name || "upload.bin",
-    mime: file.type || undefined,
-    sizeHint: size,
-  });
-  try {
-    await Bun.write(tmp, file);
-  } catch (e) {
-    AssetStore.release(id);
-    throw e;
-  }
-  AssetStore.finalize(id);
+  // Throws FileStoreQuotaError (readTranscodeRequest maps it to 507).
+  const { id, path: tmp } = await reserveRequestAsset(file);
   return {
     assetId: id,
     temporaryPath: tmp,
@@ -423,63 +355,11 @@ async function readProgress(
 }
 
 /**
- * Spawn the FFmpeg process and wait until the export completes.
- * Respects cooperative cancellation: if the row was marked `cancelled`
- * while ffmpeg ran, the terminal state is left alone.
+ * Spawn ffmpeg, stream progress, wait for exit. Returns the exit code
+ * (-1 when cooperatively cancelled — terminal state left alone so the
+ * caller can run further passes). Spawn failure marks the job failed.
  */
-async function runTranscode(jobId: string, args: string[], duration: number) {
-  const proc = Bun.spawn(["ffmpeg", ...args], {
-    stdout: "ignore",
-    stderr: "pipe",
-  });
-  procs.set(jobId, proc);
-  try {
-    await Promise.all([
-      proc.exited,
-      readProgress(proc.stderr as ReadableStream<Uint8Array>, jobId, duration),
-    ]);
-    const current = getJob(jobId);
-    if (current?.status === "cancelled") return;
-    const code = await proc.exited;
-    if (code === 0) {
-      updateJob(jobId, { status: "completed", progress: 100, exitCode: 0 });
-      jobLog(jobId, "completed (exit 0)");
-    } else {
-      // B4: numeric exitCode column replaces exit-code-in-string parsing;
-      // last-5-lines summary kept for human readability. classifyFfmpegExit
-      // tags the row with a machine-readable [CODE] (+ retry hint) so the
-      // Admin UI and clients can distinguish OOM-kills / bad inputs from
-      // generic failures without parsing stderr.
-      const tail = getJob(jobId)?.logTail ?? "";
-      const last = tail.split("\n").slice(-5).join("\n");
-      const cls = classifyFfmpegExit(code, tail);
-      updateJob(jobId, {
-        status: "failed",
-        exitCode: code,
-        error: `FFmpeg exited with code ${code} [${cls.code}]${cls.retryable ? " (retryable)" : ""}. ${cls.message}${last ? `\nLast output:\n${last}` : ""}`,
-      });
-      jobError(jobId, `failed (exit ${code}, ${cls.code})`);
-    }
-  } catch (error) {
-    const current = getJob(jobId);
-    if (current?.status === "cancelled") return;
-    updateJob(jobId, {
-      status: "failed",
-      error: error instanceof Error ? error.message : "FFmpeg failed to start.",
-    });
-    jobError(jobId, "failed to start:", error);
-  } finally {
-    procs.delete(jobId);
-  }
-}
-
-/**
- * Single ffmpeg attempt for the webm-tg size search: streams progress like
- * runTranscode but leaves the terminal state alone so the caller can run
- * further CRF iterations. Returns the exit code (0 = ok). Respects
- * cooperative cancellation (returns -1 without touching the row).
- */
-async function runFfmpegAttempt(
+async function runAttempt(
   jobId: string,
   args: string[],
   duration: number,
@@ -509,7 +389,12 @@ async function runFfmpegAttempt(
   }
 }
 
-function failWebmTgJob(jobId: string, code: number): void {
+/**
+ * Shared failure formatting: numeric exitCode + machine-readable [CODE]
+ * (+ retry hint) so clients can distinguish OOM-kills / bad inputs from
+ * generic failures without parsing stderr, plus a last-5-lines summary.
+ */
+function failJob(jobId: string, code: number): void {
   const tail = getJob(jobId)?.logTail ?? "";
   const last = tail.split("\n").slice(-5).join("\n");
   const cls = classifyFfmpegExit(code, tail);
@@ -519,6 +404,21 @@ function failWebmTgJob(jobId: string, code: number): void {
     error: `FFmpeg exited with code ${code} [${cls.code}]${cls.retryable ? " (retryable)" : ""}. ${cls.message}${last ? `\nLast output:\n${last}` : ""}`,
   });
   jobError(jobId, `failed (exit ${code}, ${cls.code})`);
+}
+
+/**
+ * Single-pass export: terminal state is settled here (multi-pass callers
+ * use runAttempt + failJob directly so they can run further iterations).
+ */
+async function runTranscode(jobId: string, args: string[], duration: number) {
+  const code = await runAttempt(jobId, args, duration);
+  if (code === -1) return;
+  if (code === 0) {
+    updateJob(jobId, { status: "completed", progress: 100, exitCode: 0 });
+    jobLog(jobId, "completed (exit 0)");
+  } else {
+    failJob(jobId, code);
+  }
 }
 
 /**
@@ -554,17 +454,17 @@ async function runWebmTgCrfSearch(
       const attemptPath = path.join(scratch, `crf${crf}.webm`);
       const args = makeArgs(crf, attemptPath);
       jobLog(jobId, `webm-tg attempt crf=${crf} (target ${target} bytes)`);
-      const code = await runFfmpegAttempt(jobId, args, duration);
+      const code = await runAttempt(jobId, args, duration);
       if (code === -1) return;
       if (code !== 0) {
-        failWebmTgJob(jobId, code);
+        failJob(jobId, code);
         return;
       }
       let size = -1;
       try {
         size = fs.statSync(attemptPath).size;
       } catch {
-        failWebmTgJob(jobId, code);
+        failJob(jobId, code);
         return;
       }
       jobLog(jobId, `webm-tg attempt crf=${crf} size=${size} bytes`);
@@ -659,13 +559,6 @@ function queueFullResponse(c: Context) {
   });
 }
 
-function quotaExceededResponse(c: Context, e: FileStoreQuotaError) {
-  return err(c, "QUOTA_EXCEEDED", {
-    message: e.message,
-    details: { neededBytes: e.neededBytes, quotaBytes: e.quotaBytes },
-  });
-}
-
 /**
  * Claim a resolved input for a job: chunked session files are shared
  * (extra ref so session cleanup can't pull bytes out from under the job),
@@ -697,6 +590,41 @@ function rollbackQueuedJob(jobId: string): void {
  * B4: parse customFFmpegArgs via shell-quote + structural denylist.
  * Returns the parsed args or an { argError } the route turns into 400.
  */
+/** Zones arrive 0-1; builders want 0-100 percent. */
+function percentZones<
+  Z extends { x: number; y: number; width: number; height: number },
+>(zones: Z[]): Z[] {
+  return zones.map((z) => ({
+    ...z,
+    x: z.x * 100,
+    y: z.y * 100,
+    width: z.width * 100,
+    height: z.height * 100,
+  }));
+}
+
+function percentLayout<
+  L extends {
+    mode: unknown;
+    splitRatio: number;
+    zones: { x: number; y: number; width: number; height: number }[];
+  },
+>(layout: L) {
+  return {
+    mode: layout.mode,
+    splitRatio: layout.splitRatio,
+    zones: percentZones(layout.zones),
+  };
+}
+
+/** Export filename, falling back to the uploaded name. */
+function exportBase(
+  settings: { exportFilename: string },
+  filename: string,
+): string {
+  return settings.exportFilename.trim() || filename;
+}
+
 function parseArgsField(
   raw: string | undefined,
   allowVf: boolean,
@@ -777,71 +705,93 @@ function planError(
   );
 }
 
-app.post("/transcode/mobile", async (c) => {
+interface ResolvedInput {
+  /** Owning asset record (chunked session file, or fresh request-input). */
+  assetId: string | null;
+  temporaryPath: string;
+  filename: string;
+  isChunked: boolean;
+}
+
+/**
+ * Shared prologue for the four transcode endpoints: multipart parse, plan
+ * validation, input resolution. Returns the ready triple, or an error
+ * response the route returns directly.
+ */
+async function readTranscodeRequest<K extends RenderKind>(
+  c: Context,
+  kind: K,
+  messages: { log: string; invalid: string; empty: string },
+): Promise<
+  | {
+      ok: true;
+      form: FormData;
+      settings: z.infer<(typeof SETTINGS_SCHEMAS)[K]>;
+      input: ResolvedInput;
+    }
+  | { ok: false; response: ReturnType<typeof err> }
+> {
   let form: FormData;
   try {
     form = await c.req.formData();
   } catch (e) {
-    systemError("[transcode/mobile] formData parse failed:", e);
-    return err(c, "INVALID_MULTIPART", { message: "Invalid multipart body" });
+    systemError(`[${messages.log}] formData parse failed:`, e);
+    return {
+      ok: false,
+      response: err(c, "INVALID_MULTIPART", {
+        message: "Invalid multipart body",
+      }),
+    };
   }
-  const mobileParsed = parsePlanField(
-    form.get(MULTIPART_FIELDS.settings),
-    "mobile",
-  );
-  if (!mobileParsed.ok) {
-    return planError(
-      c,
-      mobileParsed,
-      "A video file and valid mobileLayout export settings are required. Requires 16:9 source to 9:16 stacked/full with 1 or 2 zones.",
-    );
+  const parsed = parsePlanField(form.get(MULTIPART_FIELDS.settings), kind);
+  if (!parsed.ok) {
+    return { ok: false, response: planError(c, parsed, messages.invalid) };
   }
-  const settings = normalizeTrimAlias(mobileParsed.settings);
-  let resolved: Awaited<ReturnType<typeof resolveInputFile>>;
+  let input: ResolvedInput | null;
   try {
-    resolved = await resolveInputFile(
-      c as unknown as {
-        req: {
-          header: (n: string) => string | undefined;
-          query: (n: string) => string | undefined;
-        };
-      },
-      form,
-    );
+    input = await resolveInputFile(c, form);
   } catch (e) {
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return {
+        ok: false,
+        response: quotaExceeded(c, e.neededBytes, e.quotaBytes),
+      };
     throw e;
   }
-  if (!resolved)
-    return err(c, "FILE_REQUIRED", {
-      message: "A video file or uploadId is required.",
-    });
-  const { assetId, temporaryPath, filename, isChunked } = resolved;
+  if (!input) {
+    return {
+      ok: false,
+      response: err(c, "FILE_REQUIRED", { message: messages.empty }),
+    };
+  }
+  return { ok: true, form, settings: parsed.settings, input };
+}
+
+app.post("/transcode/mobile", async (c) => {
+  const req = await readTranscodeRequest(c, "mobile", {
+    log: "transcode/mobile",
+    invalid:
+      "A video file and valid mobileLayout export settings are required. Requires 16:9 source to 9:16 stacked/full with 1 or 2 zones.",
+    empty: "A video file or uploadId is required.",
+  });
+  if (!req.ok) return req.response;
+  const settings = normalizeTrimAlias(req.settings);
+  const { assetId, temporaryPath, filename, isChunked } = req.input;
   const format = "mp4" as const;
   const jobId = crypto.randomUUID();
-  const exportBase = settings.exportFilename.trim() || filename;
+  const baseName = exportBase(settings, filename);
   let originalOutput: { fileId: string; path: string };
   try {
-    originalOutput = reserveOutputFile(jobId, "output", format, exportBase);
+    originalOutput = reserveOutputFile(jobId, "output", format, baseName);
   } catch (e) {
     if (e instanceof FileStoreQuotaError) {
       if (assetId && !isChunked) AssetStore.release(assetId);
-      return quotaExceededResponse(c, e);
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     }
     throw e;
   }
   const originalOutputPath = originalOutput.path;
-  const mobileLayout = {
-    mode: settings.mobileLayout.mode,
-    splitRatio: settings.mobileLayout.splitRatio,
-    zones: settings.mobileLayout.zones.map((z) => ({
-      ...z,
-      x: z.x * 100,
-      y: z.y * 100,
-      width: z.width * 100,
-      height: z.height * 100,
-    })),
-  };
+  const mobileLayout = percentLayout(settings.mobileLayout);
   const custom = parseArgsField(
     (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
     false, // mobile builds a filter_complex graph — -vf denied at parse
@@ -865,7 +815,7 @@ app.post("/transcode/mobile", async (c) => {
   }
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
-    filename: settings.exportFilename.trim() || filename,
+    filename: exportBase(settings, filename),
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     trimRange: settings.trimRange,
@@ -889,17 +839,13 @@ app.post("/transcode/mobile", async (c) => {
   jobLog(jobId, "mobile ffmpeg args:", originalArgs.join(" "));
   createQueuedJob({
     jobId,
-    outputPath: originalOutputPath,
-    alternateOutputPath: null,
-    temporaryInputPath: temporaryPath,
-    subtitlePaths: [],
     inputFileId: assetId,
     outputFileId: originalOutput.fileId,
     alternateFileId: null,
     subtitleFileIds: [],
     createdAt: Date.now(),
     kind: "mobile",
-    filename: settings.exportFilename.trim() || filename,
+    filename: exportBase(settings, filename),
   });
   claimInputAsset(assetId, isChunked, jobId);
   const started = enqueue(jobId, () =>
@@ -919,52 +865,21 @@ app.post("/transcode/mobile", async (c) => {
 });
 
 app.post("/transcode/mobile/subtitles", async (c) => {
-  let form: FormData;
-  try {
-    form = await c.req.formData();
-  } catch (e) {
-    systemError("[transcode/mobile/subtitles] formData parse failed:", e);
-    return err(c, "INVALID_MULTIPART", { message: "Invalid multipart body" });
-  }
-  const subParsed = parsePlanField(
-    form.get(MULTIPART_FIELDS.settings),
-    "mobile-subtitles",
-  );
-  if (!subParsed.ok) {
-    return planError(
-      c,
-      subParsed,
+  const req = await readTranscodeRequest(c, "mobile-subtitles", {
+    log: "transcode/mobile/subtitles",
+    invalid:
       "A video file and valid mobileLayout export settings are required for subtitles endpoint.",
-    );
-  }
-  const settings = normalizeTrimAlias(subParsed.settings);
-  let resolvedSubtitle: Awaited<ReturnType<typeof resolveInputFile>>;
-  try {
-    resolvedSubtitle = await resolveInputFile(
-      c as unknown as {
-        req: {
-          header: (n: string) => string | undefined;
-          query: (n: string) => string | undefined;
-        };
-      },
-      form,
-    );
-  } catch (e) {
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
-    throw e;
-  }
-  if (!resolvedSubtitle)
-    return err(c, "FILE_REQUIRED", {
-      message: "A video file or uploadId is required for subtitles endpoint.",
-    });
+    empty: "A video file or uploadId is required for subtitles endpoint.",
+  });
+  if (!req.ok) return req.response;
+  const { form } = req;
+  const settings = normalizeTrimAlias(req.settings);
   const {
     temporaryPath: subtitleTmp,
     filename: subtitleFilename,
     assetId: subtitleAssetId,
     isChunked: subtitleIsChunked,
-  } = resolvedSubtitle;
-  // alias for below reuse — shadow outer file var already removed
-  const file = { name: subtitleFilename } as File;
+  } = req.input;
 
   // Parse subtitles metadata: front-end sends JSON array with startTime/endTime/x/y
   const rawSubtitles =
@@ -1082,7 +997,8 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     for (const id of subtitleFileIds) ArtifactStore.release(id);
     if (subtitleAssetId && !subtitleIsChunked)
       AssetStore.release(subtitleAssetId);
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
 
@@ -1096,17 +1012,7 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     pngPath: subtitlePngPaths[i],
   }));
 
-  const mobileLayout = {
-    mode: settings.mobileLayout.mode,
-    splitRatio: settings.mobileLayout.splitRatio,
-    zones: settings.mobileLayout.zones.map((z) => ({
-      ...z,
-      x: z.x * 100,
-      y: z.y * 100,
-      width: z.width * 100,
-      height: z.height * 100,
-    })),
-  };
+  const mobileLayout = percentLayout(settings.mobileLayout);
 
   const custom = parseArgsField(
     (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
@@ -1120,15 +1026,16 @@ app.post("/transcode/mobile/subtitles", async (c) => {
         "visualFilters cannot be combined with mobileLayout (this export builds its own filter graph). Use the plain transcode endpoint instead.",
     });
   }
-  const exportBase = settings.exportFilename.trim() || file.name;
+  const baseName = exportBase(settings, subtitleFilename);
   let originalOutput: { fileId: string; path: string };
   try {
-    originalOutput = reserveOutputFile(jobId, "output", format, exportBase);
+    originalOutput = reserveOutputFile(jobId, "output", format, baseName);
   } catch (e) {
     for (const id of subtitleFileIds) ArtifactStore.release(id);
     if (subtitleAssetId && !subtitleIsChunked)
       AssetStore.release(subtitleAssetId);
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   const originalOutputPath = originalOutput.path;
@@ -1146,7 +1053,7 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     crf: 10,
     customArgs: custom.args,
     outputPath: originalOutputPath,
-    filename: settings.exportFilename.trim() || file.name,
+    filename: exportBase(settings, subtitleFilename),
     speed: settings.exportSpeed,
     audioTracks: settings.audioTracks,
   });
@@ -1155,17 +1062,13 @@ app.post("/transcode/mobile/subtitles", async (c) => {
 
   createQueuedJob({
     jobId,
-    outputPath: originalOutputPath,
-    alternateOutputPath: null,
-    temporaryInputPath: temporaryPath,
-    subtitlePaths: subtitlePngPaths,
     inputFileId: subtitleAssetId,
     outputFileId: originalOutput.fileId,
     alternateFileId: null,
     subtitleFileIds,
     createdAt: Date.now(),
     kind: "mobile-subtitles",
-    filename: settings.exportFilename.trim() || file.name,
+    filename: exportBase(settings, subtitleFilename),
   });
   claimInputAsset(subtitleAssetId, subtitleIsChunked, jobId);
   const started = enqueue(jobId, () =>
@@ -1187,50 +1090,24 @@ app.post("/transcode/mobile/subtitles", async (c) => {
 });
 
 app.post("/transcode/cut", async (c) => {
-  let form: FormData;
-  try {
-    form = await c.req.formData();
-  } catch (e) {
-    systemError("[transcode/cut] formData parse failed:", e);
-    return err(c, "INVALID_MULTIPART", { message: "Invalid multipart body" });
-  }
-  const cutParsed = parsePlanField(form.get(MULTIPART_FIELDS.settings), "cut");
-  if (!cutParsed.ok) {
-    return planError(
-      c,
-      cutParsed,
+  const req = await readTranscodeRequest(c, "cut", {
+    log: "transcode/cut",
+    invalid:
       "A video file and valid cut settings are required (mode + non-overlapping cuts + zones for stack modes).",
-    );
-  }
-  const settings = cutParsed.settings;
-  let resolved: Awaited<ReturnType<typeof resolveInputFile>>;
-  try {
-    resolved = await resolveInputFile(
-      c as unknown as {
-        req: {
-          header: (n: string) => string | undefined;
-          query: (n: string) => string | undefined;
-        };
-      },
-      form,
-    );
-  } catch (e) {
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
-    throw e;
-  }
-  if (!resolved)
-    return err(c, "FILE_REQUIRED", {
-      message: "A video file or uploadId is required.",
-    });
-  const { assetId, temporaryPath, filename, isChunked } = resolved;
+    empty: "A video file or uploadId is required.",
+  });
+  if (!req.ok) return req.response;
+  const settings = req.settings;
+  const { assetId, temporaryPath, filename, isChunked } = req.input;
   const jobId = crypto.randomUUID();
-  const exportBase = settings.exportFilename.trim() || filename;
+  const baseName = exportBase(settings, filename);
   let originalOutput: { fileId: string; path: string };
   try {
-    originalOutput = reserveOutputFile(jobId, "output", "mp4", exportBase);
+    originalOutput = reserveOutputFile(jobId, "output", "mp4", baseName);
   } catch (e) {
     if (assetId && !isChunked) AssetStore.release(assetId);
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   const originalOutputPath = originalOutput.path;
@@ -1243,7 +1120,7 @@ app.post("/transcode/cut", async (c) => {
     return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
   const cutArgs = buildCutFFmpegArgs({
     inputPath: temporaryPath,
-    filename: settings.exportFilename.trim() || filename,
+    filename: exportBase(settings, filename),
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     cuts: settings.cuts,
@@ -1261,17 +1138,13 @@ app.post("/transcode/cut", async (c) => {
   jobLog(jobId, "cut ffmpeg args:", cutArgs.join(" "));
   createQueuedJob({
     jobId,
-    outputPath: originalOutputPath,
-    alternateOutputPath: null,
-    temporaryInputPath: temporaryPath,
-    subtitlePaths: [],
     inputFileId: assetId,
     outputFileId: originalOutput.fileId,
     alternateFileId: null,
     subtitleFileIds: [],
     createdAt: Date.now(),
     kind: "cut",
-    filename: settings.exportFilename.trim() || filename,
+    filename: exportBase(settings, filename),
   });
   claimInputAsset(assetId, isChunked, jobId);
   const started = enqueue(jobId, () =>
@@ -1302,47 +1175,14 @@ app.post("/transcode/cut", async (c) => {
  * The worker slot is held across both passes so progress stays coherent.
  */
 app.post("/transcode", async (c) => {
-  let form: FormData;
-  try {
-    form = await c.req.formData();
-  } catch (e) {
-    systemError("[transcode] formData parse failed:", e);
-    return err(c, "INVALID_MULTIPART", { message: "Invalid multipart body" });
-  }
-  const genericParsed = parsePlanField(
-    form.get(MULTIPART_FIELDS.settings),
-    "generic",
-  );
-  if (!genericParsed.ok) {
-    return planError(
-      c,
-      genericParsed,
-      "A video file and valid export settings are required.",
-    );
-  }
-  const settings = normalizeTrimAlias(genericParsed.settings);
-  let resolvedMain: Awaited<ReturnType<typeof resolveInputFile>>;
-  try {
-    resolvedMain = await resolveInputFile(
-      c as unknown as {
-        req: {
-          header: (n: string) => string | undefined;
-          query: (n: string) => string | undefined;
-        };
-      },
-      form,
-    );
-  } catch (e) {
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
-    throw e;
-  }
-  if (!resolvedMain)
-    return err(c, "FILE_REQUIRED", {
-      message: "A video file or uploadId is required.",
-    });
-  const { assetId, temporaryPath, filename, isChunked } = resolvedMain;
-  const file = { name: filename } as File;
-  void file;
+  const req = await readTranscodeRequest(c, "generic", {
+    log: "transcode",
+    invalid: "A video file and valid export settings are required.",
+    empty: "A video file or uploadId is required.",
+  });
+  if (!req.ok) return req.response;
+  const settings = normalizeTrimAlias(req.settings);
+  const { assetId, temporaryPath, filename, isChunked } = req.input;
 
   const format = settings.exportFormat;
   const jobId = crypto.randomUUID();
@@ -1351,29 +1191,20 @@ app.post("/transcode", async (c) => {
   // Reserve the render target in the ArtifactStore (record before ffmpeg
   // spawns). webm-tg renders a .webm file.
   const outputExt = isWebmTg ? "webm" : format;
-  const exportBase = settings.exportFilename.trim() || filename;
+  const baseName = exportBase(settings, filename);
   let originalOutput: { fileId: string; path: string };
   try {
-    originalOutput = reserveOutputFile(jobId, "output", outputExt, exportBase);
+    originalOutput = reserveOutputFile(jobId, "output", outputExt, baseName);
   } catch (e) {
     if (assetId && !isChunked) AssetStore.release(assetId);
-    if (e instanceof FileStoreQuotaError) return quotaExceededResponse(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   const originalOutputPath = originalOutput.path;
 
   const mobileLayout = settings.mobileLayout
-    ? {
-        mode: settings.mobileLayout.mode,
-        splitRatio: settings.mobileLayout.splitRatio,
-        zones: settings.mobileLayout.zones.map((z) => ({
-          ...z,
-          x: z.x * 100,
-          y: z.y * 100,
-          width: z.width * 100,
-          height: z.height * 100,
-        })),
-      }
+    ? percentLayout(settings.mobileLayout)
     : null;
   // B4: -vf merges into our -vf chain only for the plain path; a
   // mobileLayout builds a filter_complex graph where -vf is denied.
@@ -1396,7 +1227,7 @@ app.post("/transcode", async (c) => {
   try {
     originalArgs = buildFFmpegArgs({
       inputPath: temporaryPath,
-      filename: settings.exportFilename.trim() || filename,
+      filename: exportBase(settings, filename),
       sourceWidth: settings.sourceWidth,
       sourceHeight: settings.sourceHeight,
       trimRange: settings.trimRange,
@@ -1429,17 +1260,13 @@ app.post("/transcode", async (c) => {
 
   createQueuedJob({
     jobId,
-    outputPath: originalOutputPath,
-    alternateOutputPath: null,
-    temporaryInputPath: temporaryPath,
-    subtitlePaths: [],
     inputFileId: assetId,
     outputFileId: originalOutput.fileId,
     alternateFileId: null,
     subtitleFileIds: [],
     createdAt: Date.now(),
     kind: "transcode",
-    filename: settings.exportFilename.trim() || filename,
+    filename: exportBase(settings, filename),
   });
   claimInputAsset(assetId, isChunked, jobId);
 
@@ -1462,7 +1289,7 @@ app.post("/transcode", async (c) => {
         (crf, attemptPath) =>
           buildFFmpegArgs({
             inputPath: temporaryPath,
-            filename: settings.exportFilename.trim() || filename,
+            filename: exportBase(settings, filename),
             sourceWidth: settings.sourceWidth,
             sourceHeight: settings.sourceHeight,
             trimRange: settings.trimRange,
@@ -1492,7 +1319,7 @@ app.post("/transcode", async (c) => {
           jobId,
           "alternate-output",
           outputExt,
-          exportBase,
+          baseName,
         );
       } catch (e) {
         const msg =
@@ -1506,7 +1333,7 @@ app.post("/transcode", async (c) => {
       const alternateOutputPath = alternate.path;
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
-        filename: settings.exportFilename.trim() || filename,
+        filename: exportBase(settings, filename),
         sourceWidth: settings.sourceWidth,
         sourceHeight: settings.sourceHeight,
         trimRange: settings.trimRange,
@@ -1533,7 +1360,6 @@ app.post("/transcode", async (c) => {
         audioTracks: settings.audioTracks,
       });
       updateJob(jobId, {
-        alternateOutputPath,
         alternateFileId: alternate.fileId,
         progress: 0,
       });
@@ -1651,7 +1477,7 @@ function hardDeleteJob(id: string): { killed: boolean; deleted: boolean } {
  * Clear jobs - kills running FFmpeg processes and deletes files + DB rows.
  * Query param ?status=processing|pending|queued|completed|failed filters.
  */
-app.delete("/transcode/jobs", async (c) => {
+app.delete("/transcode/jobs", (c) => {
   const filter = c.req.query("status");
   const shouldDelete = (j: JobRow) => {
     if (!filter || filter === "all") return true;
@@ -1672,8 +1498,7 @@ app.delete("/transcode/jobs", async (c) => {
     }
   }
   // Also reconcile the store when clearing everything: frees crash orphans
-  // and expired files by ownership (no filename regexes). Pre-AssetStore
-  // /tmp files keep the legacy regex sweep below until they age out.
+  // and expired files by ownership (no filename regexes).
   let swept: Record<string, number> | null = null;
   if (!filter || filter === "all") {
     try {
@@ -1687,51 +1512,6 @@ app.delete("/transcode/jobs", async (c) => {
       }
     } catch {}
   }
-  try {
-    // Legacy sweep for pre-AssetStore strays (apps/api/temp_* and /tmp/*
-    // matching the old job pattern). Deprecated: all new files live under
-    // the store root and are reconciled above.
-    const { readdir, unlink } = await import("node:fs/promises");
-    const apiDir = ".";
-    try {
-      const files = await readdir(apiDir);
-      for (const f of files) {
-        if (
-          f.startsWith("temp_") &&
-          (f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mov"))
-        ) {
-          // only delete if corresponding job was deleted OR file older than 1h
-          try {
-            await unlink(path.join(apiDir, f));
-          } catch {}
-        }
-      }
-    } catch {}
-    // cleanup /tmp job inputs + temp outputs - if clearing all, sweep all matching temps
-    try {
-      const tmpFiles = await readdir(os.tmpdir());
-      for (const f of tmpFiles) {
-        const isJobInput =
-          LEGACY_JOB_INPUT_RE.test(f) &&
-          (f.endsWith(".mp4") ||
-            f.endsWith(".png") ||
-            f.endsWith(".webm") ||
-            f.endsWith(".mov"));
-        const isTempOutput =
-          f.startsWith("temp_") &&
-          (f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mov"));
-        if (isJobInput || isTempOutput) {
-          const full = path.join(os.tmpdir(), f);
-          const matchId = f.slice(0, 36);
-          if (ids.includes(matchId) || !filter || filter === "all") {
-            try {
-              await unlink(full);
-            } catch {}
-          }
-        }
-      }
-    } catch {}
-  } catch {}
   return c.json({
     cleared: deleted,
     killed,
@@ -1797,7 +1577,7 @@ app.patch("/transcode/jobs/:jobId", async (c) => {
  * Content-Length, correct Content-Type per extension, Accept-Ranges, and
  * single-range (bytes=start-end) support for resumable downloads / seeking.
  */
-app.get("/transcode/download/:jobId", async (c) => {
+app.get("/transcode/download/:jobId", (c) => {
   const id = c.req.param("jobId");
   const job = getJob(id);
   if (!job || job.status !== "completed") {
@@ -1807,82 +1587,17 @@ app.get("/transcode/download/:jobId", async (c) => {
   }
 
   // Resolve the rendered artifact by opaque ID — the on-disk path never
-  // leaves the server. Falls back to the legacy mirror path for
-  // pre-AssetStore rows.
+  // leaves the server.
   const rec = job.outputFileId ? ArtifactStore.get(job.outputFileId) : null;
-  if (rec) {
-    ArtifactStore.syncSize(rec.id);
-    const fresh = ArtifactStore.get(rec.id);
-    return streamFile(
-      fresh ?? rec,
-      c.req.header("Range") ?? c.req.header("range"),
-    );
-  }
-  const filePath = job.outputPath;
-  let stat: { size: number };
-  try {
-    stat = fs.statSync(filePath);
-  } catch (e) {
-    systemError("[transcode/download] failed stating output file:", e);
+  if (!rec) {
     return err(c, "OUTPUT_MISSING", { message: "Output file not found." });
   }
-  const total = stat.size;
-  if (total <= 0) {
-    return err(c, "OUTPUT_EMPTY", { message: "Output file is empty." });
-  }
-
-  const ext = filePath.split(".").pop()?.toLowerCase();
-  const contentType =
-    ext === "mp4"
-      ? "video/mp4"
-      : ext === "webm"
-        ? "video/webm"
-        : ext === "mov"
-          ? "video/quicktime"
-          : ext === "gif"
-            ? "image/gif"
-            : "application/octet-stream";
-  const filename = filePath.split("/").pop() ?? `${id}.mp4`;
-  const baseHeaders = {
-    "Content-Type": contentType,
-    "Content-Disposition": `attachment; filename="${filename}"`,
-    "Cache-Control": "no-store",
-    "Accept-Ranges": "bytes",
-  };
-
-  const range = c.req.header("Range") ?? c.req.header("range");
-  if (range) {
-    const m = /^bytes=(\d*)-(\d*)$/.exec(range.trim());
-    if (!m || (m[1] === "" && m[2] === "")) {
-      return err(c, "RANGE_INVALID", {
-        message: "Invalid Range header.",
-        headers: { "Content-Range": `bytes */${total}` },
-      });
-    }
-    let start = m[1] === "" ? total - Number(m[2]) : Number(m[1]);
-    let end = m[2] === "" ? total - 1 : Number(m[2]);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) {
-      return err(c, "RANGE_INVALID", {
-        message: "Invalid Range header.",
-        headers: { "Content-Range": `bytes */${total}` },
-      });
-    }
-    start = Math.max(0, Math.min(start, total - 1));
-    end = Math.max(start, Math.min(end, total - 1));
-    const length = end - start + 1;
-    return new Response(Bun.file(filePath).slice(start, end + 1), {
-      status: 206,
-      headers: {
-        ...baseHeaders,
-        "Content-Length": String(length),
-        "Content-Range": `bytes ${start}-${end}/${total}`,
-      },
-    });
-  }
-
-  return new Response(Bun.file(filePath), {
-    headers: { ...baseHeaders, "Content-Length": String(total) },
-  });
+  ArtifactStore.syncSize(rec.id);
+  const fresh = ArtifactStore.get(rec.id);
+  return streamFile(
+    fresh ?? rec,
+    c.req.header("Range") ?? c.req.header("range"),
+  );
 });
 
 /**

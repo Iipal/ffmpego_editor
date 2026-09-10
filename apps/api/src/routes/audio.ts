@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { consumeUpload } from "./upload.js";
-import { err } from "../http.js";
+import { err, quotaExceeded } from "../http.js";
 import {
   MULTIPART_FIELDS,
   UPLOAD_ID_HEADER,
@@ -12,7 +12,7 @@ import {
   AssetStore,
   FileStoreQuotaError,
   mimeForExt,
-  store,
+  reserveRequestAsset,
 } from "../storage/index.js";
 
 const app = new Hono();
@@ -44,31 +44,9 @@ async function resolveInput(c: Context) {
   const form = await c.req.formData().catch(() => null);
   const file = form?.get(MULTIPART_FIELDS.file);
   if (!(file instanceof File)) return null;
-  // Record-before-bytes; throws FileStoreQuotaError (handlers map to 507).
-  const size = Number.isFinite(file.size) ? file.size : 0;
-  const quota = store.checkQuota(size);
-  if (!quota.ok) throw new FileStoreQuotaError(size, quota.quotaBytes);
-  const { id, path: inputPath } = AssetStore.reserve({
-    kind: "request-input",
-    filename: file.name || "upload.bin",
-    mime: file.type || undefined,
-    sizeHint: size,
-  });
-  try {
-    await Bun.write(inputPath, file);
-  } catch (e) {
-    AssetStore.release(id);
-    throw e;
-  }
-  AssetStore.finalize(id);
-  return { assetId: id as string | null, inputPath, remove: true };
-}
-
-function quota507(c: Context, e: FileStoreQuotaError) {
-  return err(c, "QUOTA_EXCEEDED", {
-    message: e.message,
-    details: { neededBytes: e.neededBytes, quotaBytes: e.quotaBytes },
-  });
+  // Throws FileStoreQuotaError (handlers map it to 507).
+  const { id, path: inputPath } = await reserveRequestAsset(file);
+  return { assetId: id, inputPath, remove: true };
 }
 
 async function run(args: string[]) {
@@ -86,7 +64,8 @@ app.post("/audio/analysis", async (c) => {
   try {
     input = await resolveInput(c);
   } catch (e) {
-    if (e instanceof FileStoreQuotaError) return quota507(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   if (!input)
@@ -242,7 +221,8 @@ app.post("/audio/extract", async (c) => {
   try {
     input = await resolveInput(c);
   } catch (e) {
-    if (e instanceof FileStoreQuotaError) return quota507(c, e);
+    if (e instanceof FileStoreQuotaError)
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   if (!input)

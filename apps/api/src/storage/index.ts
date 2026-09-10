@@ -21,6 +21,32 @@ export const store = createFileStore(db, {
 });
 
 export const { AssetStore, ArtifactStore } = store;
+
+/**
+ * Reserve + write + finalize a single-shot request upload as an AssetStore
+ * record. Throws FileStoreQuotaError on quota breach (routes map it to 507
+ * via quotaExceeded); releases the reservation if bytes fail to land, so a
+ * failed write leaves a tracked row, never a stray file.
+ */
+export async function reserveRequestAsset(
+  file: File,
+): Promise<{ id: string; path: string }> {
+  const size = Number.isFinite(file.size) ? file.size : 0;
+  const { id, path } = AssetStore.reserve({
+    kind: "request-input",
+    filename: file.name || "upload.bin",
+    mime: file.type || undefined,
+    sizeHint: size,
+  });
+  try {
+    await Bun.write(path, file);
+  } catch (e) {
+    AssetStore.release(id);
+    throw e;
+  }
+  AssetStore.finalize(id);
+  return { id, path };
+}
 export type { FileStore } from "./fileStore.js";
 export {
   extOf,

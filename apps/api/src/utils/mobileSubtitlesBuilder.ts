@@ -1,5 +1,9 @@
-import path from "node:path";
-import { buildAtempoFilter, buildSetptsFilter } from "@repo/ffmpeg-filters";
+import {
+  buildAtempoFilter,
+  buildSetptsFilter,
+  zoneToPixels,
+} from "@repo/ffmpeg-filters";
+import { buildFormatArgs } from "./ffmpegBuilder.js";
 
 export interface MobileLayoutForSubtitles {
   mode: "full" | "stacked";
@@ -52,9 +56,6 @@ export interface MobileSubtitlesOptions {
 
 export const OUTPUT_W = 1080;
 export const OUTPUT_H = 1920;
-// Fallback dir when no explicit outputPath is given. Callers pass absolute
-// os.tmpdir() paths; files persist until the user deletes the job.
-export const OUTPUT_DIRECTORY = ".";
 
 /**
  * Audio `-map` pairs: one optional per-track map for each enabled track
@@ -68,59 +69,6 @@ function audioMapArgs(
   const enabled = options.audioTracks?.filter((t) => t.enabled) ?? null;
   if (!enabled) return ["-map", legacy];
   return enabled.flatMap((t) => ["-map", `0:a:${t.trackIndex}?`]);
-}
-
-function buildFormatArgs(format: "mp4" | "webm" | "mov", crf?: number) {
-  const normalizedCrf =
-    typeof crf === "number" && Number.isFinite(crf)
-      ? Math.max(0, Math.min(60, crf))
-      : 23;
-  switch (format) {
-    case "webm":
-      return [
-        "-c:v",
-        "libvpx-vp9",
-        "-crf",
-        String(normalizedCrf),
-        "-b:v",
-        "0",
-        "-c:a",
-        "libopus",
-      ];
-    case "mov":
-      return [
-        "-c:v",
-        "prores_ks",
-        "-profile:v",
-        "4",
-        "-vendor",
-        "apl0",
-        "-pix_fmt",
-        "yuv444p16le",
-        "-color_range",
-        "pc",
-        "-color_primaries",
-        "bt709",
-        "-color_trc",
-        "bt709",
-        "-colorspace",
-        "bt709",
-      ];
-    case "mp4":
-    default:
-      return [
-        "-c:v",
-        "libx264",
-        "-crf",
-        String(normalizedCrf),
-        "-preset",
-        "fast",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-      ];
-  }
 }
 
 /**
@@ -142,43 +90,9 @@ export function buildMobileSubtitlesArgs(
   const hasSpeed = speed !== 1 && Number.isFinite(speed) && speed > 0;
   const setpts = hasSpeed ? `,${buildSetptsFilter(speed)}` : "";
 
-  const toCrop = (z: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    zoom: number;
-  }) => {
-    const cw = Math.max(
-      1,
-      Math.min(
-        options.sourceWidth,
-        Math.round((z.width / 100) * options.sourceWidth),
-      ),
-    );
-    const ch = Math.max(
-      1,
-      Math.min(
-        options.sourceHeight,
-        Math.round((z.height / 100) * options.sourceHeight),
-      ),
-    );
-    const cx = Math.max(
-      0,
-      Math.min(
-        options.sourceWidth - cw,
-        Math.round((z.x / 100) * options.sourceWidth),
-      ),
-    );
-    const cy = Math.max(
-      0,
-      Math.min(
-        options.sourceHeight - ch,
-        Math.round((z.y / 100) * options.sourceHeight),
-      ),
-    );
-    return { cw, ch, cx, cy };
-  };
+  // Zones are 0-100 percent — shared math with the other builders.
+  const toCrop = (z: { x: number; y: number; width: number; height: number }) =>
+    zoneToPixels(z, options.sourceWidth, options.sourceHeight, false);
 
   // Base args: trim + video input + png loop inputs
   const args: string[] = [
@@ -202,11 +116,11 @@ export function buildMobileSubtitlesArgs(
   let baseFilter = "";
   const ml = options.mobileLayout;
   if (ml.mode === "full" && ml.zones[0]) {
-    const c = toCrop(ml.zones[0] as never);
+    const c = toCrop(ml.zones[0]);
     baseFilter = `[0:v]crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=${OUTPUT_W}:${OUTPUT_H}:flags=lanczos${setpts}[v]`;
   } else if (ml.mode === "stacked" && ml.zones.length >= 2) {
-    const a = toCrop(ml.zones[0] as never);
-    const b = toCrop(ml.zones[1] as never);
+    const a = toCrop(ml.zones[0]);
+    const b = toCrop(ml.zones[1]);
     const split = Math.max(0.2, Math.min(0.8, ml.splitRatio ?? 0.5));
     const h1 = Math.round(OUTPUT_H * split);
     const h2 = OUTPUT_H - h1;
@@ -311,9 +225,7 @@ export function buildMobileSubtitlesArgs(
   // Ensure output stops at shortest (video) when png loops infinitely
   if (N > 0) args.push("-shortest");
 
-  const outputName =
-    options.outputPath ??
-    path.join(OUTPUT_DIRECTORY, `${options.filename}.${format}`);
+  const outputName = options.outputPath ?? `${options.filename}.${format}`;
   args.push("-progress", "pipe:2", "-nostats", outputName);
 
   return args;
