@@ -1,8 +1,28 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { UploadOtherButton } from "./UploadOtherButton";
+import {
+  UploadOtherButton as SharedUploadOtherButton,
+  type VideoReset,
+} from "../shared/UploadOtherButton";
 import { preloadUploadChunked } from "./mobile-helpers";
+
+const mobileReset: VideoReset = (): ReturnType<VideoReset> => ({
+  source: {
+    currentTime: 0,
+    duration: 0,
+    isPlaying: false,
+    sourceAspectRatio: 1,
+    sourceWidth: 0,
+    sourceHeight: 0,
+    sourceFrameRate: 0,
+    containerFormat: null,
+    videoCodec: null,
+    audioCodec: null,
+    bitrateKbps: 0,
+    ffprobeReport: null,
+  },
+});
 
 type EditorHeaderProps = {
   modeBadge: string;
@@ -68,7 +88,7 @@ export function EditorHeader({
         onMouseEnter={preloadUploadChunked}
         onFocus={preloadUploadChunked}
       >
-        <UploadOtherButton />
+        <SharedUploadOtherButton reset={mobileReset} />
         <span aria-hidden className="h-5 w-px bg-kumo-hairline mx-0.5" />
         <Button
           size="sm"

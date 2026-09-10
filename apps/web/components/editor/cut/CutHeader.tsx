@@ -3,7 +3,20 @@
 import { Button } from "@/components/ui/button";
 import { Film, Scissors } from "lucide-react";
 import { formatTime } from "@/lib/format-time";
-import { UploadOtherButton } from "./UploadOtherButton";
+import {
+  UploadOtherButton as SharedUploadOtherButton,
+  type VideoReset,
+} from "../shared/UploadOtherButton";
+
+const cutReset: VideoReset = (): ReturnType<VideoReset> => ({
+  source: {
+    currentTime: 0,
+    duration: 0,
+    isPlaying: false,
+    sourceWidth: 0,
+    sourceHeight: 0,
+  },
+});
 
 export function CutHeader({
   fileName,
@@ -62,7 +75,7 @@ export function CutHeader({
         </p>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 justify-end">
-        <UploadOtherButton />
+        <SharedUploadOtherButton reset={cutReset} clearInputAfterPick />
         <span aria-hidden className="h-5 w-px bg-kumo-hairline mx-0.5" />
         <Button
           size="sm"

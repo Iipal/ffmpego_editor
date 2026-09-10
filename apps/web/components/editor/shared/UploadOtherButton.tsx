@@ -66,12 +66,10 @@ export const UploadOtherButton = memo(function UploadOtherButton({
   reset,
   clearTrimCache = false,
   clearInputAfterPick = false,
-  label = "Upload other video",
 }: {
   reset: VideoReset;
   clearTrimCache?: boolean;
   clearInputAfterPick?: boolean;
-  label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const metadataMutation = useVideoMetadataMutation();
@@ -132,7 +130,7 @@ export const UploadOtherButton = memo(function UploadOtherButton({
         className="h-7 gap-1.5 rounded-md text-xs font-medium"
       >
         <Upload className="size-3.5" aria-hidden />
-        {label}
+        Upload other video
       </Button>
     </>
   );
