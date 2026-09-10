@@ -40,7 +40,7 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
   `POST /transcode`, `/transcode/mobile`, `/transcode/mobile/subtitles`,
   `/transcode/cut`; `GET /transcode/jobs`, `/jobs/stream`,
   `/download/:jobId`, `/progress/:jobId`; `DELETE /jobs`, `/jobs/:jobId`;
-  `POST /clear`; `PATCH /jobs/:jobId`. Internals: `enqueue/pumpQueue/dequeue`,
+  `PATCH /jobs/:jobId`. Internals: `enqueue/pumpQueue/dequeue`,
   `runTranscode`, `runWebmTgCrfSearch`, `publicJob`, `releaseJobFiles`,
   `getQueueStats`
 - `routes/upload.ts` — `POST /upload/init`, `/upload/chunk/:uploadId`,

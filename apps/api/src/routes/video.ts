@@ -1741,31 +1741,6 @@ app.delete("/transcode/jobs", async (c) => {
   });
 });
 
-app.post("/transcode/clear", async (c) => {
-  // alias for DELETE /transcode/jobs
-  const body = (await c.req.json().catch(() => ({}))) as { status?: string };
-  const filter = (c.req.query("status") as string) || body.status;
-  let killed = 0;
-  let deleted = 0;
-  const ids: string[] = [];
-  const shouldDelete = (j: JobRow) => {
-    if (!filter) return true;
-    if (filter === "processing" || filter === "pending")
-      return j.status === "processing" || j.status === "queued";
-    return j.status === (filter as JobStatus);
-  };
-  for (const job of listJobs()) {
-    if (!shouldDelete(job)) continue;
-    const r = hardDeleteJob(job.jobId);
-    if (r.killed) killed++;
-    if (r.deleted) {
-      deleted++;
-      ids.push(job.jobId);
-    }
-  }
-  return c.json({ cleared: deleted, killed, ids, filter: filter ?? "all" });
-});
-
 app.delete("/transcode/jobs/:jobId", async (c) => {
   const id = c.req.param("jobId");
   // ?mode=cancel → cooperative cancel: kill ffmpeg, keep row + files so the

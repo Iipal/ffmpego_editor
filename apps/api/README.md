@@ -39,7 +39,7 @@ flowchart LR
 flowchart LR
     subgraph Modules["route modules"]
         U["routes/upload.ts<br/>POST /upload/init<br/>POST /upload/chunk/:id<br/>POST /upload/complete/:id<br/>GET /upload/sessions<br/>GET /upload/status/:id<br/>DELETE /upload/:id"]
-        V["routes/video.ts<br/>POST /transcode, /mobile,<br/>/mobile/subtitles, /cut<br/>GET /transcode/jobs + /stream<br/>GET /download/:id, /progress/:id<br/>DELETE /jobs, /jobs/:id<br/>POST /clear, PATCH /jobs/:id"]
+        V["routes/video.ts<br/>POST /transcode, /mobile,<br/>/mobile/subtitles, /cut<br/>GET /transcode/jobs + /stream<br/>GET /download/:id, /progress/:id<br/>DELETE /jobs, /jobs/:id<br/>PATCH /jobs/:id"]
         MD["routes/metadata.ts<br/>POST /metadata"]
         AU["routes/audio.ts<br/>POST /audio/analysis<br/>POST /audio/extract"]
         F["routes/files.ts<br/>GET /storage/stats<br/>POST /storage/sweep<br/>GET /files/:id/download"]
@@ -281,7 +281,6 @@ or legacy v0, migrated via `migrateRenderPlan`) + `file` **or** `uploadId`
 - `DELETE /api/transcode/jobs` — bulk clear (`?status=` filter). Kills ffmpeg,
   releases files, deletes rows, then `store.reconcile()` + legacy `/tmp` sweep
   when clearing all.
-- `POST /api/transcode/clear` — alias of the above (JSON `{status}` or query).
 - `DELETE /api/transcode/jobs/:jobId` — hard delete (kill + release + row).
   With `?mode=cancel`: cooperative cancel — kill ffmpeg but **keep** row/files
   for log inspection.
