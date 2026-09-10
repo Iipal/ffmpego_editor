@@ -7,12 +7,9 @@ import { sortCuts } from "./helpers";
 import type { Cut, CutMode } from "./types";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { exportQueue } from "@/lib/export-queue";
-import { assertCutSettings } from "@/lib/validate-settings";
+import { validateSettings } from "@/lib/validate-settings";
 import { stripExtension } from "@/lib/video-file";
-import {
-  exportQueueStore,
-  selectKindActive,
-} from "@/store/exportQueueSlice";
+import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
 
 export function useCutExport({
@@ -95,7 +92,7 @@ export function useCutExport({
     });
 
     // Pre-upload: same schemas the API enforces — fail before upload bytes.
-    assertCutSettings(settingsJson);
+    validateSettings.assertCut(settingsJson);
     exportQueue.enqueue({
       kind: "cut",
       endpoint: "/api/transcode/cut",

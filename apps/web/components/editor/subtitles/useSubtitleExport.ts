@@ -7,12 +7,9 @@ import type { MobileLayout } from "@/lib/mobile-layout";
 import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
 import { HEAVY_MODULES } from "./heavy-modules";
 import { exportQueue } from "@/lib/export-queue";
-import { assertMobileSettings } from "@/lib/validate-settings";
+import { validateSettings } from "@/lib/validate-settings";
 import { stripExtension } from "@/lib/video-file";
-import {
-  exportQueueStore,
-  selectKindActive,
-} from "@/store/exportQueueSlice";
+import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 
 export type UseSubtitleExportArgs = {
   file: File | null;
@@ -69,7 +66,7 @@ export function useSubtitleExport({
       customFFmpegArgs: "",
     });
     // Pre-upload: same schemas the API enforces — fail before PNG render.
-    assertMobileSettings(settingsJson);
+    validateSettings.assertMobile(settingsJson);
     setIsPreparing(true);
     toast.loading(
       subtitles.length

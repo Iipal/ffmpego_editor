@@ -64,7 +64,7 @@ import { useSelector } from "@tanstack/react-store";
 import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import { exportQueue } from "@/lib/export-queue";
-import { assertGenericSettings } from "@/lib/validate-settings";
+import { validateSettings } from "@/lib/validate-settings";
 import { exportQueueStore, isQueueItemActive } from "@/store/exportQueueSlice";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { VisualFiltersPanel } from "@/components/editor/VisualFiltersPanel";
@@ -471,7 +471,7 @@ export function Sidebar() {
     };
     // Fail fast on malformed settings (same schemas the API enforces)
     // before spending upload bytes.
-    assertGenericSettings(JSON.stringify(settings));
+    validateSettings.assertGeneric(JSON.stringify(settings));
     const ext = state.exportFormat === "webm-tg" ? "webm" : state.exportFormat;
     const label = `${state.exportFilename || basename || "export"}.${ext}`;
     exportQueue.enqueue({

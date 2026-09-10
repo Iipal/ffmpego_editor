@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { exportQueue } from "@/lib/export-queue";
-import { assertMobileSettings } from "@/lib/validate-settings";
+import { validateSettings } from "@/lib/validate-settings";
 import { stripExtension } from "@/lib/video-file";
 import { NOOP } from "@/lib/utils";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
@@ -80,7 +80,7 @@ export function useMobileExport(args: ExportArgs) {
         : undefined,
     });
     // Pre-upload: same schemas the API enforces — fail before upload bytes.
-    assertMobileSettings(settingsJson);
+    validateSettings.assertMobile(settingsJson);
     exportQueue.enqueue({
       kind: "mobile",
       endpoint: "/api/transcode/mobile",

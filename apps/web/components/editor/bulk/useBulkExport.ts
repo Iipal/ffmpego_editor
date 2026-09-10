@@ -7,7 +7,7 @@ import type { MobileLayout } from "@/lib/mobile-layout";
 import { baseNameOf } from "./helpers";
 import type { BulkItem, FsDirHandle } from "./types";
 import { exportQueue } from "@/lib/export-queue";
-import { assertMobileSettings } from "@/lib/validate-settings";
+import { validateSettings } from "@/lib/validate-settings";
 import { saveBlobFile } from "@/lib/save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
@@ -81,7 +81,7 @@ export function useBulkExport({
         watermark: useWatermark,
       });
       // Pre-submit: same schemas the API enforces — fail before upload bytes.
-      assertMobileSettings(settingsJson);
+      validateSettings.assertMobile(settingsJson);
       patchItem(id, { status: "uploading", progress: 0, error: null });
       exportQueue.enqueue({
         kind: "bulk",

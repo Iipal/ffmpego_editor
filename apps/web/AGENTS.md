@@ -63,7 +63,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `transcode-progress.ts`  | `TranscodeProgress` service: `transcodeProgress.subscribe/awaitCompletion`                               |
 | `transcode-jobs.ts`      | `TranscodeJobs` service: `transcodeJobs.cancelTranscodeJob/serverErrorMessage`                           |
 | `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity`                          |
-| `validate-settings.ts`   | contracts pre-validation before every `POST`                                                             |
+| `validate-settings.ts`   | `ValidateSettings` service: `validateSettings.assertGeneric/assertMobile/assertCut`                      |
 | `playback-bus.ts`        | `PlaybackBus` service: `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`                               |
 | `video-file.ts`          | accepted input attrs, size guards, filename helpers                                                      |
 | `mobile-layout.ts`       | `MobileLayoutService`: `mobileLayoutService.clamp/normalizeLayout/...`, `MobileLayoutService.OUTPUT_W/H` |
