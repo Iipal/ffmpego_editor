@@ -30,12 +30,7 @@ import {
   useHistoryStore,
   type HistoryEntry,
 } from "@/store/exportHistorySlice";
-import {
-  openJobComparison,
-  retryAudioExtract,
-  retryHistoryEntry,
-  renameJob,
-} from "@/lib/export-history";
+import { exportHistory } from "@/lib/export-history";
 
 let didPreloadHeavyCard = false;
 
@@ -163,9 +158,8 @@ export function useAdminJobs() {
   const handleDownloadOne = useCallback((job: JobEntry) => {
     void (async () => {
       const { apiClient } = await import("@/lib/api-client");
-      const { fetchDownloadBlob, saveBlobFile } = await import(
-        "@/lib/save-blob-file"
-      );
+      const { fetchDownloadBlob, saveBlobFile } =
+        await import("@/lib/save-blob-file");
       const { toast } = await import("sonner");
       try {
         const blob = await fetchDownloadBlob(
@@ -177,8 +171,7 @@ export function useAdminJobs() {
         // jobs don't save with a wrong .mp4 extension, and offer the matching
         // picker filter instead of the MP4-only default.
         const serverName = job.outputFile?.name || `${job.jobId}.mp4`;
-        const serverExt =
-          serverName.split(".").pop()?.toLowerCase() || "mp4";
+        const serverExt = serverName.split(".").pop()?.toLowerCase() || "mp4";
         const rawBase =
           (job.filename || serverName).split("/").pop() || job.jobId;
         const base = rawBase.replace(/\.(mp4|webm|mov|mkv|m4v|avi)$/i, "");
@@ -228,7 +221,7 @@ export function useAdminJobs() {
   }, [queryClient]);
 
   const handleCompareOne = useCallback((job: JobEntry) => {
-    void openJobComparison(
+    void exportHistory.openComparison(
       job.jobId,
       job.filename || job.outputFile?.name || job.jobId,
       "Admin",
@@ -239,7 +232,10 @@ export function useAdminJobs() {
     async (entry: HistoryEntry) => {
       try {
         if (entry.kind === "audio-extract" && entry.audioFormat) {
-          const blob = await retryAudioExtract(entry.audioFormat, entry.label);
+          const blob = await exportHistory.retryAudioExtract(
+            entry.audioFormat,
+            entry.label,
+          );
           const { openComparison } = await import("@/store/compareSlice");
           const { sourceStore } = await import("@/store/sourceSlice");
           openComparison({
@@ -256,7 +252,7 @@ export function useAdminJobs() {
           toast.error("Retry unavailable — original settings were not stored.");
           return;
         }
-        const jobId = await retryHistoryEntry(entry);
+        const jobId = await exportHistory.retryEntry(entry);
         toast.success("Retry queued", { description: jobId });
         invalidateJobs();
       } catch (e) {
@@ -270,7 +266,7 @@ export function useAdminJobs() {
     async (jobId: string, name: string) => {
       const clean = name.trim();
       if (!clean) throw new Error("Name cannot be empty.");
-      await renameJob(jobId, clean); // server PATCH
+      await exportHistory.renameJob(jobId, clean); // server PATCH
       renameHistoryEntry(jobId, clean);
       if (!entryById.has(jobId)) {
         // Adopt untracked server job so the rename sticks across navigation.

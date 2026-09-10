@@ -203,8 +203,9 @@ flowchart LR
   dock pill/panel (`QueueDock`), nav widgets — `QueueActivityNav` (expanded
   nav, click toggles the dock) / `QueueActivityBadge` (collapsed nav, opens).
 - `lib/preflight.ts`: `preflightExport`, `probeApiConnectivity`.
-- `lib/export-history.ts` + `store/exportHistorySlice.ts`:
-  `trackHistoryEntry`, `retryHistoryEntry`, `renameJob`.
+- `lib/export-history.ts` (`ExportHistory` service:
+  `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`) +
+  `store/exportHistorySlice.ts`: `trackHistoryEntry`.
 
 ## 4. State map
 
