@@ -1,14 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Clapperboard,
-  Command,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { Clapperboard, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AppNav } from "./AppNav";
-import { setPaletteOpen } from "@/components/command/paletteStore";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,34 +85,6 @@ export function AppSidebar() {
       {/* Vertical navigation */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
         <AppNav orientation="vertical" collapsed={collapsed} />
-      </div>
-
-      {/* Command palette trigger */}
-      <div className={cn("px-2 pb-1", collapsed && "flex justify-center px-2")}>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Button
-                variant="ghost"
-                size={collapsed ? "icon" : "sm"}
-                onClick={() => setPaletteOpen(true)}
-                aria-label="Open command palette"
-                className={cn(!collapsed && "w-full justify-between")}
-              />
-            }
-          >
-            <span className="flex items-center gap-2">
-              <Command />
-              {!collapsed && <span>Commands</span>}
-            </span>
-            {!collapsed && (
-              <kbd className="rounded border border-kumo-line px-1 font-mono text-[10px] text-kumo-subtle">
-                ⌘K
-              </kbd>
-            )}
-          </TooltipTrigger>
-          <TooltipContent side="right">Commands (⌘K)</TooltipContent>
-        </Tooltip>
       </div>
 
       {/* Bottom actions: theme + collapse */}

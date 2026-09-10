@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { NAV_ITEMS } from "@/components/view-transition/AppNav";
 import { playbackBus } from "@/lib/playback-bus";
-import { paletteStore, setPaletteOpen, togglePalette } from "./paletteStore";
 
 function isTypingTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -14,7 +13,7 @@ function isTypingTarget(target: EventTarget | null) {
     tag === "TEXTAREA" ||
     tag === "SELECT" ||
     target.isContentEditable ||
-    target.closest?.('[role="textbox"], [data-slot="command-input"]') !== null
+    target.closest?.('[role="textbox"]') !== null
   );
 }
 
@@ -28,34 +27,20 @@ const NAV_ORDER = NAV_ITEMS.map((item) => item.href);
 
 /**
  * Global keyboard shortcuts. Single-key transport keys are ignored while
- * typing or when modifiers are held; ⌘K/Ctrl+K always toggles the palette.
+ * typing or when modifiers are held.
  */
 export function useGlobalShortcuts() {
   const router = useRouter();
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // ⌘K / Ctrl+K — toggle palette from anywhere (incl. inputs).
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        togglePalette();
-        return;
-      }
-      // Leave other modified keys alone (browser/app chords).
+      // Leave modified keys alone (browser/app chords).
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      // Palette open → cmdk owns the keyboard.
-      if (paletteStore.state.open) return;
 
       const target = e.target;
       const typing = isTypingTarget(target);
       const key = e.key;
 
-      // `?` opens the palette even from inputs (discoverability).
-      if (key === "?" && !typing) {
-        e.preventDefault();
-        setPaletteOpen(true);
-        return;
-      }
       if (typing) return;
 
       // Number-row navigation 1..6.

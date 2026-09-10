@@ -1,5 +1,5 @@
-// Global playback bus: single-key shortcuts and the command palette drive
-// transport through here instead of reaching into page-local player hooks.
+// Global playback bus: single-key shortcuts drive transport through here
+// instead of reaching into page-local player hooks.
 // All pages play through the shared engine (`shared/usePlaybackEngine` —
 // `shared/useVideoPlayer` is a compat alias, `subtitles/useVideoPlayback`
 // and `cut/useCutPlayback` are thin wrappers, crop `VideoPlayer` uses it
@@ -13,8 +13,8 @@ import { commitPlayheadTime, getPlayheadTime } from "@/store/playheadSlice";
 import { setMobileState } from "@/store/mobileSlice";
 
 /**
- * Singleton service owning global transport: shortcuts and the command
- * palette drive playback/trim through here instead of reaching into
+ * Singleton service owning global transport: shortcuts drive playback/trim
+ * through here instead of reaching into
  * page-local player hooks. All DOM/store access lives here (never in the
  * callers), so every page stays interchangeable — the
  * bus operates on the active `<video>` under `<main>` plus `sourceStore`,
@@ -165,5 +165,5 @@ class PlaybackBus {
   }
 }
 
-/** App-wide singleton — shortcuts and the palette drive through this bus. */
+/** App-wide singleton — global shortcuts drive through this bus. */
 export const playbackBus = new PlaybackBus();
