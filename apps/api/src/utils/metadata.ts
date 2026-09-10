@@ -28,6 +28,22 @@ export type MetadataResult =
   | { ok: false; error: "no-video-stream" | "empty-report" };
 
 /**
+ * ffprobe ≥6 merges `-show_frames` + `-show_packets` into a single
+ * interleaved `packets_and_frames` array (each entry tagged
+ * `type: "frame"|"packet"`) instead of separate `frames`/`packets` arrays.
+ * Split it back so deep-probe consumers always see `frames[]`/`packets[]`.
+ */
+export function splitPacketsAndFrames(result: FFprobeReport): FFprobeReport {
+  const merged = result.packets_and_frames;
+  if (!Array.isArray(merged) || merged.length === 0) return result;
+  if (Array.isArray(result.frames) || Array.isArray(result.packets))
+    return result;
+  const frames = merged.filter((e) => e.type === "frame");
+  const packets = merged.filter((e) => e.type === "packet");
+  return { ...result, frames, packets };
+}
+
+/**
  * Pick the first video (+audio) streams out of a parsed ffprobe JSON report.
  * Returns a typed failure reason instead of throwing so routes can map
  * `no-video-stream` → 422 (valid media, wrong kind) distinctly from spawn /
@@ -37,8 +53,9 @@ export function extractVideoMetadata(
   result: FFprobeReport,
   filename: string,
 ): MetadataResult {
-  const format = result.format ?? {};
-  const streams = result.streams ?? [];
+  const normalized = splitPacketsAndFrames(result);
+  const format = normalized.format ?? {};
+  const streams = normalized.streams ?? [];
   if (streams.length === 0 && Object.keys(format).length === 0) {
     return { ok: false, error: "empty-report" };
   }
@@ -60,7 +77,7 @@ export function extractVideoMetadata(
       videoCodec: String(video.codec_name ?? ""),
       audioCodec: audio?.codec_name ? String(audio.codec_name) : undefined,
       bitrateKbps: Math.round(Number(format.bit_rate ?? 0) / 1000),
-      ffprobe: result,
+      ffprobe: normalized,
     },
   };
 }

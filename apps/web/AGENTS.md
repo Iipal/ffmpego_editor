@@ -46,7 +46,10 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 - `components/editor/crop/CropWorkspace.tsx`, `CropArea.tsx`/`CropOverlay.tsx`,
   `VideoPlayer.tsx` (+`crop/VideoPlayerLazy.tsx`), `editor/Sidebar.tsx`
-  (export form), `TrimControls.tsx`, `VisualFiltersPanel.tsx`
+  (export form + Info section: deep-probe toggle → `useExtendedVideoMetadataMutation`
+  with `includeFrames/includePackets` → `ProbeInspector` stream/format/frame/
+  packet dialog over the returned `ffprobeReport`),
+  `TrimControls.tsx`, `VisualFiltersPanel.tsx`
 
 ### Mobile
 
@@ -98,8 +101,9 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ### `hooks/` — async server state (TanStack Query + SSE live sync)
 
-- `useVideoMetadata.ts`, `useAudioAnalysis.ts`, `useAudioPreview.ts`,
-  `useSharedMobileLayout.ts`
+- `useVideoMetadata.ts` (initial + extended probe; extended takes
+  `{file,includeFrames,includePackets}`), `useAudioAnalysis.ts`,
+  `useAudioPreview.ts`, `useSharedMobileLayout.ts`
 - `useHealth.ts` (`GET /health` readiness poll)
 - `useStorageStats.ts` (`GET /storage/stats` 30 s poll + sweep mutation)
 - `useUploadSessions.ts` (`GET /upload/sessions` 10 s poll + abort mutation)

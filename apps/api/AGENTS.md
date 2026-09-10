@@ -29,21 +29,56 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 
 ## Where methods live (`src/`)
 
-| File                                                                                  | Owns                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `index.ts`                                                                            | Wiring, `GET /`, `GET /health`, mount 5 modules under `/api`, boot sweep/reconcile                                                                                                                                                                                                                                                                                         |
-| `routes/video.ts`                                                                     | `POST /transcode`, `/transcode/mobile`, `/transcode/mobile/subtitles`, `/transcode/cut`; `GET /transcode/jobs`, `/jobs/stream`, `/download/:jobId`, `/progress/:jobId`; `DELETE /jobs`, `/jobs/:jobId`; `POST /clear`; `PATCH /jobs/:jobId`. Internals: `enqueue/pumpQueue/dequeue`, `runTranscode`, `runWebmTgCrfSearch`, `publicJob`, `releaseJobFiles`, `getQueueStats` |
-| `routes/upload.ts`                                                                    | `POST /upload/init`, `/upload/chunk/:uploadId`, `/upload/complete/:uploadId`, `GET /upload/sessions` (open-session list for Admin orphan UI), `GET /upload/status/:uploadId` (incl. `chunks[]` resume skip-set), `DELETE /upload/:uploadId`; `consumeUpload()`; 30 min stale sweep                                                                                         |
-| `routes/metadata.ts`                                                                  | `POST /metadata` (ffprobe → summary, `?includeFrames&includePackets`)                                                                                                                                                                                                                                                                                                      |
-| `routes/audio.ts`                                                                     | `POST /audio/analysis`, `POST /audio/extract` (`?format`, `?track`)                                                                                                                                                                                                                                                                                                        |
-| `routes/files.ts`                                                                     | `GET /storage/stats`, `POST /storage/sweep` (on-demand reconcile, pins live uploads), `GET /files/:id/download`; `streamFile()` with single-range support                                                                                                                                                                                                                  |
-| `db.ts`                                                                               | `bun:sqlite` `.data/app.sqlite` (WAL): `jobs`/`uploads` CRUD, `startupSweep()`                                                                                                                                                                                                                                                                                             |
-| `storage/fileStore.ts`                                                                | `createFileStore`: `reserve/finalize/share/adopt/touch/release`, `sweepExpired/reconcile/stats/checkQuota`, `safeFilename/mimeForExt`, TTLs/quota                                                                                                                                                                                                                          |
-| `storage/index.ts`                                                                    | Process singleton (`db` + `STORE_ROOT`/`STORE_QUOTA_BYTES` env). **Tests: never import — use `createFileStore(new Database(":memory:"))`**                                                                                                                                                                                                                                 |
-| `utils/ffmpegBuilder.ts`, `cutBuilder.ts`, `mobileSubtitlesBuilder.ts`, `metadata.ts` | Pure arg builders + ffprobe parsing (unit-test without binaries)                                                                                                                                                                                                                                                                                                           |
-| `validation.ts`                                                                       | Re-export contract schemas + `parseCustomArgs()` (shell-quote + structural denylist; `-vf` only where allowed)                                                                                                                                                                                                                                                             |
-| `http.ts`                                                                             | `err()`/`errResponse()` — `ERROR_STATUS` is the single status source of truth                                                                                                                                                                                                                                                                                              |
-| `observability.ts`                                                                    | `[api]/[job]/[upload]` prefixes, `getFfmpegVersion()`, `getDiskFreeBytes()`                                                                                                                                                                                                                                                                                                |
+### Entrypoint
+
+- `index.ts` — wiring, `GET /`, `GET /health`, mount 5 modules under
+  `/api`, boot sweep/reconcile
+
+### Routes
+
+- `routes/video.ts` — transcode core + jobs CRUD + SSE + download:
+  `POST /transcode`, `/transcode/mobile`, `/transcode/mobile/subtitles`,
+  `/transcode/cut`; `GET /transcode/jobs`, `/jobs/stream`,
+  `/download/:jobId`, `/progress/:jobId`; `DELETE /jobs`, `/jobs/:jobId`;
+  `POST /clear`; `PATCH /jobs/:jobId`. Internals: `enqueue/pumpQueue/dequeue`,
+  `runTranscode`, `runWebmTgCrfSearch`, `publicJob`, `releaseJobFiles`,
+  `getQueueStats`
+- `routes/upload.ts` — `POST /upload/init`, `/upload/chunk/:uploadId`,
+  `/upload/complete/:uploadId`, `GET /upload/sessions` (open-session list for
+  Admin orphan UI), `GET /upload/status/:uploadId` (incl. `chunks[]` resume
+  skip-set), `DELETE /upload/:uploadId`; `consumeUpload()`; 30 min stale sweep
+- `routes/metadata.ts` — `POST /metadata` (ffprobe → summary,
+  `?includeFrames&includePackets`; `packets_and_frames` split in
+  `utils/metadata.ts`)
+- `routes/audio.ts` — `POST /audio/analysis`, `POST /audio/extract`
+  (`?format`, `?track`)
+- `routes/files.ts` — `GET /storage/stats`, `POST /storage/sweep` (on-demand
+  reconcile, pins live uploads), `GET /files/:id/download`; `streamFile()`
+  with single-range support
+
+### Persistence
+
+- `db.ts` — `bun:sqlite` `.data/app.sqlite` (WAL): `jobs`/`uploads` CRUD,
+  `startupSweep()`
+- `storage/fileStore.ts` — `createFileStore`:
+  `reserve/finalize/share/adopt/touch/release`,
+  `sweepExpired/reconcile/stats/checkQuota`, `safeFilename/mimeForExt`,
+  TTLs/quota
+- `storage/index.ts` — process singleton (`db` + `STORE_ROOT`/
+  `STORE_QUOTA_BYTES` env). **Tests: never import — use
+  `createFileStore(new Database(":memory:"))`**
+
+### Helpers & infra
+
+- `utils/ffmpegBuilder.ts`, `cutBuilder.ts`, `mobileSubtitlesBuilder.ts`,
+  `metadata.ts` — pure arg builders + ffprobe parsing (unit-test without
+  binaries)
+- `validation.ts` — re-export contract schemas + `parseCustomArgs()`
+  (shell-quote + structural denylist; `-vf` only where allowed)
+- `http.ts` — `err()`/`errResponse()` — `ERROR_STATUS` is the single status
+  source of truth
+- `observability.ts` — `[api]/[job]/[upload]` prefixes, `getFfmpegVersion()`,
+  `getDiskFreeBytes()`
 
 ## Shared packages used
 
@@ -58,4 +93,4 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 - Record-before-bytes + quota gate (`507`) on every reserve; `release()` is idempotent — double-delete/crash-replay must be safe.
 - Every error via `err(c, CODE, …)`; never leak absolute paths (use `scrubPaths`, generic `STORE_ERROR` text).
 - Logs via `systemLog/jobLog/uploadLog` (+ `*Error` variants) so lines grep cleanly.
-- `bun test` / `bun run lint` (`tsc --noEmit`) before finishing; keep `README.md` §6 endpoint table in sync when routes change.
+- `bun test` / `bun run lint` (`tsc --noEmit`) before finishing; keep `README.md` §6 endpoint list in sync when routes change.

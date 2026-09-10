@@ -76,6 +76,7 @@ import { exportPresets, type ExportPreset } from "@/lib/export-presets";
 import { preflight } from "@/lib/preflight";
 import { trackHistoryEntry } from "@/store/exportHistorySlice";
 import { openComparison } from "@/store/compareSlice";
+import { ProbeInspector } from "@/components/editor/ProbeInspector";
 
 // Hoisted slice key sets: store shapes are static, so rebuilding them on
 // every update() call (slider drags) is pure overhead.
@@ -136,6 +137,9 @@ export function Sidebar() {
     [editorQueueItems],
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Deep probe asks ffprobe for per-frame/per-packet dumps (slower, much
+  // larger report) so the inspector can show Frames/Packets tabs.
+  const [deepProbe, setDeepProbe] = useState(false);
   const update = (value: Partial<SourceSlice & CropSlice & CutSlice>) => {
     const sourceValue = Object.fromEntries(
       Object.entries(value).filter(([key]) => SOURCE_SLICE_KEYS.has(key)),
@@ -478,12 +482,19 @@ export function Sidebar() {
   };
   const getExtendedInfo = () => {
     if (!state.file) return;
-    extendedMetadataMutation.mutate(state.file, {
-      onError: (error) =>
-        toast.error("Unable to retrieve extended video info.", {
-          description: error.message,
-        }),
-    });
+    extendedMetadataMutation.mutate(
+      {
+        file: state.file,
+        includeFrames: deepProbe,
+        includePackets: deepProbe,
+      },
+      {
+        onError: (error) =>
+          toast.error("Unable to retrieve extended video info.", {
+            description: error.message,
+          }),
+      },
+    );
   };
   const adjustCanvasZoom = (amount: number) => {
     update({
@@ -568,6 +579,21 @@ export function Sidebar() {
                 <dd>{state.bitrateKbps ? `${state.bitrateKbps} kbps` : "-"}</dd>
               </div>
             </dl>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="deep-probe" className="text-xs font-normal">
+                Deep probe (frames + packets)
+              </Label>
+              <Switch
+                id="deep-probe"
+                checked={deepProbe}
+                onCheckedChange={setDeepProbe}
+                aria-describedby="deep-probe-hint"
+              />
+            </div>
+            <p id="deep-probe-hint" className="text-xs text-kumo-subtle">
+              Slower fetch, much larger report — enables the Frames/Packets
+              tabs.
+            </p>
             <Button
               className="w-full"
               variant="outline"
@@ -585,18 +611,17 @@ export function Sidebar() {
                 >
                   Show Extended Info
                 </DialogTrigger>
-                <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-5xl gap-4 p-4 sm:max-w-5xl">
+                <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-5xl flex-col gap-4 p-4 sm:max-w-5xl">
                   <DialogHeader>
                     <DialogTitle>Extended Video Info</DialogTitle>
                     <DialogDescription>
                       Complete FFprobe report for {state.file?.name}
                     </DialogDescription>
                   </DialogHeader>
-                  <pre className="max-h-[calc(100dvh-10rem)] overflow-auto rounded-md border border-kumo-line bg-kumo-recessed p-3 text-xs leading-5 whitespace-pre-wrap break-all">
-                    <code>
-                      {JSON.stringify(extendedMetadataMutation.data, null, 2)}
-                    </code>
-                  </pre>
+                  <ProbeInspector
+                    report={extendedMetadataMutation.data.ffprobe}
+                    deepProbe={deepProbe}
+                  />
                 </DialogContent>
               </Dialog>
             )}

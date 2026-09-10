@@ -140,16 +140,18 @@ Read-only operations (no state change, so kept out of the diagram above):
 - `GET /transcode/download/:jobId` — streams a `completed` output
   (`200` / `206` Range). Keep-until-delete: downloading never deletes.
 
-Edge → code reference:
+Edge → code reference (`src/routes/video.ts`):
 
-| Edge                              | Code (`src/routes/video.ts`)                                                   |
-| --------------------------------- | ------------------------------------------------------------------------------ |
-| `Submit → queued`                 | `reserveOutputFile()` + `insertJob(status: queued)`                            |
-| `queued → processing`             | `enqueue()` / `pumpQueue()` when `activeCount < MAX_CONCURRENT`                |
-| `queued → failed`                 | queue-full 429 or quota 507 → `rollbackQueuedJob()`                            |
-| `queued / processing → cancelled` | `DELETE ?mode=cancel` → `dequeue()` / `killProc()`, runner no-ops finish       |
-| `processing → completed / failed` | `runTranscode()` / `runWebmTgCrfSearch()` → `updateJob()` + `settleJobFiles()` |
-| `* → deleted`                     | `hardDeleteJob()` → `releaseJobFiles()` + `deleteJob()` + `pumpQueue()`        |
+- `Submit → queued` — `reserveOutputFile()` + `insertJob(status: queued)`
+- `queued → processing` — `enqueue()` / `pumpQueue()` when
+  `activeCount < MAX_CONCURRENT`
+- `queued → failed` — queue-full 429 or quota 507 → `rollbackQueuedJob()`
+- `queued / processing → cancelled` — `DELETE ?mode=cancel` → `dequeue()` /
+  `killProc()`, runner no-ops finish
+- `processing → completed / failed` — `runTranscode()` /
+  `runWebmTgCrfSearch()` → `updateJob()` + `settleJobFiles()`
+- `* → deleted` — `hardDeleteJob()` → `releaseJobFiles()` + `deleteJob()` +
+  `pumpQueue()`
 
 Bounded queue (`src/routes/video.ts`): `activeCount < MAX_CONCURRENT`
 else park in `waitQueue` (max 50). `pumpQueue()` advances on settle.
@@ -218,21 +220,28 @@ ops endpoints `GET /` and `GET /health`). Errors use the shared `{ code, message
 
 ### Ops (`src/index.ts`)
 
-| Method + path | Responsibility                                                                                                                               |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /`       | Liveness text (`FFmpeg Editor API is running!`).                                                                                             |
-| `GET /health` | Ops snapshot: `ffmpegVersion`, `tmpdir`, `diskFreeBytes/Human`, `queue {active, queued, maxConcurrent, maxQueued}`. Failure-tolerant probes. |
+- `GET /` — liveness text (`FFmpeg Editor API is running!`).
+- `GET /health` — ops snapshot: `ffmpegVersion`, `tmpdir`,
+  `diskFreeBytes/Human`, `queue {active, queued, maxConcurrent, maxQueued}`.
+  Failure-tolerant probes.
 
 ### Upload sessions (`src/routes/upload.ts`)
 
-| Method + path                         | Responsibility                                                                                                                                                       |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/upload/init`               | Create session: validate `totalSize` (≤10 GB), disk + quota gates (507), `AssetStore.reserve()`, pre-allocate sparse file. Returns `{uploadId, assetId, chunkSize}`. |
-| `POST /api/upload/chunk/:uploadId`    | Random-access write of one raw chunk (`x-chunk-index/offset` or query). Idempotent per index, clamps `received`, `touch()`es asset.                                  |
-| `POST /api/upload/complete/:uploadId` | Verify/truncate to `totalSize`, `finalize()` asset. `UPLOAD_INCOMPLETE` if short.                                                                                    |
-| `GET /api/upload/sessions`            | List open sessions `{count, sessions[]}` (newest first: `received/percent/ageSeconds`) for the Admin orphan/abort UI.                                                |
-| `GET /api/upload/status/:uploadId`    | Progress `{received, totalSize, percent, chunks[], assetId}` — `chunks` is the received-index skip-set for client resume.                                            |
-| `DELETE /api/upload/:uploadId`        | Abort session. Refcount-aware: jobs holding `share()` keep bytes.                                                                                                    |
+- `POST /api/upload/init` — create session: validate `totalSize` (≤10 GB),
+  disk + quota gates (507), `AssetStore.reserve()`, pre-allocate sparse file.
+  Returns `{uploadId, assetId, chunkSize}`.
+- `POST /api/upload/chunk/:uploadId` — random-access write of one raw chunk
+  (`x-chunk-index/offset` or query). Idempotent per index, clamps `received`,
+  `touch()`es asset.
+- `POST /api/upload/complete/:uploadId` — verify/truncate to `totalSize`,
+  `finalize()` asset. `UPLOAD_INCOMPLETE` if short.
+- `GET /api/upload/sessions` — list open sessions `{count, sessions[]}`
+  (newest first: `received/percent/ageSeconds`) for the Admin orphan/abort UI.
+- `GET /api/upload/status/:uploadId` — progress
+  `{received, totalSize, percent, chunks[], assetId}` — `chunks` is the
+  received-index skip-set for client resume.
+- `DELETE /api/upload/:uploadId` — abort session. Refcount-aware: jobs holding
+  `share()` keep bytes.
 
 ### Transcode (`src/routes/video.ts`) — the core
 
@@ -242,41 +251,70 @@ or legacy v0, migrated via `migrateRenderPlan`) + `file` **or** `uploadId`
 **before** spawning ffmpeg, `claimInputAsset()`, then `enqueue()` (429 +
 `Retry-After: 10` when full).
 
-| Method + path                          | Responsibility                                                                                                                                                                                                                                                                                                                                           |
-| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/transcode`                  | Generic export: trim/crop/fps/crf/format (`mp4\|webm\|mov\|webm-tg\|gif`), visual filters, audio tracks/gain/loudnorm/fades/mutes, watermark, `customFFmpegArgs`. `webm-tg` = strict Telegram preset with iterative CRF search to fit `TELEGRAM_WEBM_TG_TARGET_BYTES`. `exportSpeed != 1` adds a second (alternate-output) pass in the same worker slot. |
-| `POST /api/transcode/mobile`           | 16:9 → 9:16 (`1080×1920`) stacked/full export. Rejects non-default `visualFilters` and `-vf` (owns `filter_complex`). Fixed `fps 60, crf 10`.                                                                                                                                                                                                            |
-| `POST /api/transcode/mobile/subtitles` | Mobile export + burned PNG overlays (`subtitles`/`subtitlesMeta` JSON + `subtitle_0…N` files). Count-mismatch → `SUBTITLES_INVALID`. PNGs are job-owned artifacts.                                                                                                                                                                                       |
-| `POST /api/transcode/cut`              | Multi-cut assembly (`mode: full-size\|stacked…`, non-overlapping cuts, zones). Duration = `totalCutDuration(cuts)`.                                                                                                                                                                                                                                      |
-| `GET /api/transcode/jobs`              | List all jobs (newest first) as public shapes + `queuePosition`, `ageSeconds`, queue stats. No paths leak.                                                                                                                                                                                                                                               |
-| `GET /api/transcode/jobs/stream`       | SSE (1s) full-jobs snapshot for Admin dashboard (replaces polling).                                                                                                                                                                                                                                                                                      |
-| `GET /api/transcode/progress/:jobId`   | SSE (200ms + 15s heartbeat) for one job; closes on terminal state (`completed\|failed\|cancelled` with `error, logTail, exitCode`).                                                                                                                                                                                                                      |
-| `GET /api/transcode/download/:jobId`   | Stream completed output (`200` or `206` single-range, `Content-Length`, correct MIME). Download ≠ delete.                                                                                                                                                                                                                                                |
-| `DELETE /api/transcode/jobs`           | Bulk clear (`?status=` filter). Kills ffmpeg, releases files, deletes rows, then `store.reconcile()` + legacy `/tmp` sweep when clearing all.                                                                                                                                                                                                            |
-| `POST /api/transcode/clear`            | Alias of the above (JSON `{status}` or query).                                                                                                                                                                                                                                                                                                           |
-| `DELETE /api/transcode/jobs/:jobId`    | Hard delete (kill + release + row). With `?mode=cancel`: cooperative cancel — kill ffmpeg but **keep** row/files for log inspection.                                                                                                                                                                                                                     |
-| `PATCH /api/transcode/jobs/:jobId`     | Rename export (`{filename}`, ≤128 chars, sanitized).                                                                                                                                                                                                                                                                                                     |
+- `POST /api/transcode` — generic export: trim/crop/fps/crf/format
+  (`mp4|webm|mov|webm-tg|gif`), visual filters, audio tracks/gain/loudnorm/
+  fades/mutes, watermark, `customFFmpegArgs`. `webm-tg` = strict Telegram preset
+  with iterative CRF search to fit `TELEGRAM_WEBM_TG_TARGET_BYTES`.
+  `exportSpeed != 1` adds a second (alternate-output) pass in the same worker
+  slot.
+- `POST /api/transcode/mobile` — 16:9 → 9:16 (`1080×1920`) stacked/full export.
+  Rejects non-default `visualFilters` and `-vf` (owns `filter_complex`).
+  Fixed `fps 60, crf 10`.
+- `POST /api/transcode/mobile/subtitles` — mobile export + burned PNG overlays
+  (`subtitles`/`subtitlesMeta` JSON + `subtitle_0…N` files). Count-mismatch →
+  `SUBTITLES_INVALID`. PNGs are job-owned artifacts.
+- `POST /api/transcode/cut` — multi-cut assembly
+  (`mode: full-size|stacked…`, non-overlapping cuts, zones). Duration =
+  `totalCutDuration(cuts)`.
+- `GET /api/transcode/jobs` — list all jobs (newest first) as public shapes +
+  `queuePosition`, `ageSeconds`, queue stats. No paths leak.
+- `GET /api/transcode/jobs/stream` — SSE (1s) full-jobs snapshot for Admin
+  dashboard (replaces polling).
+- `GET /api/transcode/progress/:jobId` — SSE (200ms + 15s heartbeat) for one
+  job; closes on terminal state
+  (`completed|failed|cancelled` with `error, logTail, exitCode`).
+- `GET /api/transcode/download/:jobId` — stream completed output (`200` or
+  `206` single-range, `Content-Length`, correct MIME). Download ≠ delete.
+- `DELETE /api/transcode/jobs` — bulk clear (`?status=` filter). Kills ffmpeg,
+  releases files, deletes rows, then `store.reconcile()` + legacy `/tmp` sweep
+  when clearing all.
+- `POST /api/transcode/clear` — alias of the above (JSON `{status}` or query).
+- `DELETE /api/transcode/jobs/:jobId` — hard delete (kill + release + row).
+  With `?mode=cancel`: cooperative cancel — kill ffmpeg but **keep** row/files
+  for log inspection.
+- `PATCH /api/transcode/jobs/:jobId` — rename export (`{filename}`, ≤128 chars,
+  sanitized).
 
 ### Inspect (`src/routes/metadata.ts`)
 
-| Method + path        | Responsibility                                                                                                                                                                                                                                                                                                                                             |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /api/metadata` | `ffprobe -show_format/streams/...` → parsed summary (`durationSeconds, width/height, frameRate, codecs, bitrateKbps` + full report). Reuses `uploadId` or single-shot file (released after probe). `?includeFrames=true&includePackets=true` for deep dumps. `FFPROBE_FAILED` (422) vs `UNSUPPORTED_MEDIA` (no video stream) vs `INTERNAL` (spawn failed). |
+- `POST /api/metadata` — `ffprobe -show_format/streams/...` → parsed summary
+  (`durationSeconds, width/height, frameRate, codecs, bitrateKbps` + full
+  report). Reuses `uploadId` or single-shot file (released after probe).
+  `?includeFrames=true&includePackets=true` for deep dumps (ffprobe ≥6 merges
+  both into `packets_and_frames`; `splitPacketsAndFrames` in `utils/metadata.ts`
+  splits it back into `frames[]`/`packets[]`). `FFPROBE_FAILED` (422) vs
+  `UNSUPPORTED_MEDIA` (no video stream) vs `INTERNAL` (spawn failed).
 
 ### Audio (`src/routes/audio.ts`)
 
-| Method + path              | Responsibility                                                                                                                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `POST /api/audio/analysis` | Per-track inspect + 2400-bucket `peaks`/`rms` waveform (8 kHz mono `f32le`) + `loudnorm` LUFS report. `?track=N` selects audio stream. Single-shot asset released after; chunked inputs read in place. |
-| `POST /api/audio/extract`  | Demux one track to `?format=mp3 (libmp3lame q2) \| wav (pcm_s16le)`. Renders to an `ephemeral` artifact, streams it, then releases.                                                                    |
+- `POST /api/audio/analysis` — per-track inspect + 2400-bucket `peaks`/`rms`
+  waveform (8 kHz mono `f32le`) + `loudnorm` LUFS report. `?track=N` selects
+  audio stream. Single-shot asset released after; chunked inputs read in place.
+- `POST /api/audio/extract` — demux one track to
+  `?format=mp3 (libmp3lame q2) | wav (pcm_s16le)`. Renders to an `ephemeral`
+  artifact, streams it, then releases.
 
 ### Files (`src/routes/files.ts`)
 
-| Method + path                 | Responsibility                                                                                                                                                                                          |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/storage/stats`      | Store census `{files, bytes, quotaBytes, byRole, byKind}`.                                                                                                                                              |
-| `POST /api/storage/sweep`     | On-demand `store.reconcile()` (pins live uploads): reaps expired/stale-reserved/missing/orphan rows, returns `{expired, staleReserved, missing, orphans, bytesFreed}`. Live jobs untouched; idempotent. |
-| `GET /api/files/:id/download` | Download any asset/artifact by opaque ID (`ast_…`/`art_…`) with `206` range support. Unknown/deleted → 404. Same `streamFile()` helper the job download uses.                                           |
+- `GET /api/storage/stats` — store census
+  `{files, bytes, quotaBytes, byRole, byKind}`.
+- `POST /api/storage/sweep` — on-demand `store.reconcile()` (pins live
+  uploads): reaps expired/stale-reserved/missing/orphan rows, returns
+  `{expired, staleReserved, missing, orphans, bytesFreed}`. Live jobs untouched;
+  idempotent.
+- `GET /api/files/:id/download` — download any asset/artifact by opaque ID
+  (`ast_…`/`art_…`) with `206` range support. Unknown/deleted → 404. Same
+  `streamFile()` helper the job download uses.
 
 ## 7. Local development
 

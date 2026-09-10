@@ -19,6 +19,45 @@ function setUploadProgress(sent: number, total: number) {
   }));
 }
 
+export interface ProbeDepth {
+  includeFrames?: boolean;
+  includePackets?: boolean;
+}
+
+// Shared POST /metadata fetch: chunked uploadId reuse for big files, direct
+// multipart otherwise. `?includeFrames/includePackets` ask ffprobe for deep
+// per-frame/per-packet dumps (large, slow) — omitted by default.
+async function fetchVideoMetadata(
+  file: File,
+  depth: ProbeDepth = {},
+): Promise<VideoMetadata> {
+  const params = new URLSearchParams();
+  if (depth.includeFrames) params.set("includeFrames", "true");
+  if (depth.includePackets) params.set("includePackets", "true");
+  const query = params.size ? `?${params}` : "";
+  if (uploadChunked.shouldUseChunked(file)) {
+    const { uploadId } = await uploadChunked.uploadFile(file, {
+      onProgress: (sent, total) => setUploadProgress(sent, total),
+    });
+    const res = await fetch(apiClient.url(`/api/metadata${query}`), {
+      method: "POST",
+      headers: { "x-upload-id": uploadId },
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as unknown;
+      throw new Error(
+        transcodeJobs.serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
+      );
+    }
+    return (await res.json()) as VideoMetadata;
+  }
+  const form = new FormData();
+  form.append("file", file);
+  return uploadChunked.uploadForm<VideoMetadata>(`/api/metadata${query}`, form, {
+    onUploadProgress: (sent, total) => setUploadProgress(sent, total),
+  });
+}
+
 // Export prefs captured when a file selection starts a metadata fetch.
 // Lets onSuccess tell "user already customized export for this file" apart
 // from "still on the previous file's prefs", so pre-filling source-derived
@@ -49,30 +88,7 @@ export function useVideoMetadataMutation() {
         uploadBytesTotal: file.size,
       }));
     },
-    mutationFn: async (file: File) => {
-      if (uploadChunked.shouldUseChunked(file)) {
-        const { uploadId } = await uploadChunked.uploadFile(file, {
-          onProgress: (sent, total) => setUploadProgress(sent, total),
-        });
-        const res = await fetch(apiClient.url("/api/metadata"), {
-          method: "POST",
-          headers: { "x-upload-id": uploadId },
-        });
-        if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as unknown;
-          throw new Error(
-            transcodeJobs.serverErrorMessage(err) ??
-              `Metadata failed: ${res.status}`,
-          );
-        }
-        return (await res.json()) as VideoMetadata;
-      }
-      const form = new FormData();
-      form.append("file", file);
-      return uploadChunked.uploadForm<VideoMetadata>("/api/metadata", form, {
-        onUploadProgress: (sent, total) => setUploadProgress(sent, total),
-      });
-    },
+    mutationFn: async (file: File) => fetchVideoMetadata(file),
     onSuccess: (metadata, file) => {
       const frameRate =
         Number.isFinite(metadata.frameRate) && metadata.frameRate > 0
@@ -135,51 +151,27 @@ export function useVideoMetadataMutation() {
   });
 }
 
+export interface ExtendedMetadataVariables extends ProbeDepth {
+  file: File;
+}
+
 export function useExtendedVideoMetadataMutation() {
   return useMutation({
-    onMutate: (file: File) => {
+    onMutate: (vars: ExtendedMetadataVariables) => {
       setSourceState((p) => ({
         ...p,
         uploadStage: "metadata",
         uploadStatus: "uploading",
         uploadProgress: 0,
         uploadBytesSent: 0,
-        uploadBytesTotal: file.size,
+        uploadBytesTotal: vars.file.size,
       }));
     },
-    mutationFn: async (file: File) => {
-      if (uploadChunked.shouldUseChunked(file)) {
-        const { uploadId } = await uploadChunked.uploadFile(file, {
-          onProgress: (sent, total) => setUploadProgress(sent, total),
-        });
-        const res = await fetch(
-          apiClient.url(
-            "/api/metadata?includeFrames=false&includePackets=false",
-          ),
-          { method: "POST", headers: { "x-upload-id": uploadId } },
-        );
-        if (!res.ok) {
-          const err = (await res.json().catch(() => null)) as unknown;
-          throw new Error(
-            transcodeJobs.serverErrorMessage(err) ??
-              `Metadata failed: ${res.status}`,
-          );
-        }
-        return (await res.json()) as VideoMetadata;
-      }
-      const form = new FormData();
-      form.append("file", file);
-      return uploadChunked.uploadForm<VideoMetadata>(
-        "/api/metadata?includeFrames=false&includePackets=false",
-        form,
-        {
-          onUploadProgress: (sent, total) => setUploadProgress(sent, total),
-        },
-      );
-    },
-    onSuccess: (metadata, file) => {
+    mutationFn: async (vars: ExtendedMetadataVariables) =>
+      fetchVideoMetadata(vars.file, vars),
+    onSuccess: (metadata, vars) => {
       setSourceState((previous) =>
-        previous.file === file
+        previous.file === vars.file
           ? {
               ...previous,
               ffprobeReport: metadata.ffprobe,

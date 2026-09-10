@@ -80,7 +80,9 @@ flowchart LR
   CSS filter preview + audio preview, driven by `shared/usePlaybackEngine`
   (the single transport engine for crop/mobile/subtitles/bulk/cut).
 - `Sidebar` — export form (format/fps/crf/speed, presets via
-  `lib/export-presets.ts`, validation via `lib/validate-settings.ts`).
+  `lib/export-presets.ts`, validation via `lib/validate-settings.ts`) + Info
+  section with deep-probe toggle and `ProbeInspector` dialog (stream/format/
+  frame/packet viewer over the `ffprobeReport`, Shadcn Tabs).
 - `TrimControls`, `VisualFiltersPanel`, `AudioControls`, `AudioWaveform`,
   `VideoUploader`, `UploadProgress` — as named.
 

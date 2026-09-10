@@ -3,7 +3,10 @@
  * behind POST /metadata). Fixtures live in test/fixtures/.
  */
 import { describe, expect, test } from "bun:test";
-import { extractVideoMetadata } from "../src/utils/metadata.js";
+import {
+  extractVideoMetadata,
+  splitPacketsAndFrames,
+} from "../src/utils/metadata.js";
 
 async function fixture(name: string) {
   const file = Bun.file(new URL(`./fixtures/${name}`, import.meta.url));
@@ -52,5 +55,27 @@ describe("extractVideoMetadata", () => {
     if (!res.ok) return;
     expect(res.metadata.frameRate).toBe(0);
     expect(res.metadata.audioCodec).toBeUndefined();
+  });
+
+  test("packets_and_frames merged dump → split into frames[]/packets[]", () => {
+    const base = {
+      format: { duration: "2", bit_rate: "1000" },
+      streams: [
+        { codec_type: "video", codec_name: "h264", width: 64, height: 64 },
+      ],
+      packets_and_frames: [
+        { type: "packet", stream_index: 0, size: "100" },
+        { type: "frame", stream_index: 0, pict_type: "I" },
+        { type: "packet", stream_index: 0, size: "50" },
+      ],
+    };
+    const split = splitPacketsAndFrames(base);
+    expect(split.frames).toHaveLength(1);
+    expect(split.packets).toHaveLength(2);
+    const res = extractVideoMetadata(base, "deep.mp4");
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.metadata.ffprobe.frames).toHaveLength(1);
+    expect(res.metadata.ffprobe.packets).toHaveLength(2);
   });
 });
