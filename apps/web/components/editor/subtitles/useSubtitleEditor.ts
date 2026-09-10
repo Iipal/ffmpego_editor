@@ -208,7 +208,13 @@ export function useSubtitleEditor() {
     [setSubtitles],
   );
 
-  const { isPreparing, handleExport, activeExports } = useSubtitleExport({
+  const {
+    isPreparing,
+    handleExport,
+    activeExports,
+    customFFmpegArgs,
+    setCustomFFmpegArgs,
+  } = useSubtitleExport({
     file,
     trimStart,
     trimEnd,
@@ -236,6 +242,8 @@ export function useSubtitleEditor() {
     trimEnd,
     isPreparing,
     activeExports,
+    customFFmpegArgs,
+    setCustomFFmpegArgs,
     retimeSubtitlesToTrim,
     handleExport,
     ...mutations,

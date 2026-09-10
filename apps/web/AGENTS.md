@@ -100,6 +100,11 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   (+`shared/VideoPlayerControls.tsx`), `AudioControls.tsx`,
   `AudioWaveform.tsx`, `VideoUploader.tsx`, `UploadProgress.tsx`,
   `TabSwitcher.tsx`, `shared/TrimSlider` | EmptyState | `CapabilityCard.tsx`
+- `CustomArgsCollapsible.tsx` — shared Advanced `customFFmpegArgs`
+  free-text field (crop `Sidebar`, mobile `PreviewPanel`,
+  `CutSettingsSidebar`, subtitles `SubtitleSettingsPanel`, bulk
+  `BulkSettingsPanel`); backend `parseCustomArgs` denylist rejects managed
+  flags with a 4xx the export error paths surface
 
 ### `hooks/` — async server state (TanStack Query + SSE live sync)
 

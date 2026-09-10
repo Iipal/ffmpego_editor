@@ -11,6 +11,7 @@ import { validateSettings } from "@/lib/validate-settings";
 import { videoFileService } from "@/lib/video-file";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
+import { cutStore } from "@/store/cutSlice";
 
 export function useCutExport({
   file,
@@ -38,6 +39,7 @@ export function useCutExport({
   singleLayout: MobileLayout;
 }) {
   const audio = useSelector(audioStore);
+  const customFFmpegArgs = useSelector(cutStore, (s) => s.customFFmpegArgs);
   const queueItems = useSelector(exportQueueStore).items;
   const activeExports = useMemo(
     () => selectKindActive(queueItems, "cut"),
@@ -79,7 +81,7 @@ export function useCutExport({
       exportFps: 60,
       exportQuality: 10,
       exportSpeed: 1,
-      customFFmpegArgs: "",
+      customFFmpegArgs,
       watermark: mode === "full-size" ? false : activeWatermark,
       splitRatio: mode === "2-stack" ? stackedLayout.splitRatio : undefined,
       zones:
@@ -115,6 +117,7 @@ export function useCutExport({
     stackedLayout,
     singleLayout,
     audio,
+    customFFmpegArgs,
   ]);
 
   return { activeExports, exportName, setExportName, onExport };

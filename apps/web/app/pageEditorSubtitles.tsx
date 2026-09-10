@@ -167,6 +167,8 @@ export default function PageEditorSubtitles() {
             trimStart={e.trimStart}
             trimEnd={e.trimEnd}
             onUpdateStyle={e.updateSelectedStyle}
+            customFFmpegArgs={e.customFFmpegArgs}
+            onCustomFFmpegArgsChange={e.setCustomFFmpegArgs}
           />
         </div>
       </div>

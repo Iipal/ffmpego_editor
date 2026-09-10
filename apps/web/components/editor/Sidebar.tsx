@@ -36,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
@@ -61,6 +60,7 @@ import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
 import { exportQueueStore, isQueueItemActive } from "@/store/exportQueueSlice";
 import { UploadProgress } from "@/components/editor/UploadProgress";
+import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
 import { VisualFiltersPanel } from "@/components/editor/VisualFiltersPanel";
 import { filterStore, setFilterState } from "@/store/filterSlice";
 import { isVisualFiltersDefault } from "@repo/ffmpeg-filters";
@@ -974,26 +974,11 @@ export function Sidebar() {
                     update({ exportFps: Number(event.target.value) })
                   }
                 />
-                <Collapsible>
-                  <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
-                    Advanced <ChevronDown className="size-4 text-kumo-subtle" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="space-y-2 pt-3">
-                    <Label>FFmpeg arguments</Label>
-                    <Textarea
-                      value={state.customFFmpegArgs}
-                      placeholder="-vf eq=contrast=1.2 -b:v 2M"
-                      onChange={(event) =>
-                        update({ customFFmpegArgs: event.target.value })
-                      }
-                    />
-                    <p className="text-[11px] leading-4 text-kumo-subtle">
-                      Most color, denoise, stabilize, flip and speed needs are
-                      covered by the Filters card above — use this only for
-                      advanced overrides.
-                    </p>
-                  </CollapsibleContent>
-                </Collapsible>
+                <CustomArgsCollapsible
+                  value={state.customFFmpegArgs}
+                  onChange={(customFFmpegArgs) => update({ customFFmpegArgs })}
+                  hint="Most color, denoise, stabilize, flip and speed needs are covered by the Filters card above — use this only for advanced overrides."
+                />
               </>
             )}
             <div className="flex items-center justify-between">

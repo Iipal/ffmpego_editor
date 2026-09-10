@@ -101,7 +101,8 @@ flowchart LR
 
 - State: `useMobilePageState` (layout/selection/playback/validation),
   export: `useMobileExport` → `exportQueue.enqueue` (`POST /api/transcode/mobile`
-  via the export queue).
+  via the export queue) with `customFFmpegArgs` from the `PreviewPanel`
+  Advanced collapsible.
 - `MobileArea` — control/readout surface; `SourcePanel` — source + zone stage;
   `PreviewPanel`/`PortraitPreview` — split slider + 1080×1920 renderer;
   `ZoneCard`/`ZoneOverlay` — per-zone x/y/w/h sliders; `SourceStage` — canvas.
@@ -123,7 +124,8 @@ flowchart LR
   forwards `audioTracks[]` from the global `audioStore` (the `AudioControls`
   Include switches are the picker) and wraps settings in the v1
   `{version, kind: "mobile-subtitles"}` envelope the route requires
-  (bare v0 kind-detects as `"mobile"` and is rejected).
+  (bare v0 kind-detects as `"mobile"` and is rejected), plus `customFFmpegArgs`
+  from the Advanced card in `SubtitleSettingsPanel`.
 - Panels: `SubtitleBasicsPanel`, `SubtitleFontPanel` (+ `GoogleFontPicker`),
   `SubtitleOutlinePanel`, `SubtitleShadowPanel`, `SubtitleBackgroundPanel`;
   placeholders in `placeholders.tsx`, lazy chunks in `heavy-modules.tsx`.
@@ -146,6 +148,8 @@ flowchart LR
   progress and finished files save via directory handle. `BulkExpandedView`
   has a per-video audio track picker (probed on demand via
   `useAudioAnalysis`, stored as `BulkItem.audioTracks[]`) forwarded per item.
+  A global `customFFmpegArgs` (Advanced in `BulkSettingsPanel`) applies to
+  every item's settings.
 
 **`/editor/cut` — `CutEditorPage`** (multi-cut assembly):
 
@@ -163,7 +167,9 @@ flowchart LR
   sorted/overlap/outDuration), `useCutPlayback`/`useSeekTo` (cut-aware layer
   over `shared/usePlaybackEngine`), `useCutLayouts` (stacked/single +
   watermark), `useCutExport`/`useExportName`
-  → `POST /api/transcode/cut`.
+  → `POST /api/transcode/cut` (`useCutExport` reads `customFFmpegArgs` from
+  the shared `cutStore`, edited via the Advanced collapsible in
+  `CutSettingsSidebar`).
 
 **`/admin` — `PageAdmin`** (jobs dashboard):
 

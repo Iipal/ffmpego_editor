@@ -15,6 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Film } from "lucide-react";
+import { useSelector } from "@tanstack/react-store";
+import { cutStore, setCutState } from "@/store/cutSlice";
+import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
 import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { ZoneSliders } from "./ZoneSliders";
@@ -67,6 +70,9 @@ export function CutSettingsSidebar({
   activeExports: number;
   onExport: () => void;
 }) {
+  // Export prefs live in the shared cutSlice (same field the crop Sidebar
+  // edits) — one global custom-args value across both reframing pages.
+  const customFFmpegArgs = useSelector(cutStore, (s) => s.customFFmpegArgs);
   return (
     <Card>
       <CardHeader className="py-3">
@@ -187,6 +193,11 @@ export function CutSettingsSidebar({
             className="h-8 text-xs"
           />
         </div>
+
+        <CustomArgsCollapsible
+          value={customFFmpegArgs}
+          onChange={(v) => setCutState((p) => ({ ...p, customFFmpegArgs: v }))}
+        />
 
         <Button
           className="w-full"

@@ -19,6 +19,8 @@ export default function MobileBulkEditorPage() {
     splitLabel,
     useWatermark,
     setUseWatermark,
+    customFFmpegArgs,
+    setCustomFFmpegArgs,
     inputFolderName,
     outputDirHandle,
     outputDirName,
@@ -41,6 +43,7 @@ export default function MobileBulkEditorPage() {
     layoutError,
     outputDirHandle,
     useWatermark,
+    customFFmpegArgs,
     patchItem,
   });
 
@@ -160,9 +163,11 @@ export default function MobileBulkEditorPage() {
             layoutError={layoutError}
             activeExports={activeExports}
             selectedCount={selectedCount}
+            customFFmpegArgs={customFFmpegArgs}
             onPickInput={pickInputFolder}
             onPickOutput={pickOutputFolder}
             onWatermarkChange={setUseWatermark}
+            onCustomFFmpegArgsChange={setCustomFFmpegArgs}
             onSync={syncLayout}
             onBulkExport={onBulkExport}
           />

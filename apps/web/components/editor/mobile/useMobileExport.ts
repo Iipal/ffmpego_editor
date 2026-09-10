@@ -21,6 +21,7 @@ type ExportArgs = {
   layout: MobileLayout;
   useWatermark: boolean;
   ignoreTrim: boolean;
+  customFFmpegArgs: string;
 };
 
 export function useMobileExport(args: ExportArgs) {
@@ -34,6 +35,7 @@ export function useMobileExport(args: ExportArgs) {
     layout,
     useWatermark,
     ignoreTrim,
+    customFFmpegArgs,
   } = args;
   const audioTracks = useSelector(audioStore, (s) => s.tracks);
   const queueItems = useSelector(exportQueueStore, (s) => s.items);
@@ -74,7 +76,7 @@ export function useMobileExport(args: ExportArgs) {
       exportFilename: baseName,
       exportQuality: 10,
       exportSpeed: 1,
-      customFFmpegArgs: "",
+      customFFmpegArgs,
       watermark: useWatermark,
       audioTracks: audioTracks.length
         ? getAudioRenderSettings(audioTracks)
@@ -103,6 +105,7 @@ export function useMobileExport(args: ExportArgs) {
     layout,
     useWatermark,
     ignoreTrim,
+    customFFmpegArgs,
     audioTracks,
   ]);
 

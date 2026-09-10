@@ -3,6 +3,7 @@
 import { memo } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -17,9 +18,11 @@ export type BulkSettingsPanelProps = {
   layoutError: string | null;
   activeExports: number;
   selectedCount: number;
+  customFFmpegArgs: string;
   onPickInput: () => void;
   onPickOutput: () => void;
   onWatermarkChange: (v: boolean) => void;
+  onCustomFFmpegArgsChange: (v: string) => void;
   onSync: () => void;
   onBulkExport: () => void;
 };
@@ -33,9 +36,11 @@ export const BulkSettingsPanel = memo(function BulkSettingsPanel({
   layoutError,
   activeExports,
   selectedCount,
+  customFFmpegArgs,
   onPickInput,
   onPickOutput,
   onWatermarkChange,
+  onCustomFFmpegArgsChange,
   onSync,
   onBulkExport,
 }: BulkSettingsPanelProps) {
@@ -105,6 +110,10 @@ export const BulkSettingsPanel = memo(function BulkSettingsPanel({
         {layoutError ? (
           <p className="text-xs text-kumo-warn">{layoutError}</p>
         ) : null}
+        <CustomArgsCollapsible
+          value={customFFmpegArgs}
+          onChange={onCustomFFmpegArgsChange}
+        />
         <Button
           className="w-full"
           onClick={onBulkExport}

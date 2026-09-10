@@ -17,6 +17,8 @@ export function useBulkEditorState() {
   const [items, setItems] = useState<BulkItem[]>([]);
   const [layout, setLayout] = useState<MobileLayout>(() => loadStackedLayout());
   const [useWatermark, setUseWatermark] = useState(true);
+  // Global advanced args applied to every bulk item's settings.
+  const [customFFmpegArgs, setCustomFFmpegArgs] = useState("");
   const [inputFolderName, setInputFolderName] = useState<string | null>(null);
   const [outputDirHandle, setOutputDirHandle] = useState<FsDirHandle | null>(
     null,
@@ -182,6 +184,8 @@ export function useBulkEditorState() {
     splitLabel,
     useWatermark,
     setUseWatermark,
+    customFFmpegArgs,
+    setCustomFFmpegArgs,
     inputFolderName,
     outputDirHandle,
     outputDirName,

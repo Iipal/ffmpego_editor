@@ -9,6 +9,7 @@ import { formatTime } from "@/lib/format-time";
 import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { PortraitPreview } from "./PortraitPreview";
+import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
 import { preloadHeavyPreview } from "./mobile-helpers";
 
 type PreviewPanelProps = {
@@ -21,6 +22,8 @@ type PreviewPanelProps = {
   setUseWatermark: (v: boolean) => void;
   ignoreTrim: boolean;
   setIgnoreTrim: (v: boolean) => void;
+  customFFmpegArgs: string;
+  setCustomFFmpegArgs: (v: string) => void;
   onSavePreference: () => void;
   deferredFilter: string;
   isFilterStale: boolean;
@@ -40,6 +43,8 @@ export function PreviewPanel({
   setUseWatermark,
   ignoreTrim,
   setIgnoreTrim,
+  customFFmpegArgs,
+  setCustomFFmpegArgs,
   onSavePreference,
   deferredFilter,
   isFilterStale,
@@ -102,6 +107,10 @@ export function PreviewPanel({
             <Label className="text-xs">Ignore Trim Settings</Label>
             <Switch checked={ignoreTrim} onCheckedChange={setIgnoreTrim} />
           </div>
+          <CustomArgsCollapsible
+            value={customFFmpegArgs}
+            onChange={setCustomFFmpegArgs}
+          />
           <Button className="w-full" onClick={onSavePreference}>
             Save preference
           </Button>

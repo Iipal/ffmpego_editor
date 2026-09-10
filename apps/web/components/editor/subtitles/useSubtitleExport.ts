@@ -34,6 +34,9 @@ export function useSubtitleExport({
   subtitles,
 }: UseSubtitleExportArgs) {
   const [isPreparing, setIsPreparing] = useState(false);
+  // Advanced free-text args live here next to isPreparing (no store slice
+  // owns subtitles export prefs) and surface through useSubtitleEditor.
+  const [customFFmpegArgs, setCustomFFmpegArgs] = useState("");
   const queueItems = useSelector(exportQueueStore).items;
   // AudioControls on this page fills the same global track list the
   // crop/mobile/cut exports forward — its Include switches are the picker.
@@ -69,7 +72,7 @@ export function useSubtitleExport({
       exportFilename: baseName,
       exportQuality: 10,
       exportSpeed: 1,
-      customFFmpegArgs: "",
+      customFFmpegArgs,
       audioTracks: audioTracks.length
         ? getAudioRenderSettings(audioTracks)
         : undefined,
@@ -134,7 +137,14 @@ export function useSubtitleExport({
     layout,
     subtitles,
     audioTracks,
+    customFFmpegArgs,
   ]);
 
-  return { isPreparing, handleExport, activeExports };
+  return {
+    isPreparing,
+    handleExport,
+    activeExports,
+    customFFmpegArgs,
+    setCustomFFmpegArgs,
+  };
 }

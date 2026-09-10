@@ -18,6 +18,7 @@ export type UseBulkExportArgs = {
   layoutError: string | null;
   outputDirHandle: FsDirHandle | null;
   useWatermark: boolean;
+  customFFmpegArgs: string;
   patchItem: (id: string, patch: Partial<BulkItem>) => void;
 };
 
@@ -32,6 +33,7 @@ export function useBulkExport({
   layoutError,
   outputDirHandle,
   useWatermark,
+  customFFmpegArgs,
   patchItem,
 }: UseBulkExportArgs) {
   const queueItems = useSelector(exportQueueStore, (s) => s.items);
@@ -78,7 +80,7 @@ export function useBulkExport({
         exportFilename: base,
         exportQuality: 10,
         exportSpeed: 1,
-        customFFmpegArgs: "",
+        customFFmpegArgs,
         watermark: useWatermark,
         audioTracks: item.audioTracks?.length ? item.audioTracks : undefined,
       });
@@ -140,6 +142,7 @@ export function useBulkExport({
     itemsRef,
     outputDirHandle,
     useWatermark,
+    customFFmpegArgs,
     patchItem,
   ]);
 

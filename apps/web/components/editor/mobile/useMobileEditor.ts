@@ -18,6 +18,7 @@ export function useMobileEditor() {
   const [safe, setSafe] = useState(true);
   const [useWatermark, setUseWatermark] = useState(true);
   const [ignoreTrim, setIgnoreTrim] = useState(false);
+  const [customFFmpegArgs, setCustomFFmpegArgs] = useState("");
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
   const [durationTick, setDurationTick] = useState(0);
@@ -92,6 +93,8 @@ export function useMobileEditor() {
     setUseWatermark,
     ignoreTrim,
     setIgnoreTrim,
+    customFFmpegArgs,
+    setCustomFFmpegArgs,
     undo: history.past,
     redo: history.future,
     undoOp,

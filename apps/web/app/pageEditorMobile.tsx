@@ -26,6 +26,7 @@ export default function MobileEditorPage() {
     layout: s.ed.layout,
     useWatermark: s.ed.useWatermark,
     ignoreTrim: s.ed.ignoreTrim,
+    customFFmpegArgs: s.ed.customFFmpegArgs,
   });
 
   if (!s.hasVideo) {
@@ -133,6 +134,8 @@ export default function MobileEditorPage() {
             setUseWatermark={s.ed.setUseWatermark}
             ignoreTrim={s.ed.ignoreTrim}
             setIgnoreTrim={s.ed.setIgnoreTrim}
+            customFFmpegArgs={s.ed.customFFmpegArgs}
+            setCustomFFmpegArgs={s.ed.setCustomFFmpegArgs}
             onSavePreference={() => {
               setCachedLayout(s.ed.layout);
               toast.success("Layout saved as default");

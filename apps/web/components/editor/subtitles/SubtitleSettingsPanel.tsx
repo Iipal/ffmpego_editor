@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
 import { formatTime } from "@/lib/format-time";
 import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
@@ -20,12 +21,16 @@ export type SubtitleSettingsPanelProps = Omit<
 > & {
   selected: Subtitle | null;
   onUpdateStyle: (patch: Partial<SubtitleStyle>) => void;
+  customFFmpegArgs: string;
+  onCustomFFmpegArgsChange: (v: string) => void;
 };
 
 export function SubtitleSettingsPanel({
   selected,
   templates,
   onUpdateStyle,
+  customFFmpegArgs,
+  onCustomFFmpegArgsChange,
   ...basics
 }: SubtitleSettingsPanelProps) {
   return (
@@ -69,6 +74,12 @@ export function SubtitleSettingsPanel({
       ) : (
         NoSelectionCard
       )}
+      <Card className="p-3">
+        <CustomArgsCollapsible
+          value={customFFmpegArgs}
+          onChange={onCustomFFmpegArgsChange}
+        />
+      </Card>
       <Card className="p-3">
         <div className="text-xs font-medium">
           Templates stored: {templates.length}
