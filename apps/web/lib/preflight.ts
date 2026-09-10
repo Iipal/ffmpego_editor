@@ -6,6 +6,7 @@
 // and `preflight.probeApiConnectivity()` inside the export gate; both funnel
 // through this service so the fail-fast rules live in one place.
 import { apiClient } from "./api-client";
+import { health } from "./health";
 
 /** Single fail-fast finding: `error` blocks export, `warn` is advisory. */
 export interface PreflightIssue {
@@ -132,9 +133,7 @@ class Preflight {
 
     const summary: string[] = [];
     if (presetTarget === "audio-extract") {
-      summary.push(
-        `Audio-only pull · ${Preflight.fmtDuration(renderSeconds)}`,
-      );
+      summary.push(`Audio-only pull · ${Preflight.fmtDuration(renderSeconds)}`);
     } else {
       const outSeconds =
         exportFormat === "webm-tg" && !ignoreTrim
@@ -155,29 +154,24 @@ class Preflight {
   }
 
   /**
-   * Fail-fast connectivity probe with a short timeout. Returns `null` when
-   * the API is reachable, otherwise a human message for the export gate
-   * toast ("API unreachable — is the backend running on …?").
+   * Fail-fast connectivity probe with a short timeout. Hits lightweight
+   * `GET /health` (no SQLite/jobs-table touch) instead of the heavy
+   * `GET /api/transcode/jobs` list. Returns `null` when the API is reachable,
+   * otherwise a human message for the export gate toast ("API unreachable —
+   * is the backend running on …?").
    */
   async probeApiConnectivity(
     timeoutMs = Preflight.DEFAULT_PROBE_TIMEOUT_MS,
   ): Promise<string | null> {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      const res = await fetch(apiClient.url("/api/transcode/jobs"), {
-        signal: ctrl.signal,
-      });
-      if (!res.ok) return `API responded with HTTP ${res.status}.`;
+      await health.fetchHealth(timeoutMs);
       return null;
-    } catch {
-      return (
-        "API unreachable — is the backend running on " +
-        apiClient.baseUrl +
-        "?"
-      );
-    } finally {
-      clearTimeout(timer);
+    } catch (e) {
+      return e instanceof Error
+        ? e.message
+        : "API unreachable — is the backend running on " +
+            apiClient.baseUrl +
+            "?";
     }
   }
 

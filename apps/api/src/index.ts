@@ -37,8 +37,13 @@ if (sweep.recoveredJobs > 0 || sweep.deletedFiles > 0) {
 }
 
 const app = new Hono();
+// Local-only: permissive CORS on every route, including the root ops
+// endpoints (`GET /`, `GET /health`) that the web readiness dashboard
+// polls cross-origin (:3050 → :3100). Scoping this to `/api/*` breaks
+// browser fetches to `/health` (no ACAO header → blocked → "API
+// unreachable"), while curl/cli keep working — a confusing split.
 app.use(
-  "/api/*",
+  "*",
   cors({
     origin: "*",
     allowMethods: ["GET", "POST", "DELETE", "OPTIONS", "PATCH", "PUT"],

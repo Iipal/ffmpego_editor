@@ -3,26 +3,28 @@
 Generated: 2026-09-10 from full `apps/web` analysis (7 routes, ~135 files in `components/`, 11 slices in `store/`, 18+3 files in `lib/`, 4 files in `hooks/`).
 Current routes: `/` → `/editor/crop`, `/editor/mobile`, `/editor/mobile/subtitles`, `/editor/mobile/bulk`, `/editor/cut`, `/admin`.
 
+Per each changes made update README.md and AGENTS.md respectfully.
+
 ---
 
 ## PART 1: New Features (gap-driven)
 
 ### 1. Expose backend already supported, UI missing
 
-- [ ] **Health / readiness dashboard:** `GET /health`, `GET /` never fetched. `lib/preflight.ts:168` probes heavy `GET /transcode/jobs`. Add status dot + `ffmpegVersion/diskFreeHuman/queue{active,queued}` in `AdminHeader/JobsArea`.
+- [x] **Health / readiness dashboard:** `GET /health`, `GET /` never fetched. `lib/preflight.ts:168` probes heavy `GET /transcode/jobs`. Add status dot + `ffmpegVersion/diskFreeHuman/queue{active,queued}` in `AdminHeader/JobsArea`.
 - [ ] **Storage / quota dashboard:** `GET /storage/stats` never called. Add disk bar + sweep button. Needed for `507 QUOTA_EXCEEDED/DISK_FULL` which today has no dedicated UI.
 - [ ] **Upload session resume/abort UI:** `GET /upload/status/:uploadId`, `DELETE /upload/:uploadId` unused. Show resume progress, cancel orphan sessions (now left to 6h server sweep).
 - [ ] **Alternate output download/compare:** `JobEntry.alternateFile` displayed in `components/admin/JobRow.tsx:140` but not downloadable. Wire `GET /files/:id/download` (currently 0 callers — only `/transcode/download/:jobId` used) + `openComparison`.
 - [ ] **Full probe inspector:** `useExtendedVideoMetadataMutation` pins `?includeFrames=false&includePackets=false`. Add toggle for `true/true` + stream/frame/packet viewer using already-returned `ffprobeReport`.
 - [ ] **`x-upload-id` reuse for audio:** `routes/audio.ts:resolveInput` supports it, but `useAudioAnalysis`, `useAudioPreview.ts:171`, `AudioControls.tsx:62` always re-upload raw `FormData{file}`. Reuse chunked `uploadId` → 3x upload saving on large files.
-- [ ] **`audioTracks[]` on subtitles + bulk:** forwarded on crop/cut/mobile, omitted in `subtitles/useSubtitleExport.ts:57` and bulk per-track choice. Add track picker there.
+- [ ] **`audioTracks[]` on subtitles + bulk:** forwarded on crop/cut/mobile, omitted in `subtitles/useSubtitleExport.ts:57` and bulk per-track choice. Add track picker there in the BulkExpandedView per-video settings.
 - [ ] **`customFFmpegArgs` everywhere:** only `Sidebar.tsx` has `Textarea`. Hardcoded `""` in `useMobileExport/useCutExport/useSubtitleExport/useBulkExport`. Add advanced collapsible.
 - [ ] **`POST /transcode/clear` alias:** dead. Either use it or delete.
 
 ### 2. Editor UX — cross-cutting
 
 - [ ] **URL-synced state:** Zero `useSearchParams` in `app/`. Admin `filter`, trim, `expandedId`, mode, cut list should sync to `?filter=&mode=&t=` for share/deep-link/back-button.
-- [ ] **`loading.tsx` / `error.tsx` / `not-found.tsx` / `global-error.tsx`:** None exist. Any render throw blanks shell.
+- [ ] **`loading.tsx` / `error.tsx` / `not-found.tsx` / `global-error.tsx`:** None exist. Any render throw blanks shell. Create ErroBoundary component.
 - [ ] **Global undo/redo:** Only mobile has `mobileSlice` history. Add for crop rect, cuts, subtitles, filters.
 - [ ] **Export filename centralization:** `stripExtension/sanitize` scattered in `video-file.ts`, `useExportName`, bulk. Add `lib/export-filename.ts` + live uniqueness check.
 - [ ] **Unified `ExportSettingsSidebar` + `useExportBase(kind)`:** `Sidebar.tsx:114-1127`, `CutSettingsSidebar`, `BulkSettingsPanel`, `PreviewPanel` repeat format/fps/quality/preflight/queue badge. Same for 4x `use*Export` hooks — extract base (validate → enqueue → badge).

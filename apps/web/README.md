@@ -171,6 +171,10 @@ flowchart LR
 
 - State: `useAdminJobs` (`components/admin/useAdminJobs.ts`) — jobs query +
   SSE live sync + download/retry/rename/delete/cancel/clear actions.
+- Readiness: `useHealthQuery` (`hooks/useHealth.ts` over `lib/health.ts`,
+  `GET /health` polled every 15 s) — ffmpeg version, tmpdir disk headroom,
+  queue depth. `AdminHeader` shows the status dot + summary line;
+  `JobsArea` shows the readiness strip (status, ffmpeg, disk free, queue).
 - `JobsArea` — totals/queue readout; `FilterBar` — status filter;
   `JobRow` — badge/progress/row actions; `ExtractRows` — audio-extract history;
   `CompareDialog` (`components/export/CompareDialog.tsx`) — source-vs-output.
@@ -207,7 +211,7 @@ flowchart LR
   dock pill/panel (`QueueDock`), nav widgets — `QueueActivityNav` (expanded
   nav, click toggles the dock) / `QueueActivityBadge` (collapsed nav, opens).
 - `lib/preflight.ts` (`Preflight` service:
-  `preflight.check/probeApiConnectivity`).
+  `preflight.check` + `probeApiConnectivity` via lightweight `GET /health`).
 - `lib/export-history.ts` (`ExportHistory` service:
   `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`) +
   `store/exportHistorySlice.ts`: `trackHistoryEntry`.
@@ -233,6 +237,7 @@ flowchart LR
         AA[POST /audio/analysis]
         TR[POST /transcode*]
         JB[GET /transcode/jobs + SSE]
+        HL[GET /health, 15s poll]
     end
     Client --> Server
 ```

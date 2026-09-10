@@ -211,8 +211,9 @@ keep-until-delete, `ephemeral` TTL 5min). On-disk name is always
 
 ## 6. Endpoints — who does what
 
-Base URL defaults to `http://localhost:3100`. All `/api/*` allow CORS `*`.
-Errors use the shared `{ code, message, issues?, requestId?, jobId? }` envelope
+Base URL defaults to `http://localhost:3100`. All routes allow CORS `*`
+(local-only app, so the web dashboard on `:3050` can poll even the root
+ops endpoints `GET /` and `GET /health`). Errors use the shared `{ code, message, issues?, requestId?, jobId? }` envelope
 (`src/http.ts` + `@repo/contracts`).
 
 ### Ops (`src/index.ts`)

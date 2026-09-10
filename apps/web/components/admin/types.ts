@@ -1,5 +1,6 @@
 import type { StoredFileDescriptor } from "@repo/types";
 import type { LiveStatus } from "./useJobsLiveSync";
+import type { HealthSnapshot } from "@/lib/health";
 
 // Mirrors the B1/B2 API contract (apps/api/src/routes/video.ts):
 // statuses queued|processing|completed|failed|cancelled, logTail tail log,
@@ -78,6 +79,12 @@ export type JobsAreaProps = {
   isFetching: boolean;
   liveStatus: LiveStatus;
   apiBase: string;
-  queue?: QueueStats;
   onRefresh: () => void;
+};
+
+export type AdminHealthProps = {
+  /** Lightweight `GET /health` snapshot (ffmpeg, disk, queue). */
+  health?: HealthSnapshot | undefined;
+  healthLoading?: boolean;
+  healthError?: string | null;
 };

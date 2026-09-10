@@ -20,12 +20,8 @@ export const JobsArea = memo(function JobsArea({
   isFetching,
   liveStatus,
   apiBase,
-  queue,
   onRefresh,
 }: JobsAreaProps) {
-  const queueLabel = queue
-    ? `workers ${queue.active}/${queue.maxConcurrent} · queued ${queue.queued}/${queue.maxQueued}`
-    : null;
   return (
     <div className="rounded-md border border-kumo-hairline bg-kumo-recessed">
       {/* Top bar: identity + actions */}
@@ -144,7 +140,6 @@ export const JobsArea = memo(function JobsArea({
           Live sync via SSE · Pending = processing + queued · outputs kept
           server-side until deleted · temp inputs /tmp/&lt;uuid&gt;-* · outputs
           /tmp/temp_&lt;jobId&gt;.* on the API
-          {queueLabel ? ` · ${queueLabel}` : null}
         </span>
       </div>
     </div>

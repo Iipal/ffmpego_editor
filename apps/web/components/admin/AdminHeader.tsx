@@ -8,26 +8,11 @@ import {
   preloadHeavyCard,
   preloadUploadChunked,
 } from "./heavy";
-import type { LiveStatus } from "./useJobsLiveSync";
-
-const LIVE_DOT: Record<LiveStatus, string> = {
-  live: "bg-emerald-500",
-  connecting: "bg-amber-400 animate-pulse",
-  reconnecting: "bg-amber-400 animate-pulse",
-  error: "bg-red-500",
-};
-
-const LIVE_LABEL: Record<LiveStatus, string> = {
-  live: "Live",
-  connecting: "Connecting…",
-  reconnecting: "Reconnecting…",
-  error: "Stream unavailable — showing last snapshot",
-};
+import type { AdminHealthProps } from "./types";
+import { cn } from "@/lib/utils";
 
 type AdminHeaderProps = {
-  isFilterStale: boolean;
   isFetching: boolean;
-  liveStatus: LiveStatus;
   jobsLength: number;
   pendingCount: number;
   clearAllPending: boolean;
@@ -35,32 +20,74 @@ type AdminHeaderProps = {
   onRefresh: () => void;
   onClearPending: () => void;
   onClearAll: () => void;
-};
+} & AdminHealthProps;
 
 export const AdminHeader = memo(function AdminHeader({
-  isFilterStale,
   isFetching,
-  liveStatus,
   jobsLength,
   pendingCount,
   clearAllPending,
   clearPendingPending,
+  health,
+  healthLoading,
+  healthError,
   onRefresh,
   onClearPending,
   onClearAll,
 }: AdminHeaderProps) {
+  const healthOk = !!health && !healthError;
+  const healthDot = healthOk
+    ? "bg-emerald-500"
+    : healthLoading && !health
+      ? "bg-amber-400 animate-pulse"
+      : "bg-red-500";
+  const healthLabel = healthOk
+    ? "API ok"
+    : healthLoading && !health
+      ? "Checking API…"
+      : (healthError ?? "API unreachable");
+  // Health queue mirrors GET /transcode/jobs `queue` (same getQueueStats
+  // source) but arrives via the lightweight /health probe, so it stays
+  // visible even when the jobs list fails to load.
+  const healthQueue = health
+    ? `workers ${health.queue.active}/${health.queue.maxConcurrent} · queued ${health.queue.queued}/${health.queue.maxQueued}`
+    : null;
+  const healthMeta = healthOk
+    ? [
+        health?.ffmpegVersion?.split(",")[0] ?? "ffmpeg unknown",
+        health?.diskFreeHuman ? `${health.diskFreeHuman} free` : "disk unknown",
+        healthQueue,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div>
         <h2 className="text-sm font-semibold">Admin · Jobs</h2>
         <p className="flex items-center gap-1.5 text-xs text-kumo-subtle">
           Inspect and clear transcode jobs.
+        </p>
+        <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] text-kumo-subtle">
           <span
-            className={`inline-block size-1.5 rounded-full ${LIVE_DOT[liveStatus]}`}
+            className={cn(
+              "inline-block size-1.5 shrink-0 rounded-full",
+              healthDot,
+            )}
             aria-hidden
           />
-          <span aria-live="polite">{LIVE_LABEL[liveStatus]}</span>
-          {isFilterStale ? "· updating…" : null}
+          <span aria-live="polite" title={healthError ?? undefined}>
+            {healthLabel}
+          </span>
+          {healthMeta ? (
+            <span
+              className="truncate font-mono text-[11px] tabular-nums"
+              title={health?.ffmpegVersion ?? undefined}
+            >
+              · {healthMeta}
+            </span>
+          ) : null}
         </p>
         {/* keep probe for analyzable path coverage */}
         {DynamicCardProbe}

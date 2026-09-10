@@ -30,6 +30,7 @@ import {
   preloadHeavyCard,
 } from "@/components/admin/heavy";
 import { useAdminJobs } from "@/components/admin/useAdminJobs";
+import { useHealthQuery } from "@/hooks/useHealth";
 
 export default function PageAdmin() {
   // advanced-init-once: one-time preconnect, not per mount
@@ -40,6 +41,11 @@ export default function PageAdmin() {
   }, []);
 
   const admin = useAdminJobs();
+  const {
+    data: health,
+    isLoading: healthLoading,
+    error: healthError,
+  } = useHealthQuery();
   const {
     data,
     jobs,
@@ -88,13 +94,14 @@ export default function PageAdmin() {
     <div className="flex flex-col gap-3">
       {/* resource hints already via ensurePreconnect; bundle-preload via hover handlers below */}
       <AdminHeader
-        isFilterStale={isFilterStale}
         isFetching={isFetching}
-        liveStatus={liveStatus}
         jobsLength={jobs.length}
         pendingCount={pendingCount}
         clearAllPending={clearAllPending}
         clearPendingPending={clearPendingPending}
+        health={health}
+        healthLoading={healthLoading}
+        healthError={healthError instanceof Error ? healthError.message : null}
         onRefresh={handleRefresh}
         onClearPending={handleClearPending}
         onClearAll={handleClearAll}
@@ -110,7 +117,6 @@ export default function PageAdmin() {
         isStale={isFilterStale}
         isFetching={isFetching}
         apiBase={apiClient.baseUrl}
-        queue={data?.queue}
         liveStatus={liveStatus}
         onRefresh={handleRefresh}
       />
