@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
 import type { MobileLayout } from "@/lib/mobile-layout";
-import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { HEAVY_MODULES } from "./heavy-modules";
 import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";

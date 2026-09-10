@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GoogleFontPicker } from "@/components/editor/GoogleFontPicker";
 import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
-import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
 import { NOOP } from "./heavy-modules";
 import { isValidHexColor, normalizeHex } from "./subtitle-helpers";
 

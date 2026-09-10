@@ -1,4 +1,4 @@
-import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 
 export type SubtitleRowProps = {
   sub: Subtitle;

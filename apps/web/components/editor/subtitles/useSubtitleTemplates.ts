@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import type { Subtitle, SubtitleTemplate } from "@/lib/subtitles/subtitleTypes";
+import type {
+  Subtitle,
+  SubtitleTemplate,
+} from "@/lib/subtitles/subtitleStorage";
 import { generateId } from "./subtitle-helpers";
 import { getCachedTemplates, setCachedTemplates } from "./template-cache";
 

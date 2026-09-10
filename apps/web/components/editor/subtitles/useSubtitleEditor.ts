@@ -6,8 +6,8 @@ import { sourceStore } from "@/store/sourceSlice";
 import { subtitleStore, setSubtitleState } from "@/store/subtitleSlice";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
-import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
-import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
+import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import { ensureGoogleFontLoaded } from "@/lib/subtitles/googleFonts";
 import { NOOP, initAppOnce } from "./heavy-modules";
 import { getSubtitleTrack } from "./subtitle-helpers";
@@ -200,11 +200,19 @@ export function useSubtitleEditor() {
             ne = e;
             ns = Math.max(s, ne - dur);
           }
-          if (ne - ns < MIN_SUBTITLE_DURATION) {
-            ne = Math.min(e, ns + MIN_SUBTITLE_DURATION);
+          if (ne - ns < SubtitleStorage.MIN_DURATION) {
+            ne = Math.min(e, ns + SubtitleStorage.MIN_DURATION);
           }
-          ns = mobileLayoutService.clamp(ns, s, e - MIN_SUBTITLE_DURATION);
-          ne = mobileLayoutService.clamp(ne, ns + MIN_SUBTITLE_DURATION, e);
+          ns = mobileLayoutService.clamp(
+            ns,
+            s,
+            e - SubtitleStorage.MIN_DURATION,
+          );
+          ne = mobileLayoutService.clamp(
+            ne,
+            ns + SubtitleStorage.MIN_DURATION,
+            e,
+          );
           return { ...sub, startTime: ns, endTime: ne };
         }),
       );

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { mobileLayoutService } from "@/lib/mobile-layout";
-import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import {
   ensureGlobalPointerListeners,
   globalPointerMoveHandlers,
@@ -63,7 +63,11 @@ export function useTimelineDrag({
       if (!el || duration <= 0) return 0;
       // js-cache-property-access: cache rect
       const rect = el.getBoundingClientRect();
-      const pct = mobileLayoutService.clamp((clientX - rect.left) / rect.width, 0, 1);
+      const pct = mobileLayoutService.clamp(
+        (clientX - rect.left) / rect.width,
+        0,
+        1,
+      );
       return pct * duration;
     },
     [duration, trackRef],
@@ -88,12 +92,24 @@ export function useTimelineDrag({
           ne = trimEnd;
           ns = ne - dur;
         }
-        ns = mobileLayoutService.clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
-        ne = mobileLayoutService.clamp(ne, ns + MIN_SUBTITLE_DURATION, trimEnd);
+        ns = mobileLayoutService.clamp(
+          ns,
+          trimStart,
+          trimEnd - SubtitleStorage.MIN_DURATION,
+        );
+        ne = mobileLayoutService.clamp(
+          ne,
+          ns + SubtitleStorage.MIN_DURATION,
+          trimEnd,
+        );
         onUpdateSubtitleRef.current(dragSnapshot.id, ns, ne);
         const deltaY = e.clientY - dragSnapshot.startY;
         const trackDelta = Math.round(deltaY / rowHeight);
-        let newTrack = mobileLayoutService.clamp(dragSnapshot.origTrack + trackDelta, 0, 99);
+        let newTrack = mobileLayoutService.clamp(
+          dragSnapshot.origTrack + trackDelta,
+          0,
+          99,
+        );
         if (newTrack > trackCountRef.current) newTrack = trackCountRef.current;
         if (newTrack !== dragSnapshot.origTrack) {
           onUpdateTrackRef.current(dragSnapshot.id, newTrack);
@@ -102,13 +118,13 @@ export function useTimelineDrag({
         const ns = mobileLayoutService.clamp(
           dragSnapshot.origStart + deltaTime,
           trimStart,
-          dragSnapshot.origEnd - MIN_SUBTITLE_DURATION,
+          dragSnapshot.origEnd - SubtitleStorage.MIN_DURATION,
         );
         onUpdateSubtitleRef.current(dragSnapshot.id, ns, dragSnapshot.origEnd);
       } else if (dragSnapshot.mode === "right") {
         const ne = mobileLayoutService.clamp(
           dragSnapshot.origEnd + deltaTime,
-          dragSnapshot.origStart + MIN_SUBTITLE_DURATION,
+          dragSnapshot.origStart + SubtitleStorage.MIN_DURATION,
           trimEnd,
         );
         onUpdateSubtitleRef.current(

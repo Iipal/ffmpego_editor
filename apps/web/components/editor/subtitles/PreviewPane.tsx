@@ -7,7 +7,7 @@ import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerContr
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { formatTime } from "@/lib/format-time";
-import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import {
   DynamicMobilePreviewShared,
   preloadMobilePreview,

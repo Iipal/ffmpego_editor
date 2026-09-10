@@ -3,9 +3,8 @@
 import { useCallback, useTransition } from "react";
 import { setSubtitleState } from "@/store/subtitleSlice";
 import { mobileLayoutService } from "@/lib/mobile-layout";
-import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
-import { DEFAULT_SUBTITLE_STYLE } from "@/lib/subtitles/subtitleDefaults";
-import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
+import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import { findFirstFreeTrack, generateId } from "./subtitle-helpers";
 
 export type UseSubtitleMutationsArgs = {
@@ -121,10 +120,18 @@ export function useSubtitleMutations({
     const t = mobileLayoutService.clamp(
       currentTime,
       trimStart,
-      Math.max(trimStart, trimEnd - MIN_SUBTITLE_DURATION),
+      Math.max(trimStart, trimEnd - SubtitleStorage.MIN_DURATION),
     );
-    const start = mobileLayoutService.clamp(t, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
-    const end = mobileLayoutService.clamp(start + 1, start + MIN_SUBTITLE_DURATION, trimEnd);
+    const start = mobileLayoutService.clamp(
+      t,
+      trimStart,
+      trimEnd - SubtitleStorage.MIN_DURATION,
+    );
+    const end = mobileLayoutService.clamp(
+      start + 1,
+      start + SubtitleStorage.MIN_DURATION,
+      trimEnd,
+    );
     const id = generateId();
     setSubtitles((prev) => {
       const track = findFirstFreeTrack(prev, start, end);
@@ -135,7 +142,7 @@ export function useSubtitleMutations({
         endTime: end,
         track,
         position: { x: 50, y: 80 },
-        style: { ...DEFAULT_SUBTITLE_STYLE },
+        style: { ...SubtitleStorage.DEFAULT_STYLE },
       };
       if (track + 1 > trackCountExplicit) {
         setTrackCountExplicit(track + 1);
@@ -192,11 +199,19 @@ export function useSubtitleMutations({
   const handleTimelineUpdateSubtitle = useCallback(
     (id: string, ns: number, ne: number) => {
       const d = effectiveDuration;
-      let s = mobileLayoutService.clamp(ns, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
-      let e = mobileLayoutService.clamp(ne, s + MIN_SUBTITLE_DURATION, trimEnd);
+      let s = mobileLayoutService.clamp(
+        ns,
+        trimStart,
+        trimEnd - SubtitleStorage.MIN_DURATION,
+      );
+      let e = mobileLayoutService.clamp(
+        ne,
+        s + SubtitleStorage.MIN_DURATION,
+        trimEnd,
+      );
       if (s < 0) s = 0;
       if (e > d) e = d;
-      if (e - s < MIN_SUBTITLE_DURATION) return;
+      if (e - s < SubtitleStorage.MIN_DURATION) return;
       startTransition(() => {
         setSubtitles((prev) =>
           prev.map((sub) =>

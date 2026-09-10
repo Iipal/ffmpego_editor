@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTime } from "@/lib/format-time";
-import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
+import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { EmptySubtitleListPlaceholder } from "./placeholders";
 import { SubtitleRow } from "./SubtitleRow";
 

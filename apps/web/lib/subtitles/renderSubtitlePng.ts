@@ -1,5 +1,5 @@
 "use client";
-import type { Subtitle } from "./subtitleTypes";
+import type { Subtitle } from "./subtitleStorage";
 import { ensureGoogleFontLoaded } from "./googleFonts";
 
 export interface RenderedSubtitlePng {

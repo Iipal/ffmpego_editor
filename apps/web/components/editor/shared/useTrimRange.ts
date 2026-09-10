@@ -16,7 +16,7 @@ export type TrimRangeUpdater =
 type UseTrimRangeOptions = {
   /** Full media duration; init/clamp effects and clamping are skipped while <= 0. */
   duration: number;
-  /** Minimum allowed trim length (mobile: 0.2, subtitles: MIN_SUBTITLE_DURATION). */
+  /** Minimum allowed trim length (mobile: 0.2, subtitles: SubtitleStorage.MIN_DURATION). */
   minGap?: number;
   /** Margin used when clamping an overshooting start back from duration. Defaults to minGap. */
   initClampMargin?: number;

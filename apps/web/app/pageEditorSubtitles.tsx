@@ -15,7 +15,7 @@ import { SubtitleSettingsPanel } from "@/components/editor/subtitles/SubtitleSet
 import { useSubtitleEditor } from "@/components/editor/subtitles/useSubtitleEditor";
 import { AudioControls } from "@/components/editor/AudioControls";
 import { TrimControls } from "@/components/editor/TrimControls";
-import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 
 // Thin composer for the subtitles editor. All state lives in
 // useSubtitleEditor; all UI lives in components/editor/subtitles/*.
@@ -127,7 +127,7 @@ export default function PageEditorSubtitles() {
 
           <TrimControls
             sliderMax={Math.max(e.effectiveDuration, 0.01)}
-            minGap={MIN_SUBTITLE_DURATION}
+            minGap={SubtitleStorage.MIN_DURATION}
             initClampMargin={1}
             playerRef={e.videoRef}
             onTrimChange={e.retimeSubtitlesToTrim}

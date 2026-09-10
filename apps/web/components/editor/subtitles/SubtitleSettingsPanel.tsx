@@ -2,8 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTime } from "@/lib/format-time";
-import { SUBTITLE_TEMPLATES_STORAGE_KEY } from "@/lib/subtitles/subtitleStorage";
-import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleTypes";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
+import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
 import { NoSelectionCard } from "./placeholders";
 import { SubtitleBackgroundPanel } from "./SubtitleBackgroundPanel";
 import {
@@ -74,7 +74,7 @@ export function SubtitleSettingsPanel({
           Templates stored: {templates.length}
         </div>
         <p className="text-[11px] text-kumo-subtle mt-1">
-          Key: {SUBTITLE_TEMPLATES_STORAGE_KEY} · Invalid localStorage data is
+          Key: {SubtitleStorage.STORAGE_KEY} · Invalid localStorage data is
           ignored.
         </p>
         {templates.length > 0 ? (

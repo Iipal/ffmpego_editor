@@ -21,7 +21,7 @@ import {
   fetchGoogleFontsMeta,
   isCyrillicSupported,
 } from "@/lib/subtitles/googleFonts";
-import { FONT_FAMILY_OPTIONS } from "@/lib/subtitles/subtitleDefaults";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
@@ -61,19 +61,24 @@ export function GoogleFontPicker({
         if (cancelled) return;
         const families = metas.map((m) => m.family);
         const systemDisplay = new Set(
-          FONT_FAMILY_OPTIONS.map((f) => displayName(f).toLowerCase()),
+          SubtitleStorage.FONT_FAMILY_OPTIONS.map((f) =>
+            displayName(f).toLowerCase(),
+          ),
         );
         const googleUnique = families.filter(
           (f) => !systemDisplay.has(displayName(f).toLowerCase()),
         );
-        const merged = [...FONT_FAMILY_OPTIONS, ...googleUnique];
+        const merged = [
+          ...SubtitleStorage.FONT_FAMILY_OPTIONS,
+          ...googleUnique,
+        ];
         setFonts(merged);
         setLoading(false);
       })
       .catch((e) => {
         if (cancelled) return;
         setError(e instanceof Error ? e.message : "Failed to load fonts");
-        setFonts([...FONT_FAMILY_OPTIONS]);
+        setFonts([...SubtitleStorage.FONT_FAMILY_OPTIONS]);
         setLoading(false);
       });
     return () => {

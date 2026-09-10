@@ -12,8 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { mobileLayoutService } from "@/lib/mobile-layout";
-import { MIN_SUBTITLE_DURATION } from "@/lib/subtitles/subtitleDefaults";
-import type { Subtitle, SubtitleTemplate } from "@/lib/subtitles/subtitleTypes";
+import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
+import type {
+  Subtitle,
+  SubtitleTemplate,
+} from "@/lib/subtitles/subtitleStorage";
 import { getSubtitleTrack } from "./subtitle-helpers";
 
 export type SubtitleBasicsPanelProps = {
@@ -129,12 +132,16 @@ export function SubtitleBasicsPanel({
             onChange={(e) => {
               const v = parseFloat(e.target.value);
               if (!Number.isFinite(v)) return;
-              let ns = mobileLayoutService.clamp(v, trimStart, trimEnd - MIN_SUBTITLE_DURATION);
+              let ns = mobileLayoutService.clamp(
+                v,
+                trimStart,
+                trimEnd - SubtitleStorage.MIN_DURATION,
+              );
               let ne = selected.endTime;
               if (ns >= ne)
                 ne = mobileLayoutService.clamp(
-                  ns + MIN_SUBTITLE_DURATION,
-                  ns + MIN_SUBTITLE_DURATION,
+                  ns + SubtitleStorage.MIN_DURATION,
+                  ns + SubtitleStorage.MIN_DURATION,
                   trimEnd,
                 );
               onUpdateSubtitle(selected.id, { startTime: ns, endTime: ne });
@@ -154,13 +161,17 @@ export function SubtitleBasicsPanel({
             onChange={(e) => {
               const v = parseFloat(e.target.value);
               if (!Number.isFinite(v)) return;
-              let ne = mobileLayoutService.clamp(v, trimStart + MIN_SUBTITLE_DURATION, trimEnd);
+              let ne = mobileLayoutService.clamp(
+                v,
+                trimStart + SubtitleStorage.MIN_DURATION,
+                trimEnd,
+              );
               let ns = selected.startTime;
               if (ne <= ns)
                 ns = mobileLayoutService.clamp(
-                  ne - MIN_SUBTITLE_DURATION,
+                  ne - SubtitleStorage.MIN_DURATION,
                   trimStart,
-                  ne - MIN_SUBTITLE_DURATION,
+                  ne - SubtitleStorage.MIN_DURATION,
                 );
               onUpdateSubtitle(selected.id, { startTime: ns, endTime: ne });
             }}
