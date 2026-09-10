@@ -80,6 +80,7 @@ export function useBulkExport({
         exportSpeed: 1,
         customFFmpegArgs: "",
         watermark: useWatermark,
+        audioTracks: item.audioTracks?.length ? item.audioTracks : undefined,
       });
       // Pre-submit: same schemas the API enforces — fail before upload bytes.
       validateSettings.assertMobile(settingsJson);

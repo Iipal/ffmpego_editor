@@ -1148,6 +1148,7 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     outputPath: originalOutputPath,
     filename: settings.exportFilename.trim() || file.name,
     speed: settings.exportSpeed,
+    audioTracks: settings.audioTracks,
   });
 
   jobLog(jobId, "mobile-subtitles ffmpeg args:", originalArgs.join(" "));

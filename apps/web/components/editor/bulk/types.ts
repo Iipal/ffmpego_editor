@@ -8,6 +8,8 @@ export type BulkStatus =
   | "failed"
   | "cancelled";
 
+import type { AudioTrackRenderSettings } from "@/store/audioSlice";
+
 export interface BulkItem {
   id: string;
   file: File;
@@ -22,6 +24,12 @@ export interface BulkItem {
   status: BulkStatus;
   progress: number;
   error: string | null;
+  /**
+   * Per-video export audio selection (undefined = server default, all
+   * tracks). Set from the BulkExpandedView track picker; forwarded as
+   * `audioTracks[]` by useBulkExport.
+   */
+  audioTracks?: AudioTrackRenderSettings[];
 }
 
 // Minimal File System Access API typings (lib.dom may not include them)

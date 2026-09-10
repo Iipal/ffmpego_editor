@@ -119,7 +119,11 @@ flowchart LR
 ```
 
 - State: `useSubtitleEditor` (`components/editor/subtitles/useSubtitleEditor.ts`);
-  export → `POST /api/transcode/mobile/subtitles`.
+  export → `POST /api/transcode/mobile/subtitles`. `useSubtitleExport`
+  forwards `audioTracks[]` from the global `audioStore` (the `AudioControls`
+  Include switches are the picker) and wraps settings in the v1
+  `{version, kind: "mobile-subtitles"}` envelope the route requires
+  (bare v0 kind-detects as `"mobile"` and is rejected).
 - Panels: `SubtitleBasicsPanel`, `SubtitleFontPanel` (+ `GoogleFontPicker`),
   `SubtitleOutlinePanel`, `SubtitleShadowPanel`, `SubtitleBackgroundPanel`;
   placeholders in `placeholders.tsx`, lazy chunks in `heavy-modules.tsx`.
@@ -139,7 +143,9 @@ flowchart LR
 - State: `useBulkEditorState` (`components/editor/bulk/hooks.ts`);
   export: `useBulkExport` submits every selected file to `exportQueue.enqueue`
   (`POST /api/transcode/mobile`) at once — per-item rows mirror queue
-  progress and finished files save via directory handle.
+  progress and finished files save via directory handle. `BulkExpandedView`
+  has a per-video audio track picker (probed on demand via
+  `useAudioAnalysis`, stored as `BulkItem.audioTracks[]`) forwarded per item.
 
 **`/editor/cut` — `CutEditorPage`** (multi-cut assembly):
 

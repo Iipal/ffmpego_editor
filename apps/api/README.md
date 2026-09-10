@@ -262,7 +262,10 @@ or legacy v0, migrated via `migrateRenderPlan`) + `file` **or** `uploadId`
   Fixed `fps 60, crf 10`.
 - `POST /api/transcode/mobile/subtitles` — mobile export + burned PNG overlays
   (`subtitles`/`subtitlesMeta` JSON + `subtitle_0…N` files). Count-mismatch →
-  `SUBTITLES_INVALID`. PNGs are job-owned artifacts.
+  `SUBTITLES_INVALID`. PNGs are job-owned artifacts. Requires the v1
+  `{version, kind: "mobile-subtitles"}` envelope (bare v0 kind-detects as
+  `"mobile"` and is rejected). Honors `audioTracks[]` (one `-map 0:a:<idx>?`
+  per enabled track; omitted → legacy `0:a?`).
 - `POST /api/transcode/cut` — multi-cut assembly
   (`mode: full-size|stacked…`, non-overlapping cuts, zones). Duration =
   `totalCutDuration(cuts)`.

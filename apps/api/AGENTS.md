@@ -70,7 +70,8 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 
 ### Helpers & infra
 
-- `utils/ffmpegBuilder.ts`, `cutBuilder.ts`, `mobileSubtitlesBuilder.ts`,
+- `utils/ffmpegBuilder.ts`, `cutBuilder.ts`, `mobileSubtitlesBuilder.ts`
+  (incl. `audioTracks[]` → per-track `-map`, legacy `0:a[?]` when omitted),
   `metadata.ts` — pure arg builders + ffprobe parsing (unit-test without
   binaries)
 - `validation.ts` — re-export contract schemas + `parseCustomArgs()`

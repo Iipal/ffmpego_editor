@@ -40,6 +40,14 @@ export interface MobileSubtitlesOptions {
   outputPath?: string;
   filename: string;
   speed?: number;
+  /**
+   * Explicit audio track selection (forwarded from the subtitle export
+   * settings, honoring the AudioControls Include switches). Each enabled
+   * track gets its own `-map 0:a:<trackIndex>?`. Omitted → legacy
+   * whole-input `0:a[?]` mapping. Only trackIndex/enabled are read — this
+   * builder applies no per-track audio filters (speed atempo stays global).
+   */
+  audioTracks?: Array<{ trackIndex: number; enabled: boolean }>;
 }
 
 export const OUTPUT_W = 1080;
@@ -47,6 +55,20 @@ export const OUTPUT_H = 1920;
 // Fallback dir when no explicit outputPath is given. Callers pass absolute
 // os.tmpdir() paths; files persist until the user deletes the job.
 export const OUTPUT_DIRECTORY = ".";
+
+/**
+ * Audio `-map` pairs: one optional per-track map for each enabled track
+ * when `audioTracks[]` is forwarded, otherwise the legacy whole-input map.
+ * (All-disabled → no audio maps → silent output, same as the other builders.)
+ */
+function audioMapArgs(
+  options: MobileSubtitlesOptions,
+  legacy: string,
+): string[] {
+  const enabled = options.audioTracks?.filter((t) => t.enabled) ?? null;
+  if (!enabled) return ["-map", legacy];
+  return enabled.flatMap((t) => ["-map", `0:a:${t.trackIndex}?`]);
+}
 
 function buildFormatArgs(format: "mp4" | "webm" | "mov", crf?: number) {
   const normalizedCrf =
@@ -212,8 +234,7 @@ export function buildMobileSubtitlesArgs(
         filterComplex,
         "-map",
         "[v]",
-        "-map",
-        "0:a",
+        ...audioMapArgs(options, "0:a"),
         "-filter:a",
         afilter,
       );
@@ -223,8 +244,7 @@ export function buildMobileSubtitlesArgs(
         filterComplex,
         "-map",
         "[v]",
-        "-map",
-        "0:a?",
+        ...audioMapArgs(options, "0:a?"),
       );
     }
   } else {
@@ -267,8 +287,7 @@ export function buildMobileSubtitlesArgs(
         filterComplex,
         "-map",
         "[vout]",
-        "-map",
-        "0:a",
+        ...audioMapArgs(options, "0:a"),
         "-filter:a",
         afilter,
       );
@@ -278,8 +297,7 @@ export function buildMobileSubtitlesArgs(
         filterComplex,
         "-map",
         "[vout]",
-        "-map",
-        "0:a?",
+        ...audioMapArgs(options, "0:a?"),
       );
     }
   }

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
+import { PLAN_VERSION } from "@repo/contracts";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { HEAVY_MODULES } from "./heavy-modules";
@@ -10,6 +11,7 @@ import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
 import { videoFileService } from "@/lib/video-file";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
+import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
 
 export type UseSubtitleExportArgs = {
   file: File | null;
@@ -33,6 +35,9 @@ export function useSubtitleExport({
 }: UseSubtitleExportArgs) {
   const [isPreparing, setIsPreparing] = useState(false);
   const queueItems = useSelector(exportQueueStore).items;
+  // AudioControls on this page fills the same global track list the
+  // crop/mobile/cut exports forward — its Include switches are the picker.
+  const audioTracks = useSelector(audioStore, (s) => s.tracks);
   const activeExports = useMemo(
     () => selectKindActive(queueItems, "subtitles"),
     [queueItems],
@@ -54,7 +59,7 @@ export function useSubtitleExport({
       (videoFileService.stripExtension(file.name) || "video") +
       "_mobile_subtitles_1080x1920";
     const outName = baseName + ".mp4";
-    const settingsJson = JSON.stringify({
+    const settings = {
       mobileLayout: layout,
       sourceWidth: sw,
       sourceHeight: sh,
@@ -65,9 +70,20 @@ export function useSubtitleExport({
       exportQuality: 10,
       exportSpeed: 1,
       customFFmpegArgs: "",
-    });
+      audioTracks: audioTracks.length
+        ? getAudioRenderSettings(audioTracks)
+        : undefined,
+    };
     // Pre-upload: same schemas the API enforces — fail before PNG render.
-    validateSettings.assertMobile(settingsJson);
+    validateSettings.assertMobile(JSON.stringify(settings));
+    // v1 envelope: bare v0 settings kind-detect as "mobile", which the
+    // /mobile/subtitles endpoint rejects (kind mismatch) — the wrapper pins
+    // the "mobile-subtitles" plan kind the route requires.
+    const settingsJson = JSON.stringify({
+      version: PLAN_VERSION,
+      kind: "mobile-subtitles",
+      settings,
+    });
     setIsPreparing(true);
     toast.loading(
       subtitles.length
@@ -109,7 +125,16 @@ export function useSubtitleExport({
     } finally {
       setIsPreparing(false);
     }
-  }, [file, trimStart, trimEnd, sourceWidth, sourceHeight, layout, subtitles]);
+  }, [
+    file,
+    trimStart,
+    trimEnd,
+    sourceWidth,
+    sourceHeight,
+    layout,
+    subtitles,
+    audioTracks,
+  ]);
 
   return { isPreparing, handleExport, activeExports };
 }

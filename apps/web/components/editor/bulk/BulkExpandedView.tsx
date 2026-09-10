@@ -12,6 +12,12 @@ import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
+import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
+import {
+  getAudioRenderSettings,
+  type AudioTrack,
+  type AudioTrackRenderSettings,
+} from "@/store/audioSlice";
 import { ensureWatermark, STATUS_LABEL, statusColor, wmImg } from "./helpers";
 import type { BulkItem } from "./types";
 
@@ -210,6 +216,90 @@ const BulkLiveStackedPreview = memo(function BulkLiveStackedPreview({
     </div>
   );
 });
+
+/**
+ * Per-video audio track picker: probes this item's audio tracks on demand
+ * (`useAudioAnalysis`, cached by file identity) and stores the export
+ * selection on the item as `audioTracks[]` (undefined = server default).
+ * Mirrors the AudioControls Include switches, but per bulk item instead of
+ * the global audio store (bulk videos each have their own track list).
+ */
+function BulkAudioPicker({
+  file,
+  itemId,
+  saved,
+  disabled,
+  onPatch,
+}: {
+  file: File;
+  itemId: string;
+  saved: AudioTrackRenderSettings[] | undefined;
+  disabled: boolean;
+  onPatch: (id: string, patch: Partial<BulkItem>) => void;
+}) {
+  const { data, isPending } = useAudioAnalysis(file, 0);
+  const [overrides, setOverrides] = useState<Set<number> | null>(null);
+  useEffect(() => setOverrides(null), [itemId]);
+  const tracks: AudioTrack[] | null = data?.tracks ?? null;
+
+  const isEnabled = (trackIndex: number) => {
+    if (overrides) return overrides.has(trackIndex);
+    return saved?.find((s) => s.trackIndex === trackIndex)?.enabled ?? true;
+  };
+  const toggle = (trackIndex: number, on: boolean) => {
+    if (!tracks) return;
+    const next = new Set<number>();
+    for (const t of tracks) {
+      if (isEnabled(t.trackIndex)) next.add(t.trackIndex);
+    }
+    if (on) next.add(trackIndex);
+    else next.delete(trackIndex);
+    setOverrides(next);
+    onPatch(itemId, {
+      audioTracks: getAudioRenderSettings(
+        tracks.map((t) => ({
+          ...t,
+          enabled: next.has(t.trackIndex),
+          gainDb: 0,
+          loudnormEnabled: false,
+          loudnormTargetLufs: -14,
+          fadeInSeconds: 0,
+          fadeOutSeconds: 0,
+          muteSegments: [],
+          waveform: null,
+          loudness: null,
+        })),
+      ),
+    });
+  };
+
+  return (
+    <div className="space-y-1.5 rounded-lg border border-kumo-line p-2.5">
+      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+        {tracks
+          ? `Audio · ${tracks.length} track${tracks.length === 1 ? "" : "s"} (export selection)`
+          : isPending
+            ? "Audio · probing tracks…"
+            : "Audio · no tracks found"}
+      </div>
+      {tracks?.map((t) => (
+        <label key={t.trackIndex} className="flex items-center gap-2 text-xs">
+          <Checkbox
+            checked={isEnabled(t.trackIndex)}
+            onCheckedChange={(v) => toggle(t.trackIndex, v === true)}
+            disabled={disabled}
+            aria-label={`Include audio track ${t.trackIndex + 1} in export`}
+          />
+          <span className="min-w-0 truncate">
+            Track {t.trackIndex + 1}
+            {t.language ? ` · ${t.language}` : ""}
+            {t.codec ? ` · ${t.codec}` : ""} · {t.channels}ch
+          </span>
+        </label>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Expanded Card-fill-size view rendered above the bulk grid.
@@ -416,6 +506,14 @@ export function BulkExpandedView({
             playFromStartDisabled={
               (player.duration > 0 ? player.duration : item.duration) <= 0
             }
+          />
+
+          <BulkAudioPicker
+            file={item.file}
+            itemId={item.id}
+            saved={item.audioTracks}
+            disabled={rowActive}
+            onPatch={onPatch}
           />
 
           {item.error ? (

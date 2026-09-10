@@ -62,12 +62,14 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 - `components/editor/subtitles/useSubtitleEditor.ts`, `PreviewPane.tsx`,
   `SubtitleListPanel.tsx`/`SubtitleRow.tsx`, `SubtitleSettingsPanel.tsx`
   (+Basics/Font/Outline/Shadow/Background), `TimelineSection.tsx`,
-  `heavy-modules.tsx`
+  `heavy-modules.tsx`, `useSubtitleExport.ts` (forwards `audioTracks[]` from
+  `audioStore`, v1 `mobile-subtitles` envelope)
 
 ### Bulk
 
 - `components/editor/bulk/hooks.ts` (`useBulkEditorState`),
-  `useBulkExport.ts`, `BulkArea` | Header | ItemCard | ExpandedView |
+  `useBulkExport.ts` (per-item `BulkItem.audioTracks[]` → `POST /mobile`),
+  `BulkArea` | Header | ItemCard | ExpandedView (per-video audio picker) |
   `SettingsPanel.tsx`, `CellPreview.tsx`
 
 ### Cut

@@ -444,4 +444,61 @@ describe("buildMobileSubtitlesArgs overlay math", () => {
     expect(args).toContain("libopus");
     expect(args).not.toContain("-an");
   });
+
+  test("omitted audioTracks → legacy whole-input map", () => {
+    const args = buildMobileSubtitlesArgs({
+      inputPath: "/tmp/in.mp4",
+      subtitleOverlays: [],
+      subtitlePngPaths: [],
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      trimRange: [0, 10],
+      mobileLayout: layout,
+      filename: "s",
+    });
+    expect(args).toContain("0:a?");
+  });
+
+  test("audioTracks → per-track maps, disabled skipped", () => {
+    const base = {
+      inputPath: "/tmp/in.mp4",
+      subtitleOverlays: [],
+      subtitlePngPaths: [],
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      trimRange: [0, 10] as [number, number],
+      mobileLayout: layout,
+      filename: "s",
+    };
+    const args = buildMobileSubtitlesArgs({
+      ...base,
+      audioTracks: [
+        { trackIndex: 0, enabled: true },
+        { trackIndex: 1, enabled: false },
+        { trackIndex: 2, enabled: true },
+      ],
+    });
+    expect(args).toContain("0:a:0?");
+    expect(args).toContain("0:a:2?");
+    expect(args).not.toContain("0:a:1?");
+    expect(args).not.toContain("0:a?");
+  });
+
+  test("audioTracks survive subtitles + speed (atempo stays global)", () => {
+    const args = buildMobileSubtitlesArgs({
+      inputPath: "/tmp/in.mp4",
+      subtitleOverlays: [overlay],
+      subtitlePngPaths: ["/tmp/sub0.png"],
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      trimRange: [0, 10],
+      mobileLayout: layout,
+      filename: "s",
+      speed: 2,
+      audioTracks: [{ trackIndex: 1, enabled: true }],
+    });
+    expect(args).toContain("0:a:1?");
+    expect(args).toContain("-filter:a");
+    expect(args).toContain("atempo=2.000000");
+  });
 });
