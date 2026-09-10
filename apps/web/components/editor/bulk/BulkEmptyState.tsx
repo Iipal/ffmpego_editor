@@ -31,6 +31,9 @@ export function BulkEmptyState({
             ref={folderInputRef}
             type="file"
             multiple
+            // Declarative folder mode (React 19 passes unknown attrs through);
+            // hooks.ts also sets these imperatively as a fallback.
+            {...({ webkitdirectory: "", directory: "" } as const)}
             className="hidden"
             tabIndex={-1}
             onChange={(e) => {

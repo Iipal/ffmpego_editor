@@ -28,10 +28,17 @@ export function useBulkEditorState() {
     itemsRef.current = items;
   }, [items]);
 
-  // webkitdirectory is not in React's input props — set imperatively
+  // webkitdirectory is not in React's input props — set imperatively.
+  // NOTE: no dep array on purpose: the <input> unmounts/remounts when
+  // switching between BulkEmptyState and the main view (items.length === 0),
+  // so the attribute must be re-applied after every render, not just on mount.
   useEffect(() => {
-    folderInputRef.current?.setAttribute("webkitdirectory", "");
-  }, []);
+    const node = folderInputRef.current;
+    if (node) {
+      node.setAttribute("webkitdirectory", "");
+      node.setAttribute("directory", "");
+    }
+  });
 
   // Revoke object URLs on unmount
   useEffect(() => {
