@@ -5,7 +5,7 @@ import {
   UploadOtherButton as SharedUploadOtherButton,
   type VideoReset,
 } from "../shared/UploadOtherButton";
-import { stripExtension } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 
 const cropReset: VideoReset = (_prev, file): ReturnType<VideoReset> => ({
   crop: {
@@ -31,7 +31,7 @@ const cropReset: VideoReset = (_prev, file): ReturnType<VideoReset> => ({
     videoCodec: null,
   },
   cut: {
-    exportFilename: stripExtension(file.name),
+    exportFilename: videoFileService.stripExtension(file.name),
   },
 });
 

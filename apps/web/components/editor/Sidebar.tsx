@@ -47,14 +47,7 @@ import {
   useExtendedVideoMetadataMutation,
   useVideoMetadataMutation,
 } from "@/hooks/useVideoMetadata";
-import {
-  ACCEPTED_VIDEO_INPUT_ATTR,
-  isAcceptedVideoFile,
-  isFileTooLarge,
-  formatFileSize,
-  MAX_UPLOAD_BYTES,
-  stripExtension,
-} from "@/lib/video-file";
+import { VideoFileService, videoFileService } from "@/lib/video-file";
 import {
   sourceStore,
   setSourceState,
@@ -171,9 +164,11 @@ export function Sidebar() {
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
   const filename = state.file
-    ? stripExtension(state.file.name)
+    ? videoFileService.stripExtension(state.file.name)
     : "Untitled video";
-  const basename = state.file ? stripExtension(state.file.name) : "";
+  const basename = state.file
+    ? videoFileService.stripExtension(state.file.name)
+    : "";
 
   // Keep export filename in sync with uploaded file's basename.
   // VideoUploader and the two "Upload other" handlers already set exportFilename
@@ -187,18 +182,18 @@ export function Sidebar() {
     }
   }, [basename, state.exportFilename, state.file]);
   const selectReplacementFile = (file: File | undefined) => {
-    if (!file || !isAcceptedVideoFile(file)) {
+    if (!file || !videoFileService.isAcceptedVideoFile(file)) {
       if (file) toast.error("Unsupported format. Use MP4/WebM/MOV/MKV");
       return;
     }
-    if (isFileTooLarge(file)) {
+    if (videoFileService.isFileTooLarge(file)) {
       toast.error(
-        `File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+        `File too large (${videoFileService.formatFileSize(file.size)}). Max ${videoFileService.formatFileSize(VideoFileService.MAX_UPLOAD_BYTES)}.`,
       );
       return;
     }
     const mediaUrl = URL.createObjectURL(file);
-    const defaultFilename = stripExtension(file.name);
+    const defaultFilename = videoFileService.stripExtension(file.name);
     setSourceState((previous) => {
       if (previous.mediaUrl) URL.revokeObjectURL(previous.mediaUrl);
       return {
@@ -503,7 +498,7 @@ export function Sidebar() {
         ref={fileInputRef}
         className="sr-only"
         type="file"
-        accept={ACCEPTED_VIDEO_INPUT_ATTR}
+        accept={VideoFileService.ACCEPTED_VIDEO_INPUT_ATTR}
         onChange={(event) => selectReplacementFile(event.target.files?.[0])}
       />
 

@@ -13,15 +13,7 @@ import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { setCutState } from "@/store/cutSlice";
 import { setCropState } from "@/store/cropSlice";
 import { setSubtitleState } from "@/store/subtitleSlice";
-import {
-  ACCEPTED_VIDEO_INPUT_ATTR,
-  ACCEPTED_VIDEO_LABEL,
-  isAcceptedVideoFile,
-  isFileTooLarge,
-  formatFileSize,
-  MAX_UPLOAD_BYTES,
-  stripExtension,
-} from "@/lib/video-file";
+import { VideoFileService, videoFileService } from "@/lib/video-file";
 import { toast } from "sonner";
 
 export function VideoUploader() {
@@ -32,20 +24,22 @@ export function VideoUploader() {
 
   const selectFile = useCallback(
     (file: File | undefined) => {
-      if (!file || !isAcceptedVideoFile(file)) {
+      if (!file || !videoFileService.isAcceptedVideoFile(file)) {
         if (file)
-          toast.error(`Unsupported format. Use ${ACCEPTED_VIDEO_LABEL}`);
+          toast.error(
+            `Unsupported format. Use ${VideoFileService.ACCEPTED_VIDEO_LABEL}`,
+          );
         return;
       }
-      if (isFileTooLarge(file)) {
+      if (videoFileService.isFileTooLarge(file)) {
         toast.error(
-          `File too large (${formatFileSize(file.size)}). Max is ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+          `File too large (${videoFileService.formatFileSize(file.size)}). Max is ${videoFileService.formatFileSize(VideoFileService.MAX_UPLOAD_BYTES)}.`,
         );
         return;
       }
 
       const mediaUrl = URL.createObjectURL(file);
-      const defaultFilename = stripExtension(file.name);
+      const defaultFilename = videoFileService.stripExtension(file.name);
       setSourceState((previous) => {
         if (previous.mediaUrl) {
           URL.revokeObjectURL(previous.mediaUrl);
@@ -120,7 +114,7 @@ export function VideoUploader() {
         ref={inputRef}
         className="sr-only w-10"
         type="file"
-        accept={ACCEPTED_VIDEO_INPUT_ATTR}
+        accept={VideoFileService.ACCEPTED_VIDEO_INPUT_ATTR}
         onChange={(event) => selectFile(event.target.files?.[0])}
       />
       <Button

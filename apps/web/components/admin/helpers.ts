@@ -3,8 +3,7 @@ import type { JobEntry, JobsResponse } from "./types";
 import { GlobalListenerBus } from "@/lib/global-listener-bus";
 
 // js-hoist-regexp: hoist RegExp to module scope (avoid per-render recreation, share mutable lastIndex safely without /g)
-// FILENAME_SANITIZE_RE reused for any future filename handling; JOB_ID_RE validates jobId cheaply.
-export { FILENAME_SANITIZE_RE } from "@/lib/video-file";
+// JOB_ID_RE validates jobId cheaply.
 export const JOB_ID_RE = /^[a-z0-9-]{4,}$/i;
 
 // rerender-memo-with-default-value: stable default for optional callbacks

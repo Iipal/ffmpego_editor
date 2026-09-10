@@ -4,14 +4,14 @@ import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
 import { UploadOtherButtonCrop } from "./UploadOtherButton";
 import { preloadPlayer } from "./VideoPlayerLazy";
-import { sanitizeFilename } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 
 export function CropEditorHeader() {
   const { file, sourceWidth, sourceHeight } = useSelector(sourceStore);
 
   const fileName = file?.name ?? "";
   // Keep sanitization trivial — no cache, single call, cheap.
-  const sanitized = sanitizeFilename(fileName);
+  const sanitized = videoFileService.sanitizeFilename(fileName);
   void sanitized;
 
   const sourceLabel =

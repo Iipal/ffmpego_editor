@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { isAcceptedVideoFile } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { baseNameOf, loadStackedLayout } from "./helpers";
@@ -74,7 +74,9 @@ export function useBulkEditorState() {
       return rel.split("/").length === 2;
     });
     const skippedNested = list.length - rootFiles.length;
-    const videos = rootFiles.filter(isAcceptedVideoFile);
+    const videos = rootFiles.filter((f) =>
+      videoFileService.isAcceptedVideoFile(f),
+    );
     if (videos.length === 0) {
       toast.error("No supported videos in folder (MP4/WebM/MOV/MKV)");
       return;

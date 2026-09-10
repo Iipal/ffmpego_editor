@@ -1,7 +1,7 @@
 "use client";
 
 import { Progress } from "@/components/ui/progress";
-import { formatFileSize } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
 
@@ -52,7 +52,8 @@ export function UploadProgress({ className }: { className?: string }) {
       />
       <div className="flex justify-between text-[11px] tabular-nums text-kumo-subtle">
         <span>
-          {formatFileSize(uploadBytesSent)} / {formatFileSize(uploadBytesTotal)}
+          {videoFileService.formatFileSize(uploadBytesSent)} /{" "}
+          {videoFileService.formatFileSize(uploadBytesTotal)}
         </span>
         <span>{isUploading ? "Please keep this tab open" : ""}</span>
       </div>

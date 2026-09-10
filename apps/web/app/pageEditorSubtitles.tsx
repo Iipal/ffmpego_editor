@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { formatTime } from "@/lib/format-time";
-import { stripExtension } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import {
   preloadExportChunks,
   preloadMobilePreview,
@@ -90,7 +90,7 @@ export default function PageEditorSubtitles() {
             ? `${e.sourceWidth} × ${e.sourceHeight} px`
             : "—"
         }
-        exportName={`${(e.file ? stripExtension(e.file.name) : "") || "video"}_mobile_subtitles_1080x1920.mp4`}
+        exportName={`${(e.file ? videoFileService.stripExtension(e.file.name) : "") || "video"}_mobile_subtitles_1080x1920.mp4`}
         canDelete={!!e.selectedId}
         onAdd={e.handleAddSubtitle}
         onDelete={e.handleDeleteSubtitle}

@@ -8,7 +8,7 @@ import type { Cut, CutMode } from "./types";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
-import { stripExtension } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
 
@@ -60,7 +60,9 @@ export function useCutExport({
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
     const base =
-      (exportName.trim() || stripExtension(file.name) || "cut") +
+      (exportName.trim() ||
+        videoFileService.stripExtension(file.name) ||
+        "cut") +
       (mode === "full-size"
         ? "_cut"
         : mode === "2-stack"

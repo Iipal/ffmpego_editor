@@ -22,13 +22,7 @@ import {
 } from "@/store/subtitleSlice";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { toast } from "sonner";
-import {
-  ACCEPTED_VIDEO_INPUT_ATTR,
-  formatFileSize,
-  isAcceptedVideoFile,
-  isFileTooLarge,
-  MAX_UPLOAD_BYTES,
-} from "@/lib/video-file";
+import { VideoFileService, videoFileService } from "@/lib/video-file";
 
 // Shared "upload other video" button. Deduped from crop / cut / mobile copies
 // (identical UI + validation, only the store reset differed).
@@ -54,13 +48,13 @@ export type VideoReset = (
 
 export function validateVideoFile(file: File | undefined): file is File {
   if (!file) return false;
-  if (!isAcceptedVideoFile(file)) {
+  if (!videoFileService.isAcceptedVideoFile(file)) {
     toast.error("Unsupported format. Use MP4/WebM/MOV/MKV (Matroska)");
     return false;
   }
-  if (isFileTooLarge(file)) {
+  if (videoFileService.isFileTooLarge(file)) {
     toast.error(
-      `File too large (${formatFileSize(file.size)}). Max ${formatFileSize(MAX_UPLOAD_BYTES)}.`,
+      `File too large (${videoFileService.formatFileSize(file.size)}). Max ${videoFileService.formatFileSize(VideoFileService.MAX_UPLOAD_BYTES)}.`,
     );
     return false;
   }
@@ -119,7 +113,7 @@ export const UploadOtherButton = memo(function UploadOtherButton({
       <input
         ref={inputRef}
         type="file"
-        accept={ACCEPTED_VIDEO_INPUT_ATTR}
+        accept={VideoFileService.ACCEPTED_VIDEO_INPUT_ATTR}
         className="hidden"
         tabIndex={-1}
         onChange={(e) => {

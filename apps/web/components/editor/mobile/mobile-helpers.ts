@@ -5,7 +5,6 @@ import type { MobileLayout } from "@/lib/mobile-layout";
 export { NOOP } from "@/lib/utils";
 export const DEFAULT_SPLIT = 0.5;
 
-export { FILENAME_SANITIZE_RE } from "@/lib/video-file";
 export const TRIM_TIME_RE = /^\d+(\.\d+)?$/;
 void TRIM_TIME_RE;
 
@@ -87,4 +86,3 @@ export function setCachedLayout(l: MobileLayout) {
     mobileLayoutService.savePref(l);
   }
 }
-

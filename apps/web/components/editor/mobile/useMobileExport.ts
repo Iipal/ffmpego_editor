@@ -6,7 +6,7 @@ import { useSelector } from "@tanstack/react-store";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
-import { stripExtension } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import { NOOP } from "@/lib/utils";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 import { audioStore, getAudioRenderSettings } from "@/store/audioSlice";
@@ -57,7 +57,8 @@ export function useMobileExport(args: ExportArgs) {
     }
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
-    const outName = stripExtension(file.name) + "_mobile_1080x1920.mp4";
+    const outName =
+      videoFileService.stripExtension(file.name) + "_mobile_1080x1920.mp4";
     const baseName = outName.replace(/\.mp4$/, "");
     toast.info("FFmpeg filter ready", {
       description: filterString.slice(0, 120) + "…",

@@ -21,7 +21,7 @@ import {
   useExportName,
 } from "@/components/editor/cut/useCutExport";
 import type { Cut } from "@/components/editor/cut/types";
-import { stripExtension } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import { AudioControls } from "@/components/editor/AudioControls";
 
 export type { CutMode } from "@/components/editor/cut/types";
@@ -218,7 +218,9 @@ export default function CutEditorPage() {
             onSyncFromMobile={syncFromMobile}
             exportName={exportName}
             onExportNameChange={setExportName}
-            exportPlaceholder={file ? stripExtension(file.name) : "cut"}
+            exportPlaceholder={
+              file ? videoFileService.stripExtension(file.name) : "cut"
+            }
             cutsCount={cuts.length}
             overlapCount={overlapIds.size}
             activeExports={activeExports}

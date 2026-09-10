@@ -8,7 +8,7 @@ import type { Subtitle } from "@/lib/subtitles/subtitleTypes";
 import { HEAVY_MODULES } from "./heavy-modules";
 import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
-import { stripExtension } from "@/lib/video-file";
+import { videoFileService } from "@/lib/video-file";
 import { exportQueueStore, selectKindActive } from "@/store/exportQueueSlice";
 
 export type UseSubtitleExportArgs = {
@@ -51,7 +51,8 @@ export function useSubtitleExport({
     const sw = sourceWidth || 1920;
     const sh = sourceHeight || 1080;
     const baseName =
-      (stripExtension(file.name) || "video") + "_mobile_subtitles_1080x1920";
+      (videoFileService.stripExtension(file.name) || "video") +
+      "_mobile_subtitles_1080x1920";
     const outName = baseName + ".mp4";
     const settingsJson = JSON.stringify({
       mobileLayout: layout,
