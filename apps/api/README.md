@@ -42,7 +42,7 @@ flowchart LR
         V["routes/video.ts<br/>POST /transcode, /mobile,<br/>/mobile/subtitles, /cut<br/>GET /transcode/jobs + /stream<br/>GET /download/:id, /progress/:id<br/>DELETE /jobs, /jobs/:id<br/>POST /clear, PATCH /jobs/:id"]
         MD["routes/metadata.ts<br/>POST /metadata"]
         AU["routes/audio.ts<br/>POST /audio/analysis<br/>POST /audio/extract"]
-        F["routes/files.ts<br/>GET /storage/stats<br/>GET /files/:id/download"]
+        F["routes/files.ts<br/>GET /storage/stats<br/>POST /storage/sweep<br/>GET /files/:id/download"]
     end
 
     U ~~~ V ~~~ MD ~~~ AU ~~~ F
@@ -76,7 +76,7 @@ flowchart LR
     M --> V["routes/video.ts<br/>4 transcode endpoints<br/>+ jobs CRUD + SSE + download"]
     M --> MD["routes/metadata.ts<br/>POST /metadata"]
     M --> AU["routes/audio.ts<br/>/audio/*"]
-    M --> F["routes/files.ts<br/>/files/* + /storage/stats"]
+    M --> F["routes/files.ts<br/>/files/* + /storage/*"]
 
     U ~~~ V ~~~ MD ~~~ AU ~~~ F
 
@@ -271,10 +271,11 @@ or legacy v0, migrated via `migrateRenderPlan`) + `file` **or** `uploadId`
 
 ### Files (`src/routes/files.ts`)
 
-| Method + path                 | Responsibility                                                                                                                                                |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/storage/stats`      | Store census `{files, bytes, quotaBytes, byRole, byKind}`.                                                                                                    |
-| `GET /api/files/:id/download` | Download any asset/artifact by opaque ID (`ast_…`/`art_…`) with `206` range support. Unknown/deleted → 404. Same `streamFile()` helper the job download uses. |
+| Method + path                 | Responsibility                                                                                                                                                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/storage/stats`      | Store census `{files, bytes, quotaBytes, byRole, byKind}`.                                                                                                                                              |
+| `POST /api/storage/sweep`     | On-demand `store.reconcile()` (pins live uploads): reaps expired/stale-reserved/missing/orphan rows, returns `{expired, staleReserved, missing, orphans, bytesFreed}`. Live jobs untouched; idempotent. |
+| `GET /api/files/:id/download` | Download any asset/artifact by opaque ID (`ast_…`/`art_…`) with `206` range support. Unknown/deleted → 404. Same `streamFile()` helper the job download uses.                                           |
 
 ## 7. Local development
 

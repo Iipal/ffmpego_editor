@@ -12,7 +12,7 @@ Per each changes made update README.md and AGENTS.md respectfully.
 ### 1. Expose backend already supported, UI missing
 
 - [x] **Health / readiness dashboard:** `GET /health`, `GET /` never fetched. `lib/preflight.ts:168` probes heavy `GET /transcode/jobs`. Add status dot + `ffmpegVersion/diskFreeHuman/queue{active,queued}` in `AdminHeader/JobsArea`.
-- [ ] **Storage / quota dashboard:** `GET /storage/stats` never called. Add disk bar + sweep button. Needed for `507 QUOTA_EXCEEDED/DISK_FULL` which today has no dedicated UI.
+- [x] **Storage / quota dashboard:** `GET /storage/stats` polled every 30 s via `useStorageStatsQuery` (`hooks/useStorageStats.ts` over `lib/storage.ts`). `JobsArea` shows quota bar (used of quota %, file counts, asset/artifact split) + Sweep button (`POST /api/storage/sweep` on-demand reconcile, live jobs untouched). Warns at ≥90% since new exports then fail with `507 QUOTA_EXCEEDED/DISK_FULL`.
 - [ ] **Upload session resume/abort UI:** `GET /upload/status/:uploadId`, `DELETE /upload/:uploadId` unused. Show resume progress, cancel orphan sessions (now left to 6h server sweep).
 - [ ] **Alternate output download/compare:** `JobEntry.alternateFile` displayed in `components/admin/JobRow.tsx:140` but not downloadable. Wire `GET /files/:id/download` (currently 0 callers — only `/transcode/download/:jobId` used) + `openComparison`.
 - [ ] **Full probe inspector:** `useExtendedVideoMetadataMutation` pins `?includeFrames=false&includePackets=false`. Add toggle for `true/true` + stream/frame/packet viewer using already-returned `ffprobeReport`.

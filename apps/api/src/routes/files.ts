@@ -8,8 +8,9 @@
  */
 import { Hono } from "hono";
 import fs from "node:fs";
-import { systemError } from "../observability.js";
+import { systemError, systemLog } from "../observability.js";
 import { err, errResponse } from "../http.js";
+import { listUploads } from "../db.js";
 import {
   ArtifactStore,
   AssetStore,
@@ -93,6 +94,23 @@ export function streamFile(
 
 app.get("/storage/stats", (c) => {
   return c.json(store.stats());
+});
+
+app.post("/storage/sweep", (c) => {
+  // On-demand store reconcile for the Admin storage dashboard: reap expired
+  // rows, stale-reserved rows, rows whose bytes vanished, and store-root
+  // orphans. Live job-owned files are never touched (keep-until-delete);
+  // live upload sessions are pinned so slow uploads survive the sweep —
+  // same shielding as the boot reconcile in src/index.ts. Idempotent: a
+  // second run finds nothing and frees zero bytes.
+  const pin = new Set(listUploads().map((u) => u.temporaryPath));
+  const r = store.reconcile(Date.now(), { pin });
+  if (r.expired + r.staleReserved + r.missing + r.orphans > 0) {
+    systemLog(
+      `storage sweep: freed ${r.bytesFreed} bytes (${r.orphans} orphans, ${r.expired} expired, ${r.staleReserved} stale-reserved, ${r.missing} missing)`,
+    );
+  }
+  return c.json({ ...r, message: `Sweep freed ${r.bytesFreed} bytes.` });
 });
 
 app.get("/files/:id/download", (c) => {

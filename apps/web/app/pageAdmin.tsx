@@ -9,7 +9,9 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
+import { videoFileService } from "@/lib/video-file";
 import {
   Card,
   CardContent,
@@ -31,6 +33,10 @@ import {
 } from "@/components/admin/heavy";
 import { useAdminJobs } from "@/components/admin/useAdminJobs";
 import { useHealthQuery } from "@/hooks/useHealth";
+import {
+  useStorageStatsQuery,
+  useStorageSweepMutation,
+} from "@/hooks/useStorageStats";
 
 export default function PageAdmin() {
   // advanced-init-once: one-time preconnect, not per mount
@@ -46,6 +52,32 @@ export default function PageAdmin() {
     isLoading: healthLoading,
     error: healthError,
   } = useHealthQuery();
+  const {
+    data: storage,
+    isLoading: storageLoading,
+    error: storageError,
+  } = useStorageStatsQuery();
+  const { mutate: sweepStorage, isPending: sweepPending } =
+    useStorageSweepMutation();
+
+  const handleSweep = () => {
+    sweepStorage(undefined, {
+      onSuccess: (r) => {
+        const freed = videoFileService.formatFileSize(r.bytesFreed);
+        const reaped = r.expired + r.staleReserved + r.missing + r.orphans;
+        toast.success(
+          reaped > 0
+            ? `Sweep freed ${freed} (${reaped} record${reaped === 1 ? "" : "s"})`
+            : "Sweep complete — nothing to free",
+        );
+      },
+      onError: (e) => {
+        toast.error(
+          e instanceof Error ? e.message : "Sweep failed — try again.",
+        );
+      },
+    });
+  };
   const {
     data,
     jobs,
@@ -119,6 +151,11 @@ export default function PageAdmin() {
         apiBase={apiClient.baseUrl}
         liveStatus={liveStatus}
         onRefresh={handleRefresh}
+        storage={storage}
+        storageLoading={storageLoading}
+        storageError={storageError instanceof Error ? storageError.message : null}
+        sweepPending={sweepPending}
+        onSweep={handleSweep}
       />
 
       <Card onMouseEnter={preloadHeavyCard}>
