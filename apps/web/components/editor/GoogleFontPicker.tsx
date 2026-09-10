@@ -29,11 +29,11 @@ interface GoogleFontPickerProps {
   previewText?: string;
 }
 
+// Hoisted: created once, not per displayName() call during render.
+const QUOTE_TRIM_RE = /^["']|["']$/g;
+
 function displayName(family: string): string {
-  return family
-    .split(",")[0]
-    .trim()
-    .replace(/^["']|["']$/g, "");
+  return family.split(",")[0].trim().replace(QUOTE_TRIM_RE, "");
 }
 
 export function GoogleFontPicker({
@@ -52,7 +52,8 @@ export function GoogleFontPicker({
 
   useEffect(() => {
     let cancelled = false;
-    googleFonts.fetchGoogleFontsMeta()
+    googleFonts
+      .fetchGoogleFontsMeta()
       .then((metas) => {
         if (cancelled) return;
         const families = metas.map((m) => m.family);
@@ -115,6 +116,15 @@ export function GoogleFontPicker({
     return out;
   }, [fonts, query, loading, cyrillicOnly]);
 
+  // js-cache-function-results: cyrillic count memoized (was O(n) filter per render)
+  const cyrillicCount = useMemo(() => {
+    let n = 0;
+    for (const f of fonts) {
+      if (googleFonts.isCyrillicSupported(f)) n++;
+    }
+    return n;
+  }, [fonts]);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -167,11 +177,8 @@ export function GoogleFontPicker({
               >
                 Cyrillic only
                 <span className="text-[11px] text-kumo-subtle">
-                  (
-                  {cyrillicOnly
-                    ? filteredFonts.length
-                    : fonts.filter((f) => googleFonts.isCyrillicSupported(f)).length}{" "}
-                  з підтримкою)
+                  ({cyrillicOnly ? filteredFonts.length : cyrillicCount} з
+                  підтримкою)
                 </span>
               </Label>
               <Switch
@@ -227,7 +234,9 @@ export function GoogleFontPicker({
                       value={f}
                       onSelect={async (currentValue: string) => {
                         try {
-                          await googleFonts.ensureGoogleFontLoaded(currentValue);
+                          await googleFonts.ensureGoogleFontLoaded(
+                            currentValue,
+                          );
                         } catch {}
                         onValueChange(currentValue);
                         setOpen(false);

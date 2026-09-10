@@ -77,6 +77,12 @@ import { preflight } from "@/lib/preflight";
 import { trackHistoryEntry } from "@/store/exportHistorySlice";
 import { openComparison } from "@/store/compareSlice";
 
+// Hoisted slice key sets: store shapes are static, so rebuilding them on
+// every update() call (slider drags) is pure overhead.
+const SOURCE_SLICE_KEYS = new Set(Object.keys(sourceStore.state));
+const CROP_SLICE_KEYS = new Set(Object.keys(cropStore.state));
+const CUT_SLICE_KEYS = new Set(Object.keys(cutStore.state));
+
 export function SidebarToggle() {
   const isSidebarOpen = useSelector(cutStore, (state) => state.isSidebarOpen);
   const label = isSidebarOpen ? "Hide sidebar" : "Show sidebar";
@@ -131,29 +137,14 @@ export function Sidebar() {
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const update = (value: Partial<SourceSlice & CropSlice & CutSlice>) => {
-    const sourceKeys = new Set<keyof SourceSlice>(
-      Object.keys(source) as Array<keyof SourceSlice>,
-    );
-    const cropKeys = new Set<keyof CropSlice>(
-      Object.keys(crop) as Array<keyof CropSlice>,
-    );
-    const cutKeys = new Set<keyof CutSlice>(
-      Object.keys(cut) as Array<keyof CutSlice>,
-    );
     const sourceValue = Object.fromEntries(
-      Object.entries(value).filter(([key]) =>
-        sourceKeys.has(key as keyof SourceSlice),
-      ),
+      Object.entries(value).filter(([key]) => SOURCE_SLICE_KEYS.has(key)),
     ) as Partial<SourceSlice>;
     const cropValue = Object.fromEntries(
-      Object.entries(value).filter(([key]) =>
-        cropKeys.has(key as keyof CropSlice),
-      ),
+      Object.entries(value).filter(([key]) => CROP_SLICE_KEYS.has(key)),
     ) as Partial<CropSlice>;
     const cutValue = Object.fromEntries(
-      Object.entries(value).filter(([key]) =>
-        cutKeys.has(key as keyof CutSlice),
-      ),
+      Object.entries(value).filter(([key]) => CUT_SLICE_KEYS.has(key)),
     ) as Partial<CutSlice>;
     if (Object.keys(sourceValue).length)
       setSourceState((previous) => ({ ...previous, ...sourceValue }));
@@ -164,12 +155,10 @@ export function Sidebar() {
   };
   const extension =
     state.file?.name.split(".").pop()?.toUpperCase() ?? "Unknown";
-  const filename = state.file
-    ? videoFileService.stripExtension(state.file.name)
-    : "Untitled video";
   const basename = state.file
     ? videoFileService.stripExtension(state.file.name)
     : "";
+  const filename = basename || "Untitled video";
 
   // Keep export filename in sync with uploaded file's basename.
   // VideoUploader and the two "Upload other" handlers already set exportFilename

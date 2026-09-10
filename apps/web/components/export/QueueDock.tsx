@@ -30,6 +30,13 @@ const KIND_LABELS: Record<ExportQueueItem["kind"], string> = {
   "audio-extract": "Audio",
 };
 
+// js-set-map-lookups: O(1) terminal check (was Array.includes per row)
+const TERMINAL_STATUSES: ReadonlySet<ExportQueueItem["status"]> = new Set([
+  "completed",
+  "failed",
+  "cancelled",
+]);
+
 function statusLabel(item: ExportQueueItem): string {
   switch (item.status) {
     case "uploading":
@@ -62,7 +69,7 @@ function StatusIcon({ item }: { item: ExportQueueItem }) {
 }
 
 function QueueItemRow({ item }: { item: ExportQueueItem }) {
-  const active = !["completed", "failed", "cancelled"].includes(item.status);
+  const active = !TERMINAL_STATUSES.has(item.status);
   return (
     <div className="rounded-lg border border-kumo-line bg-kumo-base p-2.5">
       <div className="flex items-start gap-2">
@@ -91,18 +98,18 @@ function QueueItemRow({ item }: { item: ExportQueueItem }) {
             </span>
             <span className="tabular-nums">{statusLabel(item)}</span>
           </div>
-          {active && (
+          {active ? (
             <Progress
               value={item.progress}
               className="mt-1.5 h-1"
               aria-label={item.label}
             />
-          )}
-          {item.status === "failed" && item.error && (
+          ) : null}
+          {item.status === "failed" && item.error ? (
             <p className="mt-1 line-clamp-3 text-[11px] whitespace-pre-wrap text-red-500">
               {item.error}
             </p>
-          )}
+          ) : null}
         </div>
       </div>
     </div>
@@ -148,12 +155,12 @@ export function QueueDock() {
       <div className="flex items-center justify-between px-3 py-2">
         <span className="text-xs font-semibold">
           Export queue
-          {active > 0 && (
+          {active > 0 ? (
             <span className="ml-1.5 text-kumo-subtle">{active} active</span>
-          )}
+          ) : null}
         </span>
         <div className="flex items-center gap-1">
-          {finished > 0 && (
+          {finished > 0 ? (
             <Button
               variant="ghost"
               size="sm"
@@ -162,7 +169,7 @@ export function QueueDock() {
             >
               Clear
             </Button>
-          )}
+          ) : null}
           <Button
             variant="ghost"
             size="icon"
@@ -211,17 +218,20 @@ export function QueueActivityBadge({ className }: { className?: string }) {
 export function QueueActivityNav({ className }: { className?: string }) {
   const { items, dockOpen } = useExportQueueStore();
   if (items.length === 0) return null;
-  const active = activeQueueCount(items);
-  const failed = items.filter((i) => i.status === "failed").length;
+  // js-combine-iterations: single pass for active/failed/progress-sum (was 3 filter passes)
+  let active = 0;
+  let failed = 0;
+  let progressSum = 0;
+  for (const i of items) {
+    if (isQueueItemActive(i)) {
+      active += 1;
+      progressSum += i.progress;
+    } else if (i.status === "failed") {
+      failed += 1;
+    }
+  }
   const finished = items.length - active;
-  const avg =
-    active > 0
-      ? Math.round(
-          items
-            .filter(isQueueItemActive)
-            .reduce((sum, i) => sum + i.progress, 0) / active,
-        )
-      : 100;
+  const avg = active > 0 ? Math.round(progressSum / active) : 100;
   return (
     <button
       type="button"

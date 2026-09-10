@@ -9,6 +9,12 @@ import type { JobRowProps } from "./types";
 import { JOB_ID_RE, formatAge, statusBadge } from "./helpers";
 import { preloadHeavyProgress } from "./heavy";
 
+// rendering-content-visibility: shared hoisted style (no per-render object)
+const ROW_CV_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "0 140px",
+} as React.CSSProperties;
+
 // JobRow — rerender-memo, rerender-no-inline-components, rendering-content-visibility
 // js-batch-dom-css via single className toggle (no per-prop style thrash)
 export const JobRow = memo(function JobRow({
@@ -76,7 +82,8 @@ export const JobRow = memo(function JobRow({
   const startRename = useCallback(() => {
     setDraftName(job.filename || job.outputFile?.name || "");
     setRenaming(true);
-  }, [job.filename, job.outputFile]);
+    // rerender-dependencies: narrow to primitives (outputFile object excluded)
+  }, [job.filename, job.outputFile?.name]);
   const submitRename = useCallback(() => {
     if (!onRename) return;
     void onRename(job.jobId, draftName)
@@ -100,12 +107,7 @@ export const JobRow = memo(function JobRow({
   return (
     <li
       className={`rounded-lg border p-3 shadow-sm flex flex-col gap-2 ${isHanged ? "border-amber-300 bg-amber-50 dark:bg-amber-950/30" : "border-kumo-line bg-kumo-base"}`}
-      style={
-        {
-          contentVisibility: "auto",
-          containIntrinsicSize: "0 140px",
-        } as React.CSSProperties
-      }
+      style={ROW_CV_STYLE}
       // bundle-preload: hover intent preloads heavy Progress chunk
       onMouseEnter={preloadHeavyProgress}
       onFocus={preloadHeavyProgress}

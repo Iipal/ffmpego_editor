@@ -269,20 +269,21 @@ export function AudioControls() {
       );
       return {
         ...previous,
-        tracks: data.tracks.map((track) => ({
-          ...track,
-          enabled: existing.get(track.trackIndex)?.enabled ?? true,
-          gainDb: existing.get(track.trackIndex)?.gainDb ?? 0,
-          loudnormEnabled:
-            existing.get(track.trackIndex)?.loudnormEnabled ?? false,
-          loudnormTargetLufs:
-            existing.get(track.trackIndex)?.loudnormTargetLufs ?? -14,
-          fadeInSeconds: existing.get(track.trackIndex)?.fadeInSeconds ?? 0,
-          fadeOutSeconds: existing.get(track.trackIndex)?.fadeOutSeconds ?? 0,
-          muteSegments: existing.get(track.trackIndex)?.muteSegments ?? [],
-          waveform: existing.get(track.trackIndex)?.waveform ?? null,
-          loudness: existing.get(track.trackIndex)?.loudness ?? null,
-        })),
+        tracks: data.tracks.map((track) => {
+          const prev = existing.get(track.trackIndex);
+          return {
+            ...track,
+            enabled: prev?.enabled ?? true,
+            gainDb: prev?.gainDb ?? 0,
+            loudnormEnabled: prev?.loudnormEnabled ?? false,
+            loudnormTargetLufs: prev?.loudnormTargetLufs ?? -14,
+            fadeInSeconds: prev?.fadeInSeconds ?? 0,
+            fadeOutSeconds: prev?.fadeOutSeconds ?? 0,
+            muteSegments: prev?.muteSegments ?? [],
+            waveform: prev?.waveform ?? null,
+            loudness: prev?.loudness ?? null,
+          };
+        }),
       };
     });
   }, [data]);

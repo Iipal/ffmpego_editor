@@ -8,10 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format-time";
-import {
-  MobileLayoutService,
-  mobileLayoutService,
-} from "@/lib/mobile-layout";
+import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
@@ -69,12 +66,20 @@ const BulkLiveStackedPreview = memo(function BulkLiveStackedPreview({
   const bottomRef = useRef<HTMLCanvasElement>(null);
 
   const totalH =
-    height && height > 0 ? height : STACKED_W * (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
-  const width = totalH * (MobileLayoutService.OUTPUT_W / MobileLayoutService.OUTPUT_H);
+    height && height > 0
+      ? height
+      : STACKED_W *
+        (MobileLayoutService.OUTPUT_H / MobileLayoutService.OUTPUT_W);
+  const width =
+    totalH * (MobileLayoutService.OUTPUT_W / MobileLayoutService.OUTPUT_H);
 
   const draw = useCallback(() => {
     if (!video || video.readyState < 2 || video.videoWidth === 0) return;
-    const split = mobileLayoutService.clamp(layout.splitRatio, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT);
+    const split = mobileLayoutService.clamp(
+      layout.splitRatio,
+      MobileLayoutService.MIN_SPLIT,
+      MobileLayoutService.MAX_SPLIT,
+    );
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const parts: Array<{
       canvas: HTMLCanvasElement | null;
@@ -230,6 +235,10 @@ export function BulkExpandedView({
     item.status === "saving";
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [videoEl, setVideoEl] = useState<HTMLVideoElement | null>(null);
+  const setVideoRefs = useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    setVideoEl((prev) => (prev === el ? prev : el));
+  }, []);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridW, setGridW] = useState<number | null>(null);
   const [isMd, setIsMd] = useState(false);
@@ -357,10 +366,7 @@ export function BulkExpandedView({
               </div>
               <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border border-kumo-line bg-black">
                 <video
-                  ref={(el) => {
-                    videoRef.current = el;
-                    setVideoEl(el);
-                  }}
+                  ref={setVideoRefs}
                   src={item.url}
                   className="block aspect-video w-full md:aspect-auto md:h-full md:w-full md:object-contain"
                   playsInline

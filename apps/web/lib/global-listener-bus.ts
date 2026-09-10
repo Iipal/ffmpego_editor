@@ -63,8 +63,17 @@ export class GlobalListenerBus<E extends Event> {
 
 // Pointer (move/up) buses shared by drag interactions across editor features.
 // Same export names as the former per-feature copies so consumers are untouched.
-const moveBus = new GlobalListenerBus<PointerEvent>(undefined, "pointermove");
-const upBus = new GlobalListenerBus<PointerEvent>(undefined, "pointerup");
+// client-passive-event-listeners: passive — verified no registered move/up
+// handler calls preventDefault (it lives only in React onPointerDown handlers);
+// drag surfaces also set touch-action:none, so passive never blocks a gesture.
+const moveBus = new GlobalListenerBus<PointerEvent>(
+  { passive: true },
+  "pointermove",
+);
+const upBus = new GlobalListenerBus<PointerEvent>(
+  { passive: true },
+  "pointerup",
+);
 
 export const globalPointerMoveHandlers = moveBus.handlers;
 export const globalPointerUpHandlers = upBus.handlers;

@@ -34,7 +34,7 @@ export function useBulkExport({
   useWatermark,
   patchItem,
 }: UseBulkExportArgs) {
-  const queueItems = useSelector(exportQueueStore).items;
+  const queueItems = useSelector(exportQueueStore, (s) => s.items);
   const activeExports = useMemo(
     () => selectKindActive(queueItems, "bulk"),
     [queueItems],
@@ -57,14 +57,15 @@ export function useBulkExport({
       return;
     }
     const single = queue.length === 1;
+    const byId = new Map(itemsRef.current.map((it) => [it.id, it] as const));
     for (const item of queue) {
       const { id, file } = item;
-      const meta = itemsRef.current.find((it) => it.id === id);
+      const meta = byId.get(id);
       const duration = meta?.duration ?? 0;
       const sw = meta?.width || 1920;
       const sh = meta?.height || 1080;
-      const outName = `${baseNameOf(file.name)}_mobile_1080x1920.mp4`;
       const base = baseNameOf(file.name);
+      const outName = `${base}_mobile_1080x1920.mp4`;
       const settingsJson = JSON.stringify({
         mobileLayout: stackedLayout,
         sourceWidth: sw,

@@ -133,20 +133,23 @@ export function useSubtitleMutations({
       trimEnd,
     );
     const id = generateId();
+    const newBase = {
+      id,
+      text: "New subtitle",
+      startTime: start,
+      endTime: end,
+      position: { x: 50, y: 80 },
+      style: { ...SubtitleStorage.DEFAULT_STYLE },
+    } as const;
+    // Track is computed inside the functional updater (race-safe) while the
+    // track-count bump is deferred to a microtask: no side effects inside the
+    // updater itself (StrictMode-safe, idempotent — same value if re-run).
     setSubtitles((prev) => {
       const track = findFirstFreeTrack(prev, start, end);
-      const newSub: Subtitle = {
-        id,
-        text: "New subtitle",
-        startTime: start,
-        endTime: end,
-        track,
-        position: { x: 50, y: 80 },
-        style: { ...SubtitleStorage.DEFAULT_STYLE },
-      };
       if (track + 1 > trackCountExplicit) {
-        setTrackCountExplicit(track + 1);
+        queueMicrotask(() => setTrackCountExplicit(track + 1));
       }
+      const newSub: Subtitle = { ...newBase, track };
       return [...prev, newSub];
     });
     setSelectedId(id);
@@ -165,14 +168,14 @@ export function useSubtitleMutations({
   const handleDeleteSubtitle = useCallback(() => {
     if (!selectedId) return;
     const sid = selectedId;
+    // Selection follow is deferred to a microtask: no setSelectedId side
+    // effect inside the updater itself (StrictMode-safe).
     setSubtitles((prev) => {
       const idx = prev.findIndex((s) => s.id === sid);
       const next = prev.filter((s) => s.id !== sid);
-      if (next.length === 0) setSelectedId(null);
-      else {
-        const newIdx = Math.min(idx, next.length - 1);
-        setSelectedId(next[newIdx].id);
-      }
+      const nextSelected =
+        next.length === 0 ? null : next[Math.min(idx, next.length - 1)].id;
+      queueMicrotask(() => setSelectedId(nextSelected));
       return next;
     });
   }, [selectedId, setSubtitles, setSelectedId]);

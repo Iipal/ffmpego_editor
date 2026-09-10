@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, type CSSProperties } from "react";
 import { ViewTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -10,6 +11,11 @@ import type { MobileLayout } from "@/lib/mobile-layout";
 import { CellPreview } from "./CellPreview";
 import { STATUS_LABEL, statusColor } from "./helpers";
 import type { BulkItem } from "./types";
+
+const BULK_CARD_STYLE = {
+  contentVisibility: "auto",
+  containIntrinsicSize: "0 320px",
+} as CSSProperties;
 
 export type BulkItemCardProps = {
   item: BulkItem;
@@ -24,7 +30,7 @@ export type BulkItemCardProps = {
   ) => void;
 };
 
-export function BulkItemCard({
+export const BulkItemCard = memo(function BulkItemCard({
   item: it,
   stackedLayout,
   useWatermark,
@@ -53,6 +59,7 @@ export function BulkItemCard({
         "overflow-hidden transition-colors",
         expanded && "border-kumo-brand/40",
       )}
+      style={BULK_CARD_STYLE}
     >
       <CardContent className="space-y-2 p-3">
         <div className="flex items-start gap-2">
@@ -131,4 +138,4 @@ export function BulkItemCard({
       </CardContent>
     </Card>
   );
-}
+});

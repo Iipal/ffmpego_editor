@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 
 export type BulkHeaderProps = {
@@ -15,7 +16,7 @@ export type BulkHeaderProps = {
   onBulkExport: () => void;
 };
 
-export function BulkHeader({
+export const BulkHeader = memo(function BulkHeader({
   inputFolderName,
   total,
   selectedCount,
@@ -95,4 +96,4 @@ export function BulkHeader({
       </div>
     </header>
   );
-}
+});

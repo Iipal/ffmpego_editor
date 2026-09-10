@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GoogleFontPicker } from "@/components/editor/GoogleFontPicker";
+import { DynamicGoogleFontPicker } from "./heavy-modules";
 import { googleFonts } from "@/lib/subtitles/googleFonts";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
 import { NOOP } from "./heavy-modules";
@@ -21,7 +21,7 @@ export function SubtitleFontPanel({
     <>
       <div className="space-y-2">
         <Label htmlFor="font-family">Font Family</Label>
-        <GoogleFontPicker
+        <DynamicGoogleFontPicker
           value={selected.style.fontFamily}
           onValueChange={(v) => {
             googleFonts.ensureGoogleFontLoaded(v).catch(NOOP);

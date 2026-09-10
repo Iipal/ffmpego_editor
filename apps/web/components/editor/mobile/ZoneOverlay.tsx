@@ -13,6 +13,8 @@ const HANDLE_POSITIONS = {
   se: "bottom-0 right-0 cursor-se-resize",
 } as const;
 
+const RESIZE_HANDLES = ["nw", "ne", "sw", "se"] as const;
+
 export const ZoneOverlay = memo(function ZoneOverlay({
   zone,
   isSelected,
@@ -63,7 +65,7 @@ export const ZoneOverlay = memo(function ZoneOverlay({
       </span>
       {ZoneGridOverlay}
       {isSelected && !zone.locked
-        ? (["nw", "ne", "sw", "se"] as const).map((h) => (
+        ? RESIZE_HANDLES.map((h) => (
             <div
               key={h}
               onPointerDown={(e) => onPointerDownHandle(e, zone.id, h)}

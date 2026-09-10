@@ -1,7 +1,6 @@
 "use client";
 
-import { CardContent } from "@/components/ui/card";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { DynamicCard } from "./heavy";
 
 // rendering-hoist-jsx: static elements created once (avoid per-render recreation)

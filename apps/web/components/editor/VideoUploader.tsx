@@ -23,6 +23,8 @@ export function VideoUploader() {
   const { uploadStatus } = useSelector(sourceStore);
   const metadataMutation = useVideoMetadataMutation();
 
+  const { mutate: requestMetadata } = metadataMutation;
+
   const selectFile = useCallback(
     (file: File | undefined) => {
       if (!file || !videoFileService.isAcceptedVideoFile(file)) {
@@ -83,9 +85,9 @@ export function VideoUploader() {
         subtitleTrackCountExplicit: 1,
       }));
       resetPlayheadTime(0);
-      metadataMutation.mutate(file);
+      requestMetadata(file);
     },
-    [metadataMutation],
+    [requestMetadata],
   );
 
   return (

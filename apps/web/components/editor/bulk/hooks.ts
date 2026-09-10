@@ -67,16 +67,19 @@ export function useBulkEditorState() {
     // Only files in the selected folder root — ignore anything from sub-folders.
     // webkitRelativePath is "<folder>/<file>" for root files vs
     // "<folder>/<sub>/.../<file>" for nested ones.
-    const rootFiles = list.filter((f) => {
+    // Single pass: classify nesting + video support together.
+    let skippedNested = 0;
+    const videos: File[] = [];
+    for (const f of list) {
       const rel = (f as File & { webkitRelativePath?: string })
         .webkitRelativePath;
-      if (!rel) return true;
-      return rel.split("/").length === 2;
-    });
-    const skippedNested = list.length - rootFiles.length;
-    const videos = rootFiles.filter((f) =>
-      videoFileService.isAcceptedVideoFile(f),
-    );
+      const isRoot = !rel || rel.split("/").length === 2;
+      if (!isRoot) {
+        skippedNested += 1;
+        continue;
+      }
+      if (videoFileService.isAcceptedVideoFile(f)) videos.push(f);
+    }
     if (videos.length === 0) {
       toast.error("No supported videos in folder (MP4/WebM/MOV/MKV)");
       return;

@@ -1,16 +1,150 @@
 "use client";
 
 import { memo, useCallback, useRef } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import { formatTime } from "@/lib/format-time";
 import { cn } from "@/lib/utils";
+import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { getSubtitleTrack } from "./subtitle-helpers";
 import { useTimelineDrag } from "./useTimelineDrag";
+import type { TimelineDragState } from "./useTimelineDrag";
 import type { TimelineVisualProps } from "./types";
 
 const ROW_H = 32;
 const HEADER_H = 22;
+
+// rerender-memo: memoized block so playhead ticks / sibling edits skip
+// unchanged blocks (early return before geometry + handler recreation).
+type TimelineBlockProps = {
+  sub: Subtitle;
+  isSelected: boolean;
+  isActive: boolean;
+  top: number;
+  leftPct: number;
+  widthPct: number;
+  trackLabel: number;
+  onSelect: (id: string) => void;
+  setDrag: Dispatch<SetStateAction<TimelineDragState>>;
+};
+
+const TimelineBlock = memo(function TimelineBlock({
+  sub,
+  isSelected,
+  isActive,
+  top,
+  leftPct,
+  widthPct,
+  trackLabel,
+  onSelect,
+  setDrag,
+}: TimelineBlockProps) {
+  const handleSelectBody = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      onSelect(sub.id);
+    },
+    [onSelect, sub.id],
+  );
+  const handleSelectClick = useCallback(
+    () => onSelect(sub.id),
+    [onSelect, sub.id],
+  );
+  const handleLeftHandle = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      onSelect(sub.id);
+      setDrag({
+        id: sub.id,
+        mode: "left",
+        startX: e.clientX,
+        startY: e.clientY,
+        origStart: sub.startTime,
+        origEnd: sub.endTime,
+        origTrack: trackLabel - 1,
+      });
+    },
+    [onSelect, setDrag, sub, trackLabel],
+  );
+  const handleMoveHandle = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      onSelect(sub.id);
+      setDrag({
+        id: sub.id,
+        mode: "move",
+        startX: e.clientX,
+        startY: e.clientY,
+        origStart: sub.startTime,
+        origEnd: sub.endTime,
+        origTrack: trackLabel - 1,
+      });
+    },
+    [onSelect, setDrag, sub, trackLabel],
+  );
+  const handleRightHandle = useCallback(
+    (e: React.PointerEvent) => {
+      e.stopPropagation();
+      onSelect(sub.id);
+      setDrag({
+        id: sub.id,
+        mode: "right",
+        startX: e.clientX,
+        startY: e.clientY,
+        origStart: sub.startTime,
+        origEnd: sub.endTime,
+        origTrack: trackLabel - 1,
+      });
+    },
+    [onSelect, setDrag, sub, trackLabel],
+  );
+  return (
+    <div
+      className={cn(
+        "absolute rounded border flex items-center overflow-hidden group",
+        isSelected
+          ? "bg-kumo-brand text-white border-kumo-brand z-10 shadow"
+          : "bg-kumo-base border-kumo-line hover:border-kumo-brand/40",
+        isActive && !isSelected && "ring-1 ring-primary/30",
+      )}
+      style={{
+        left: `${leftPct}%`,
+        width: `${Math.max(widthPct, 0.8)}%`,
+        top,
+        height: ROW_H - 6,
+      }}
+      onPointerDown={handleSelectBody}
+      onClick={handleSelectClick}
+      role="button"
+      aria-label={`Subtitle ${sub.text} track ${trackLabel} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
+      aria-pressed={isSelected}
+      title={`Track ${trackLabel} · drag vertically to move`}
+    >
+      <div
+        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
+        onPointerDown={handleLeftHandle}
+        aria-label="Drag to change start time"
+      >
+        <span className="w-0.5 h-4 bg-white/60 rounded" />
+      </div>
+      <div
+        className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
+        onPointerDown={handleMoveHandle}
+      >
+        <span className="text-[8px] opacity-70">↕</span>
+        <span className="truncate">{sub.text || "…"}</span>
+      </div>
+      <div
+        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
+        onPointerDown={handleRightHandle}
+        aria-label="Drag to change end time"
+      >
+        <span className="w-0.5 h-4 bg-white/60 rounded" />
+      </div>
+    </div>
+  );
+});
 
 export function TimelineVisual({
   duration,
@@ -152,89 +286,18 @@ export function TimelineVisual({
           );
           const top = HEADER_H + clampedTrack * ROW_H + 3;
           return (
-            <div
+            <TimelineBlock
               key={sub.id}
-              className={cn(
-                "absolute rounded border flex items-center overflow-hidden group",
-                isSelected
-                  ? "bg-kumo-brand text-white border-kumo-brand z-10 shadow"
-                  : "bg-kumo-base border-kumo-line hover:border-kumo-brand/40",
-                isActive && !isSelected && "ring-1 ring-primary/30",
-              )}
-              style={{
-                left: `${left}%`,
-                width: `${Math.max(width, 0.8)}%`,
-                top,
-                height: ROW_H - 6,
-              }}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                onSelect(sub.id);
-              }}
-              onClick={() => onSelect(sub.id)}
-              role="button"
-              aria-label={`Subtitle ${sub.text} track ${clampedTrack + 1} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
-              aria-pressed={isSelected}
-              title={`Track ${clampedTrack + 1} · drag vertically to move`}
-            >
-              <div
-                className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSelect(sub.id);
-                  setDrag({
-                    id: sub.id,
-                    mode: "left",
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origStart: sub.startTime,
-                    origEnd: sub.endTime,
-                    origTrack: clampedTrack,
-                  });
-                }}
-                aria-label="Drag to change start time"
-              >
-                <span className="w-0.5 h-4 bg-white/60 rounded" />
-              </div>
-              <div
-                className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSelect(sub.id);
-                  setDrag({
-                    id: sub.id,
-                    mode: "move",
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origStart: sub.startTime,
-                    origEnd: sub.endTime,
-                    origTrack: clampedTrack,
-                  });
-                }}
-              >
-                <span className="text-[8px] opacity-70">↕</span>
-                <span className="truncate">{sub.text || "…"}</span>
-              </div>
-              <div
-                className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  onSelect(sub.id);
-                  setDrag({
-                    id: sub.id,
-                    mode: "right",
-                    startX: e.clientX,
-                    startY: e.clientY,
-                    origStart: sub.startTime,
-                    origEnd: sub.endTime,
-                    origTrack: clampedTrack,
-                  });
-                }}
-                aria-label="Drag to change end time"
-              >
-                <span className="w-0.5 h-4 bg-white/60 rounded" />
-              </div>
-            </div>
+              sub={sub}
+              isSelected={isSelected}
+              isActive={isActive}
+              top={top}
+              leftPct={left}
+              widthPct={width}
+              trackLabel={clampedTrack + 1}
+              onSelect={onSelect}
+              setDrag={setDrag}
+            />
           );
         })}
         <div

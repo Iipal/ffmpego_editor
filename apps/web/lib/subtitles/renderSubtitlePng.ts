@@ -77,12 +77,10 @@ export async function renderSubtitlePng(
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
 
-  const rawLines = text.split("\n");
-  const wrappedLines: string[] = [];
-  for (const rl of rawLines) {
-    const parts = wrapLine(rl, ctx, MAX_WIDTH);
-    wrappedLines.push(...parts);
-  }
+  // js-flatmap-filter: single pass maps raw lines to wrapped lines.
+  const wrappedLines: string[] = text
+    .split("\n")
+    .flatMap((rl) => wrapLine(rl, ctx, MAX_WIDTH));
   // Re-measure after wrap (font already set)
   let maxLineWidth = 0;
   for (const l of wrappedLines) {

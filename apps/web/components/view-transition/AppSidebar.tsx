@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Clapperboard,
   Command,
@@ -21,24 +21,30 @@ import { cn } from "@/lib/utils";
 const STORAGE_KEY = "ffmpego-sidebar-collapsed:v1";
 const LEGACY_STORAGE_KEY = "ffmpego-sidebar-collapsed";
 
-export function AppSidebar() {
-  const [collapsed, setCollapsed] = useState(false);
-
-  useEffect(() => {
-    try {
-      const stored =
-        localStorage.getItem(STORAGE_KEY) ??
-        localStorage.getItem(LEGACY_STORAGE_KEY);
-      if (stored !== null) {
-        setCollapsed(stored === "1");
+function readCollapsedInitial(): boolean {
+  try {
+    const stored =
+      localStorage.getItem(STORAGE_KEY) ??
+      localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (stored !== null) {
+      if (localStorage.getItem(STORAGE_KEY) === null) {
         localStorage.setItem(STORAGE_KEY, stored);
-      } else if (window.innerWidth < 768) {
-        setCollapsed(true);
       }
-    } catch {
-      // ignore storage errors (private mode, etc.)
+      return stored === "1";
     }
-  }, []);
+    return window.innerWidth < 768;
+  } catch {
+    // ignore storage errors (private mode, etc.)
+    return false;
+  }
+}
+
+export function AppSidebar() {
+  // rerender-lazy-state-init: read localStorage once as initializer (no
+  // mount-effect flash from a default value + setState in useEffect)
+  const [collapsed, setCollapsed] = useState<boolean>(() =>
+    typeof window === "undefined" ? false : readCollapsedInitial(),
+  );
 
   const toggle = () => {
     setCollapsed((prev) => {

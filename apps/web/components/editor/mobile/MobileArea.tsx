@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Redo2,
@@ -10,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileAreaProps } from "./types";
 
-export function MobileArea({
+export const MobileArea = memo(function MobileArea({
   layout,
   selected,
   modeBadge,
@@ -181,7 +182,8 @@ export function MobileArea({
             {validationError ? "invalid" : status}
           </div>
           <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            {validationError ?? `${MobileLayoutService.OUTPUT_W}×${MobileLayoutService.OUTPUT_H} · 9:16`}
+            {validationError ??
+              `${MobileLayoutService.OUTPUT_W}×${MobileLayoutService.OUTPUT_H} · 9:16`}
           </div>
         </div>
       </div>
@@ -201,4 +203,4 @@ export function MobileArea({
       </div>
     </div>
   );
-}
+});

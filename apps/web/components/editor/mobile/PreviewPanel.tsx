@@ -1,6 +1,5 @@
 "use client";
 
-import { Activity } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -9,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { formatTime } from "@/lib/format-time";
 import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
-import { PortraitPreview, DynamicPortraitPreview } from "./PortraitPreview";
+import { PortraitPreview } from "./PortraitPreview";
 import { preloadHeavyPreview } from "./mobile-helpers";
 
 type PreviewPanelProps = {
@@ -62,26 +61,13 @@ export function PreviewPanel({
         </CardHeader>
         <CardContent className="space-y-3">
           <div onMouseEnter={preloadHeavyPreview} onFocus={preloadHeavyPreview}>
-            <Activity mode="visible">
-              <PortraitPreview
-                layout={layout}
-                videoRef={videoRef}
-                onSplit={onSplit}
-                safe={safe}
-                useWatermark={useWatermark}
-              />
-            </Activity>
-            <span className="hidden">
-              {false ? (
-                <DynamicPortraitPreview
-                  layout={layout}
-                  videoRef={videoRef}
-                  onSplit={onSplit}
-                  safe={safe}
-                  useWatermark={useWatermark}
-                />
-              ) : null}
-            </span>
+            <PortraitPreview
+              layout={layout}
+              videoRef={videoRef}
+              onSplit={onSplit}
+              safe={safe}
+              useWatermark={useWatermark}
+            />
           </div>
           <div className="space-y-2 pt-2">
             <div className="flex items-center justify-between">

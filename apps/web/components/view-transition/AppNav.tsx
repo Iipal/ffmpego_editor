@@ -52,7 +52,8 @@ export const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-const NAV_ITEMS_SORTED = [...NAV_ITEMS].sort(
+// js-tosorted-immutable: sort a copy without mutating the source array
+const NAV_ITEMS_SORTED = NAV_ITEMS.toSorted(
   (a, b) => b.href.length - a.href.length,
 );
 

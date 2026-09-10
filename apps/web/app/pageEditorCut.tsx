@@ -27,14 +27,14 @@ import { AudioControls } from "@/components/editor/AudioControls";
 export type { CutMode } from "@/components/editor/cut/types";
 
 export default function CutEditorPage() {
-  const {
-    file,
-    mediaUrl,
-    uploadStatus,
-    duration: srcDuration,
-    sourceWidth,
-    sourceHeight,
-  } = useSelector(sourceStore);
+  // rerender-derived-state / rerender-dependencies: narrow selectors so
+  // trim/playback writes elsewhere in sourceStore don't re-render this page.
+  const file = useSelector(sourceStore, (s) => s.file);
+  const mediaUrl = useSelector(sourceStore, (s) => s.mediaUrl);
+  const uploadStatus = useSelector(sourceStore, (s) => s.uploadStatus);
+  const srcDuration = useSelector(sourceStore, (s) => s.duration);
+  const sourceWidth = useSelector(sourceStore, (s) => s.sourceWidth);
+  const sourceHeight = useSelector(sourceStore, (s) => s.sourceHeight);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const duration = srcDuration || 0;

@@ -23,31 +23,23 @@ export function useSubtitleEditor() {
     initAppOnce();
   }, []);
 
-  // rerender-defer-reads + rerender-derived-state: subscribe narrowly to primitives only
-  const videoState = {
-    ...useSelector(sourceStore),
-    ...useSelector(subtitleStore),
-  };
-  const rawState = videoState as unknown as {
-    mediaUrl: string | null;
-    duration: number;
-    file: File | null;
-    sourceWidth: number;
-    sourceHeight: number;
-    subtitles?: Subtitle[];
-    selectedSubtitleId?: string | null;
-    subtitleTrackCountExplicit?: number;
-    trimRange?: [number, number];
-  };
-  const mediaUrl = rawState.mediaUrl;
-  const srcDuration = rawState.duration;
-  const file = rawState.file;
-  const sourceWidth = rawState.sourceWidth;
-  const sourceHeight = rawState.sourceHeight;
-  const rawSubtitles = rawState.subtitles;
-  const rawSelectedId = rawState.selectedSubtitleId;
-  const rawTrackCount = rawState.subtitleTrackCountExplicit;
-  const trimRangeStore = rawState.trimRange ?? ([0, 0] as [number, number]);
+  // rerender-derived-state + rerender-dependencies: subscribe narrowly to
+  // primitives only (whole-store spread would re-render on any field change,
+  // e.g. uploadProgress/volume). Each selector re-renders only on its slice.
+  const mediaUrl = useSelector(sourceStore, (s) => s.mediaUrl);
+  const srcDuration = useSelector(sourceStore, (s) => s.duration);
+  const file = useSelector(sourceStore, (s) => s.file);
+  const sourceWidth = useSelector(sourceStore, (s) => s.sourceWidth);
+  const sourceHeight = useSelector(sourceStore, (s) => s.sourceHeight);
+  const trimRangeStore =
+    useSelector(sourceStore, (s) => s.trimRange) ??
+    ([0, 0] as [number, number]);
+  const rawSubtitles = useSelector(subtitleStore, (s) => s.subtitles);
+  const rawSelectedId = useSelector(subtitleStore, (s) => s.selectedSubtitleId);
+  const rawTrackCount = useSelector(
+    subtitleStore,
+    (s) => s.subtitleTrackCountExplicit,
+  );
 
   // rerender-derived-state-no-effect: derive during render, not effect
   const subtitlesRaw = rawSubtitles ?? [];
@@ -136,9 +128,10 @@ export function useSubtitleEditor() {
         ),
       ),
     );
-    for (const f of uniq) {
-      googleFonts.ensureGoogleFontLoaded(f).catch(NOOP);
-    }
+    // async-parallel: single Promise.all for independent font loads (no sequential awaits)
+    void Promise.all(
+      uniq.map((f) => googleFonts.ensureGoogleFontLoaded(f)),
+    ).catch(NOOP);
   }, [deferredSubtitles]);
 
   // js-index-maps: O(1) subtitle lookup via Map (1M ops → 2K ops) — split from filtering (rerender-split-combined-hooks)
@@ -154,12 +147,7 @@ export function useSubtitleEditor() {
     [subtitleById, selectedId],
   );
 
-  // rerender-derived-state: derived staleness hint (no effect)
-  void isSubtitlesStale;
-
-  // js-cache-property-access: cache length
-  const deferredLen = deferredSubtitles.length;
-  void deferredLen;
+  // rerender-derived-state: staleness hint consumed by SubtitleListPanel dimming
 
   const activeSubtitles = useMemo(
     () =>

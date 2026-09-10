@@ -3,8 +3,8 @@
 import dynamic from "next/dynamic";
 import { preconnect, preload } from "react-dom";
 import { apiClient } from "@/lib/api-client";
-import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import type { Card } from "@/components/ui/card";
+import type { Progress } from "@/components/ui/progress";
 import { NOOP } from "./helpers";
 
 // bundle-analyzable-paths: explicit literal dynamic import map (statically analyzable)

@@ -123,6 +123,11 @@ export default function PageEditorSubtitles() {
             onTogglePlayback={e.togglePlayback}
             onProgressSeek={e.handleProgressSeek}
             onTimelineSeek={e.handleTimelineSeek}
+            timelineSubtitles={e.deferredSubtitles}
+            trackCount={e.trackCount}
+            onUpdateSubtitle={e.handleTimelineUpdateSubtitle}
+            onUpdateTrack={e.handleMoveSubtitleToTrack}
+            onAddTrack={e.handleAddTrack}
           />
 
           <TrimControls

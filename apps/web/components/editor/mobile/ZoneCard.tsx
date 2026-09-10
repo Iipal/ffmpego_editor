@@ -8,6 +8,8 @@ import { Lock, LockOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ZoneCardProps } from "./types";
 
+const ROLE_OPTIONS = ["camera", "gameplay", "content"] as const;
+
 export const ZoneCard = memo(function ZoneCard({
   zone,
   isSelected,
@@ -90,7 +92,7 @@ export const ZoneCard = memo(function ZoneCard({
         />
       </div>
       <div className="flex gap-1">
-        {(["camera", "gameplay", "content"] as const).map((r) => (
+        {ROLE_OPTIONS.map((r) => (
           <Button
             key={r}
             size="sm"

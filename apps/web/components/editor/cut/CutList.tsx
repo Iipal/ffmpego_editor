@@ -28,6 +28,11 @@ export function CutList({
       {sorted.map((c, i) => (
         <div
           key={c.id}
+          // Defer off-screen row rendering for long cut lists.
+          style={{
+            contentVisibility: "auto",
+            containIntrinsicSize: "0 64px",
+          }}
           className={cn(
             "flex flex-wrap items-center gap-2 rounded-md border p-2",
             c.id === selectedId

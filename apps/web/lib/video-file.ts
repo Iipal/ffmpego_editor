@@ -50,6 +50,12 @@ export class VideoFileService {
    */
   private static readonly FILENAME_SANITIZE_RE = /[^a-zA-Z0-9._-]/g;
 
+  /**
+   * Trailing-extension matcher for `stripExtension` (hoisted: runs per
+   * picker/export-name call, so no per-call literal).
+   */
+  private static readonly EXTENSION_RE = /\.[^.]+$/;
+
   // ------------------------------------------------------------------ public
 
   /**
@@ -92,7 +98,7 @@ export class VideoFileService {
    * empty (export-name placeholders must never render blank).
    */
   public stripExtension(name: string): string {
-    return name.replace(/\.[^.]+$/, "") || name;
+    return name.replace(VideoFileService.EXTENSION_RE, "") || name;
   }
 
   /** Replace every char outside [a-zA-Z0-9._-] with "_" for safe filenames. */

@@ -35,8 +35,8 @@ export function useMobileExport(args: ExportArgs) {
     useWatermark,
     ignoreTrim,
   } = args;
-  const audio = useSelector(audioStore);
-  const queueItems = useSelector(exportQueueStore).items;
+  const audioTracks = useSelector(audioStore, (s) => s.tracks);
+  const queueItems = useSelector(exportQueueStore, (s) => s.items);
   const activeExports = useMemo(
     () => selectKindActive(queueItems, "mobile"),
     [queueItems],
@@ -76,8 +76,8 @@ export function useMobileExport(args: ExportArgs) {
       exportSpeed: 1,
       customFFmpegArgs: "",
       watermark: useWatermark,
-      audioTracks: audio.tracks.length
-        ? getAudioRenderSettings(audio.tracks)
+      audioTracks: audioTracks.length
+        ? getAudioRenderSettings(audioTracks)
         : undefined,
     });
     // Pre-upload: same schemas the API enforces — fail before upload bytes.
@@ -103,7 +103,7 @@ export function useMobileExport(args: ExportArgs) {
     layout,
     useWatermark,
     ignoreTrim,
-    audio,
+    audioTracks,
   ]);
 
   return { onExport, activeExports };

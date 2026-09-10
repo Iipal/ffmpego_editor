@@ -5,7 +5,7 @@ export function newId(): string {
 }
 
 export function sortCuts(cuts: Cut[]): Cut[] {
-  return [...cuts].sort((a, b) => a.start - b.start);
+  return cuts.toSorted((a, b) => a.start - b.start);
 }
 
 export function cutsOverlap(cuts: Cut[]): Cut[] {

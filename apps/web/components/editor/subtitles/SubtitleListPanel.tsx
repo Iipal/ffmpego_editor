@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTime } from "@/lib/format-time";
@@ -18,7 +19,10 @@ export type SubtitleListPanelProps = {
   onSelect: (id: string) => void;
 };
 
-export function SubtitleListPanel({
+// rendering-hoist-jsx: stable style object (no per-render allocation)
+const STALE_STYLE = { opacity: 0.7 } as const;
+
+export const SubtitleListPanel = memo(function SubtitleListPanel({
   hasVideo,
   effectiveDuration,
   currentTime,
@@ -49,7 +53,7 @@ export function SubtitleListPanel({
         </p>
         <div
           className="space-y-2 max-h-80 overflow-auto pr-1"
-          style={isStale ? { opacity: 0.7 } : undefined}
+          style={isStale ? STALE_STYLE : undefined}
         >
           {sortedSubtitles.length === 0 ? EmptySubtitleListPlaceholder : null}
           {sortedSubtitles.map((sub) => (
@@ -67,4 +71,4 @@ export function SubtitleListPanel({
       </CardContent>
     </Card>
   );
-}
+});

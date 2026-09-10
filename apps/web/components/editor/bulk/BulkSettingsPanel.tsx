@@ -1,5 +1,7 @@
 "use client";
 
+import { memo } from "react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,7 +24,7 @@ export type BulkSettingsPanelProps = {
   onBulkExport: () => void;
 };
 
-export function BulkSettingsPanel({
+export const BulkSettingsPanel = memo(function BulkSettingsPanel({
   inputFolderName,
   total,
   outputDirName,
@@ -81,10 +83,7 @@ export function BulkSettingsPanel({
         </div>
         <div className="flex items-center justify-between">
           <Label className="text-xs">Use watermark</Label>
-          <Switch
-            checked={useWatermark}
-            onCheckedChange={onWatermarkChange}
-          />
+          <Switch checked={useWatermark} onCheckedChange={onWatermarkChange} />
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-col gap-0.5">
@@ -117,11 +116,11 @@ export function BulkSettingsPanel({
             : `Bulk Export (${selectedCount})`}
         </Button>
         <p className="text-[10px] leading-3 text-kumo-subtle">
-          Selected files are submitted to the export queue at once (renders
-          run via the API queue), full length (trim ignored), 1080×1920. Each
+          Selected files are submitted to the export queue at once (renders run
+          via the API queue), full length (trim ignored), 1080×1920. Each
           finished file saves to the output folder automatically.
         </p>
       </CardContent>
     </Card>
   );
-}
+});

@@ -8,6 +8,7 @@ export const HEAVY_MODULES = {
   mobilePreview: () => import("@/components/editor/MobilePreviewShared"),
   subtitlePng: () => import("@/lib/subtitles/renderSubtitlePng"),
   apiClient: () => import("@/lib/api-client"),
+  googleFontPicker: () => import("@/components/editor/GoogleFontPicker"),
 } as const;
 
 // rerender-memo-with-default-value: stable default for optional callbacks
@@ -61,6 +62,31 @@ export const DynamicMobilePreviewShared = dynamic(
 // bundle-preload: preload heavy chunk on hover/focus intent
 export function preloadMobilePreview() {
   if (typeof window !== "undefined") void HEAVY_MODULES.mobilePreview();
+}
+
+// bundle-dynamic-imports: GoogleFontPicker pulls Popover+Command+font catalog;
+// lazy-load it — only needed when a subtitle is selected (conditional loading)
+export type GoogleFontPickerProps = React.ComponentProps<
+  typeof import("@/components/editor/GoogleFontPicker").GoogleFontPicker
+>;
+
+export const DynamicGoogleFontPicker = dynamic(
+  () =>
+    HEAVY_MODULES.googleFontPicker().then((m) => ({
+      default:
+        m.GoogleFontPicker as unknown as React.ComponentType<GoogleFontPickerProps>,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-9 w-full rounded-md border border-kumo-line bg-kumo-recessed animate-pulse" />
+    ),
+  },
+);
+
+// bundle-preload: warm the picker chunk on hover/focus before selection
+export function preloadGoogleFontPicker() {
+  if (typeof window !== "undefined") void HEAVY_MODULES.googleFontPicker();
 }
 
 export function preloadExportChunks() {

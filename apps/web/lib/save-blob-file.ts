@@ -46,12 +46,13 @@ class SaveBlobFile {
    * like the legacy flows, so unknown extensions still offer a filter).
    */
   pickerTypesForExt(ext: string): SavePickerTypes {
-    const known = SaveBlobFile.PICKER_TYPES_BY_EXT[ext.toLowerCase()];
+    const lower = ext.toLowerCase();
+    const known = SaveBlobFile.PICKER_TYPES_BY_EXT[lower];
     if (!known) return this.pickerTypesForExt("mp4");
     return [
       {
         description: known.description,
-        accept: { [known.mime]: [`.${ext.toLowerCase()}`] },
+        accept: { [known.mime]: [`.${lower}`] },
       },
     ];
   }

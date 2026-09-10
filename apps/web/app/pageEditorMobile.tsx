@@ -1,6 +1,5 @@
 "use client";
 
-import { Activity } from "react";
 import { toast } from "sonner";
 import { formatTime } from "@/lib/format-time";
 import { UploadProgress } from "@/components/editor/UploadProgress";
@@ -47,11 +46,9 @@ export default function MobileEditorPage() {
       />
 
       {s.uploadStatus === "uploading" || s.uploadStatus === "error" ? (
-        <Activity mode="visible">
-          <div className="rounded-md border border-kumo-hairline bg-kumo-recessed p-3">
-            <UploadProgress />
-          </div>
-        </Activity>
+        <div className="rounded-md border border-kumo-hairline bg-kumo-recessed p-3">
+          <UploadProgress />
+        </div>
       ) : null}
 
       <div

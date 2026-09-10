@@ -15,6 +15,14 @@ export function SubtitleBackgroundPanel({
   selected,
   onUpdateStyle,
 }: SubtitleBackgroundPanelProps) {
+  // rerender-derived-state-no-effect: derive color input value during render
+  const bgRaw = selected.style.backgroundColor;
+  const bgColorValue =
+    bgRaw.startsWith("#") && (bgRaw.length === 7 || bgRaw.length === 4)
+      ? bgRaw.length === 4
+        ? `#${bgRaw[1]}${bgRaw[1]}${bgRaw[2]}${bgRaw[2]}${bgRaw[3]}${bgRaw[3]}`
+        : bgRaw
+      : "#000000";
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
@@ -46,14 +54,7 @@ export function SubtitleBackgroundPanel({
               <Input
                 id="bg-color"
                 type="color"
-                value={(() => {
-                  const c = selected.style.backgroundColor;
-                  if (c.startsWith("#") && (c.length === 7 || c.length === 4))
-                    return c.length === 4
-                      ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`
-                      : c;
-                  return "#000000";
-                })()}
+                value={bgColorValue}
                 onChange={(e) =>
                   onUpdateStyle({ backgroundColor: e.target.value })
                 }

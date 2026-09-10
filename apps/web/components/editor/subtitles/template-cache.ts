@@ -5,7 +5,17 @@ import {
 } from "@/lib/subtitles/subtitleStorage";
 
 // js-cache-storage: module-level cache for localStorage reads (avoid sync I/O per render)
+// Single-key cache (STORAGE_KEY only) — no LRU eviction needed.
 const templateStorageCache = new Map<string, SubtitleTemplate[]>();
+
+// js-cache-storage: invalidate on external changes (other tabs)
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === SubtitleStorage.STORAGE_KEY) {
+      templateStorageCache.delete(SubtitleStorage.STORAGE_KEY);
+    }
+  });
+}
 
 export function getCachedTemplates(): SubtitleTemplate[] {
   const key = SubtitleStorage.STORAGE_KEY;

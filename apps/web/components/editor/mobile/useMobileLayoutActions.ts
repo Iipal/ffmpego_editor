@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import {
-  MobileLayoutService,
-  mobileLayoutService,
-} from "@/lib/mobile-layout";
+import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone } from "@/lib/mobile-layout";
 import type { MobileEditorApi } from "./useMobileEditor";
 
@@ -12,10 +9,12 @@ export function useMobileLayoutActions(
   ed: MobileEditorApi,
   startTransition: (fn: () => void) => void,
 ) {
+  const { commit, setLayout } = ed;
+  const layoutSplitRatio = ed.layout.splitRatio;
   const handleMove = useCallback(
     (id: string, nx: number, ny: number) => {
       startTransition(() => {
-        ed.commit((prev) => {
+        commit((prev) => {
           const zones: CropZone[] = [];
           for (const z of prev.zones) {
             if (z.id !== id || z.locked) {
@@ -34,32 +33,40 @@ export function useMobileLayoutActions(
         });
       });
     },
-    [ed, startTransition],
+    [commit, startTransition],
   );
 
   const handleResize = useCallback(
     (id: string, next: CropZone) => {
       startTransition(() => {
-        ed.commit((prev) => {
+        commit((prev) => {
           const zones = prev.zones.map((z) =>
             z.id === id && !z.locked
-              ? mobileLayoutService.enforceZoneAspect(next, prev.mode, prev.splitRatio)
+              ? mobileLayoutService.enforceZoneAspect(
+                  next,
+                  prev.mode,
+                  prev.splitRatio,
+                )
               : z,
           );
           return { ...prev, zones };
         });
       });
     },
-    [ed, startTransition],
+    [commit, startTransition],
   );
 
   const handleZoom = useCallback(
     (id: string, factor: number) => {
       startTransition(() => {
-        ed.commit((prev) => {
+        commit((prev) => {
           const zones = prev.zones.map((z) => {
             if (z.id !== id || z.locked) return z;
-            const zoom = mobileLayoutService.clamp(typeof factor === "number" ? factor : 1, 0.5, 3);
+            const zoom = mobileLayoutService.clamp(
+              typeof factor === "number" ? factor : 1,
+              0.5,
+              3,
+            );
             const baseW =
               prev.mode === "full" ? 0.316 : id === "zone-1" ? 0.32 : 0.42;
             const asp = mobileLayoutService.zoneAspect(
@@ -69,24 +76,42 @@ export function useMobileLayoutActions(
             );
             const sourceAR = 16 / 9;
             const w = mobileLayoutService.clamp(baseW / zoom, 0.08, 0.95);
-            const h = mobileLayoutService.clamp((w / asp) * sourceAR, 0.08, 0.95);
-            const x = mobileLayoutService.clamp(z.x + (z.width - w) / 2, 0, 1 - w);
-            const y = mobileLayoutService.clamp(z.y + (z.height - h) / 2, 0, 1 - h);
+            const h = mobileLayoutService.clamp(
+              (w / asp) * sourceAR,
+              0.08,
+              0.95,
+            );
+            const x = mobileLayoutService.clamp(
+              z.x + (z.width - w) / 2,
+              0,
+              1 - w,
+            );
+            const y = mobileLayoutService.clamp(
+              z.y + (z.height - h) / 2,
+              0,
+              1 - h,
+            );
             return { ...z, x, y, width: w, height: h, zoom };
           });
           return { ...prev, zones };
         });
       });
     },
-    [ed, startTransition],
+    [commit, startTransition],
   );
 
   const handleSplit = useCallback(
     (v: number) =>
       startTransition(() => {
-        ed.commit((p) => {
-          const split = mobileLayoutService.clamp(v, MobileLayoutService.MIN_SPLIT, MobileLayoutService.MAX_SPLIT);
-          let zones = p.zones.map((z) => mobileLayoutService.enforceZoneAspect(z, p.mode, split));
+        commit((p) => {
+          const split = mobileLayoutService.clamp(
+            v,
+            MobileLayoutService.MIN_SPLIT,
+            MobileLayoutService.MAX_SPLIT,
+          );
+          let zones = p.zones.map((z) =>
+            mobileLayoutService.enforceZoneAspect(z, p.mode, split),
+          );
           zones = zones.map((z) => ({
             ...z,
             x: mobileLayoutService.clamp(z.x, 0, 1 - z.width),
@@ -95,38 +120,41 @@ export function useMobileLayoutActions(
           return { ...p, splitRatio: split, zones };
         });
       }),
-    [ed, startTransition],
+    [commit, startTransition],
   );
 
   const resetZone = useCallback(
     (id: string) =>
-      ed.commit((p) => {
-        const def = mobileLayoutService.createDefaultLayout(p.mode, p.splitRatio);
+      commit((p) => {
+        const def = mobileLayoutService.createDefaultLayout(
+          p.mode,
+          p.splitRatio,
+        );
         const dz = def.zones.find((z) => z.id === id);
         if (!dz) return p;
         return { ...p, zones: p.zones.map((z) => (z.id === id ? dz : z)) };
       }),
-    [ed],
+    [commit],
   );
 
   const handleToggleLock = useCallback(
     (id: string) =>
-      ed.commit((p) => ({
+      commit((p) => ({
         ...p,
         zones: p.zones.map((zz) =>
           zz.id === id ? { ...zz, locked: !zz.locked } : zz,
         ),
       })),
-    [ed],
+    [commit],
   );
 
   const handleRoleChange = useCallback(
     (id: string, role: CropZone["role"]) =>
-      ed.commit((p) => ({
+      commit((p) => ({
         ...p,
         zones: p.zones.map((zz) => (zz.id === id ? { ...zz, role } : zz)),
       })),
-    [ed],
+    [commit],
   );
 
   const handleModeChange = useCallback(
@@ -134,10 +162,13 @@ export function useMobileLayoutActions(
       if (!v) return;
       const mode = v as "full" | "stacked";
       const saved = mobileLayoutService.loadPrefForMode(mode);
-      if (saved) ed.setLayout(saved);
-      else ed.setLayout(mobileLayoutService.createDefaultLayout(mode, ed.layout.splitRatio));
+      if (saved) setLayout(saved);
+      else
+        setLayout(
+          mobileLayoutService.createDefaultLayout(mode, layoutSplitRatio),
+        );
     },
-    [ed],
+    [setLayout, layoutSplitRatio],
   );
 
   return {

@@ -56,6 +56,21 @@ export class GoogleFonts {
     "fantasy",
     "system-ui",
   ]);
+  /**
+   * Curated-fallback families assumed to ship Cyrillic (hoisted: was
+   * re-created on every fallback catalog build).
+   */
+  private static readonly CYRILLIC_FALLBACK = new Set([
+    "Inter",
+    "Roboto",
+    "Open Sans",
+    "Montserrat",
+    "Noto Sans",
+    "PT Sans",
+    "Arvo",
+    "Ubuntu",
+    "Rubik",
+  ]);
 
   // ------------------------------------------------------------------ public
 
@@ -207,20 +222,11 @@ export class GoogleFonts {
       "Bebas Neue",
     ];
     // fallback subsets: most support latin + cyrillic for common ones, but mark conservatively
-    const cyrillicFallback = new Set([
-      "Inter",
-      "Roboto",
-      "Open Sans",
-      "Montserrat",
-      "Noto Sans",
-      "PT Sans",
-      "Arvo",
-      "Ubuntu",
-      "Rubik",
-    ]);
     GoogleFonts.cachedMeta = fallbackFamilies.map((f) => ({
       family: f,
-      subsets: cyrillicFallback.has(f) ? ["latin", "cyrillic"] : ["latin"],
+      subsets: GoogleFonts.CYRILLIC_FALLBACK.has(f)
+        ? ["latin", "cyrillic"]
+        : ["latin"],
     }));
     GoogleFonts.cachedFamilies = fallbackFamilies
       .slice()

@@ -15,6 +15,9 @@ import type {
 
 export type { FFprobeReport, TranscodeProgress, TranscodeResponse };
 
+// js-hoist-regexp: module scope — url() runs on every API/SSE/download call.
+const ABSOLUTE_URL_RE = /^https?:\/\//i;
+
 /** ffprobe-backed metadata returned by `POST /api/metadata`. */
 export interface VideoMetadata {
   filename: string;
@@ -82,7 +85,7 @@ class APIClient {
    * against the API origin so `EventSource` never hits the Next.js server.
    */
   url(endpoint: string): string {
-    if (/^https?:\/\//i.test(endpoint)) return endpoint;
+    if (ABSOLUTE_URL_RE.test(endpoint)) return endpoint;
     return `${this._baseUrl}${endpoint}`;
   }
 

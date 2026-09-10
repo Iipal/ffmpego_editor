@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useTransition } from "react";
+import { useCallback, useEffect, useRef, useTransition } from "react";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { mobileLayoutService } from "@/lib/mobile-layout";
@@ -47,10 +47,7 @@ export function useTrimRange({
 
   const trimStart = trimRange[0];
   const trimEnd = trimRange[1];
-  const trimmedDuration = useMemo(
-    () => Math.max(0, trimEnd - trimStart),
-    [trimStart, trimEnd],
-  );
+  const trimmedDuration = Math.max(0, trimEnd - trimStart);
 
   // init/clamp global trim when duration available
   useEffect(() => {

@@ -88,18 +88,19 @@ export function useMobilePageState() {
 
   const actions = useMobileLayoutActions(ed, startTransition);
 
+  const setDuration = ed.setDuration;
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     const onMeta = () => {
       const d = v.duration;
       if (Number.isFinite(d)) {
-        ed.setDuration(d);
+        setDuration(d);
       }
     };
     v.addEventListener("loadedmetadata", onMeta);
     return () => v.removeEventListener("loadedmetadata", onMeta);
-  }, [mediaUrl, ed]);
+  }, [mediaUrl, setDuration]);
 
   const handleSeekStart = useCallback(() => {
     if (!duration) return;
@@ -107,13 +108,12 @@ export function useMobilePageState() {
     if (!isPlaying) videoRef.current?.play().catch(NOOP);
   }, [duration, trimStart, seekTo, isPlaying]);
 
+  const layoutMode = ed.layout.mode;
+  const setLayout = ed.setLayout;
   const handleResetAll = useCallback(() => {
-    const saved = mobileLayoutService.loadPrefForMode(ed.layout.mode);
-    if (saved) ed.setLayout(saved);
-    else
-      ed.setLayout(
-        mobileLayoutService.createDefaultLayout(ed.layout.mode, 0.5),
-      );
+    const saved = mobileLayoutService.loadPrefForMode(layoutMode);
+    if (saved) setLayout(saved);
+    else setLayout(mobileLayoutService.createDefaultLayout(layoutMode, 0.5));
     if (duration > 0) {
       const next: [number, number] = [0, duration];
       setSourceState((prev) => ({ ...prev, trimRange: next }));
@@ -121,7 +121,7 @@ export function useMobilePageState() {
     setVolume(1);
     setMuted(false);
     setIsLoopTrim(false);
-  }, [ed, duration, setVolume, setMuted]);
+  }, [layoutMode, setLayout, duration, setVolume, setMuted]);
 
   const fileName = file?.name ?? "";
   const sourceLabel =
@@ -137,8 +137,6 @@ export function useMobilePageState() {
     : duration
       ? `${formatTime(trimStart)} → ${formatTime(trimEnd)} · ${formatTime(trimmedDuration)}`
       : "—";
-
-  void MobileLayoutService.OUTPUT_H;
 
   return {
     ed,

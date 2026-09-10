@@ -7,7 +7,9 @@ const HEX_VALID_RE = /^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{3})$/;
 const HEX_3_RE = /^#[0-9A-Fa-f]{3}$/;
 const HEX_6_RE = /^#[0-9A-Fa-f]{6}$/;
 
-// js-cache-function-results: module-level cache for renderSubtitleStyle
+// js-cache-function-results: module-level cache for renderSubtitleStyle.
+// Bounded (Map insertion order) so long sessions can't grow it unbounded.
+const SUBTITLE_STYLE_CACHE_MAX = 500;
 const subtitleStyleCache = new Map<string, CSSProperties>();
 
 export function getCachedSubtitleStyleKey(style: SubtitleStyle): string {
@@ -78,20 +80,30 @@ export function findFirstFreeTrack(
   end: number,
   excludeId?: string,
 ): number {
-  // js-set-map-lookups: use Set for O(1) track existence
-  const existingTracks = new Set<number>();
+  // js-early-exit: empty list needs track 0
+  if (subtitles.length === 0) return 0;
+  // js-combine-iterations + js-set-map-lookups: single pass groups by track
+  // (was: one pass for the track set + one full scan per candidate track)
+  const byTrack = new Map<number, Subtitle[]>();
+  // js-min-max-loop: loop for max instead of Math.max(...spread)
+  let maxTrack = -1;
   for (const s of subtitles) {
     if (excludeId && s.id === excludeId) continue;
-    existingTracks.add(getSubtitleTrack(s));
+    const t = getSubtitleTrack(s);
+    let group = byTrack.get(t);
+    if (!group) {
+      group = [];
+      byTrack.set(t, group);
+    }
+    group.push(s);
+    if (t > maxTrack) maxTrack = t;
   }
-  // js-min-max-loop: loop for max instead of Math.max(...sorted)
-  let maxTrack = -1;
-  for (const t of existingTracks) if (t > maxTrack) maxTrack = t;
+  if (maxTrack < 0) return 0;
   for (let t = 0; t <= maxTrack; t++) {
+    const group = byTrack.get(t);
+    if (!group) return t;
     let overlaps = false;
-    for (const s of subtitles) {
-      if (excludeId && s.id === excludeId) continue;
-      if (getSubtitleTrack(s) !== t) continue;
+    for (const s of group) {
       if (intervalsOverlap(s.startTime, s.endTime, start, end)) {
         overlaps = true;
         break;
@@ -140,5 +152,9 @@ export function renderSubtitleStyle(style: SubtitleStyle): CSSProperties {
     paintOrder: "stroke fill" as unknown as string,
   } as CSSProperties;
   subtitleStyleCache.set(key, result);
+  if (subtitleStyleCache.size > SUBTITLE_STYLE_CACHE_MAX) {
+    const oldest = subtitleStyleCache.keys().next();
+    if (!oldest.done) subtitleStyleCache.delete(oldest.value);
+  }
   return result;
 }

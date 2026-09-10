@@ -58,8 +58,9 @@ class PlaybackBus {
     if (video && !video.paused) video.pause();
     const fps = sourceStore.state.sourceFrameRate;
     const step = fps > 0 && Number.isFinite(fps) ? 1 / fps : 1 / 30;
-    const video2 = video ?? this.getActiveVideo();
-    this.commitSeek(video2, this.readTime(video2) + direction * step);
+    // Reuse the queried element — a second querySelector cannot return a
+    // different node within the same synchronous handler.
+    this.commitSeek(video, this.readTime(video) + direction * step);
   }
 
   /**

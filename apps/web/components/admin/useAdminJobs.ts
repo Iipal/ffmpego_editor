@@ -54,17 +54,14 @@ export function useAdminJobs() {
 
   const latestFilterRef = useLatest(filter); // advanced-use-latest
   void latestFilterRef;
-  const filterRef = useRef(filter);
-  useEffect(() => {
-    filterRef.current = filter;
-  }, [filter]);
 
   // Live sync via SSE (GET /api/transcode/jobs/stream) instead of interval
   // polling: snapshots land in the cache via setQueryData, so the UI stays in
   // sync without isFetching churn or an "updating" flash. The useQuery below
   // is the initial paint + manual-refresh path only.
   // client-swr-dedup: useQuery dedupes identical ["admin-jobs"] fetches across mounts
-  // client-passive-event-listeners: scroll/touch handled passively via ensureGlobalListeners
+  // (scroll/touch buses in helpers.ts stay detached until a consumer registers —
+  // no empty global listeners are attached)
   // rerender-dependencies: deps narrow to primitives (deferredFilter string, not object)
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["admin-jobs"],
@@ -157,9 +154,11 @@ export function useAdminJobs() {
   // job straight from the row.
   const handleDownloadOne = useCallback((job: JobEntry) => {
     void (async () => {
-      const { apiClient } = await import("@/lib/api-client");
-      const { saveBlobFile } = await import("@/lib/save-blob-file");
-      const { toast } = await import("sonner");
+      // async-parallel: independent chunk loads start together, awaited once
+      const [{ apiClient }, { saveBlobFile }] = await Promise.all([
+        import("@/lib/api-client"),
+        import("@/lib/save-blob-file"),
+      ]);
       try {
         const blob = await saveBlobFile.fetchDownload(
           apiClient.url(`/api/transcode/download/${job.jobId}`),
@@ -235,8 +234,10 @@ export function useAdminJobs() {
             entry.audioFormat,
             entry.label,
           );
-          const { openComparison } = await import("@/store/compareSlice");
-          const { sourceStore } = await import("@/store/sourceSlice");
+          const [{ openComparison }, { sourceStore }] = await Promise.all([
+            import("@/store/compareSlice"),
+            import("@/store/sourceSlice"),
+          ]);
           openComparison({
             title: entry.label,
             sourceUrl: sourceStore.state.mediaUrl,
@@ -303,12 +304,6 @@ export function useAdminJobs() {
   // js-min-max-loop, js-flatmap-filter, js-length-check-first, js-early-exit
   // -----------------------------------------------------------------------
   const jobs = useMemo(() => data?.jobs ?? [], [data]);
-
-  // js-index-maps: O(1) lookup for job by id (1M find calls -> 2K map ops if used in handlers)
-  const jobById = useMemo(
-    () => new Map<string, JobEntry>(jobs.map((j) => [j.jobId, j] as const)),
-    [jobs],
-  );
 
   // js-tosorted-immutable: sort copy without mutating source (use toSorted; fallback via spread for older)
   const sortedJobs = useMemo(() => {
@@ -383,31 +378,6 @@ export function useAdminJobs() {
   const pendingCount = filteredAndCounts.pendingCount;
   const completedCount = filteredAndCounts.completedCount;
   const failedCount = filteredAndCounts.failedCount;
-  const maxProgress = filteredAndCounts.maxProgress;
-  void maxProgress; // keep for stats display if needed
-
-  // js-flatmap-filter: derive active ids in one pass (map+filter combined)
-  const activeIds = useMemo(
-    () =>
-      jobs.flatMap((j) =>
-        j.status === "processing" || j.status === "queued" ? [j.jobId] : [],
-      ),
-    [jobs],
-  );
-  void activeIds; // retained for future use / demonstrates js-flatmap-filter
-  void jobById; // ensure index map retained for handlers that may use O(1) lookup
-
-  // js-set-map-lookups: fast Set check for badge/status
-  const processingSet = useMemo(
-    () =>
-      new Set(
-        filtered.flatMap((j) =>
-          j.status === "processing" || j.status === "queued" ? [j.jobId] : [],
-        ),
-      ),
-    [filtered],
-  );
-  void processingSet;
 
   // Derive hasJobs without effect — rerender-derived-state (derived during render)
   const hasJobs = jobs.length > 0;

@@ -56,9 +56,7 @@ export const exportQueueStore = createStore<ExportQueueSlice>({
 const TERMINAL: ExportQueueItemStatus[] = ["completed", "failed", "cancelled"];
 const MAX_TERMINAL_ITEMS = 50;
 
-export function isQueueItemActive(
-  item: ExportQueueItem,
-): boolean {
+export function isQueueItemActive(item: ExportQueueItem): boolean {
   return !TERMINAL.includes(item.status);
 }
 
@@ -118,7 +116,11 @@ export function clearFinishedQueueItems(): void {
 
 /** Number of non-terminal rows (spinner/badge + bulk `activeExports`). */
 export function activeQueueCount(items: ExportQueueItem[]): number {
-  return items.filter(isQueueItemActive).length;
+  let count = 0;
+  for (const item of items) {
+    if (isQueueItemActive(item)) count += 1;
+  }
+  return count;
 }
 
 export function selectActiveCount(items: ExportQueueItem[]): number {
@@ -130,5 +132,9 @@ export function selectKindActive(
   items: ExportQueueItem[],
   kind: ExportQueueItemKind,
 ): number {
-  return items.filter((i) => i.kind === kind && isQueueItemActive(i)).length;
+  let count = 0;
+  for (const item of items) {
+    if (item.kind === kind && isQueueItemActive(item)) count += 1;
+  }
+  return count;
 }

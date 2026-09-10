@@ -76,6 +76,8 @@ export const UploadOtherButton = memo(function UploadOtherButton({
   const inputRef = useRef<HTMLInputElement>(null);
   const metadataMutation = useVideoMetadataMutation();
 
+  const { mutate: requestMetadata } = metadataMutation;
+
   const onPick = useCallback(
     async (file: File | undefined) => {
       if (!validateVideoFile(file)) return;
@@ -105,9 +107,9 @@ export const UploadOtherButton = memo(function UploadOtherButton({
       setMobileState((prev) => ({ ...prev, ...(resetState.mobile || {}) }));
       setSubtitleState((prev) => ({ ...prev, ...(resetState.subtitle || {}) }));
       resetPlayheadTime(resetState.source?.currentTime ?? 0);
-      metadataMutation.mutate(file);
+      requestMetadata(file);
     },
-    [metadataMutation, reset, clearTrimCache],
+    [requestMetadata, reset, clearTrimCache],
   );
 
   return (

@@ -108,9 +108,18 @@ export function persistTrim(trim: [number, number]) {
 }
 
 export function subscribeToTrimPersistence() {
+  let lastPersisted: [number, number] | null = null;
   const subscription = sourceStore.subscribe(() => {
     const trim = sourceStore.state.trimRange;
-    if (trim[1] > trim[0] && trim[1] > 0) persistTrim(trim);
+    if (trim[1] <= trim[0] || trim[1] <= 0) return;
+    if (
+      lastPersisted !== null &&
+      lastPersisted[0] === trim[0] &&
+      lastPersisted[1] === trim[1]
+    )
+      return;
+    lastPersisted = [trim[0], trim[1]];
+    persistTrim(trim);
   });
   const onStorage = (event: StorageEvent) => {
     if (event.key !== TRIM_STORAGE_KEY || !event.newValue) return;
