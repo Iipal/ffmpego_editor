@@ -62,7 +62,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `upload-chunked.ts`      | `uploadFileChunked` (>256 MB), `uploadFormWithProgress` (XHR progress), `shouldUseChunked`               |
 | `transcode-progress.ts`  | `subscribeTranscodeProgress` (SSE `progressUrl` fan-out)                                                 |
 | `transcode-jobs.ts`      | `cancelTranscodeJob`, envelope errors (`serverErrorMessage`, `throwTranscodeHttpError`)                  |
-| `preflight.ts`           | `preflightExport` (fail-fast summary), `probeApiConnectivity`                                            |
+| `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity`                                    |
 | `validate-settings.ts`   | contracts pre-validation before every `POST`                                                             |
 | `playback-bus.ts`        | `PlaybackBus` service: `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`                               |
 | `video-file.ts`          | accepted input attrs, size guards, filename helpers                                                      |

@@ -78,7 +78,7 @@ import { apiClient } from "@/lib/api-client";
 import { serverErrorMessage } from "@/lib/transcode-jobs";
 import { saveBlobFile } from "@/lib/save-blob-file";
 import { exportPresets, type ExportPreset } from "@/lib/export-presets";
-import { preflightExport, probeApiConnectivity } from "@/lib/preflight";
+import { preflight } from "@/lib/preflight";
 import { trackHistoryEntry } from "@/store/exportHistorySlice";
 import { openComparison } from "@/store/compareSlice";
 
@@ -299,7 +299,7 @@ export function Sidebar() {
   const presets = useMemo(() => exportPresets.all(), [presetsTick]);
   const selectedPreset = presets.find((p) => p.id === presetId);
 
-  const preflight = preflightExport({
+  const preflightResult = preflight.check({
     hasFile: !!state.file,
     sourceWidth: state.sourceWidth,
     sourceHeight: state.sourceHeight,
@@ -316,14 +316,14 @@ export function Sidebar() {
   });
 
   const gatePreflight = async (): Promise<boolean> => {
-    const errors = preflight.issues.filter((i) => i.level === "error");
+    const errors = preflightResult.issues.filter((i) => i.level === "error");
     if (errors.length) {
       toast.error("Export blocked by preflight.", {
         description: errors.map((i) => i.message).join("\n"),
       });
       return false;
     }
-    const conn = await probeApiConnectivity();
+    const conn = await preflight.probeApiConnectivity();
     if (conn) {
       toast.error("Export blocked.", { description: conn });
       return false;
@@ -1089,12 +1089,12 @@ export function Sidebar() {
               </p>
             ) : null}
             <div className="space-y-1 text-[11px] leading-4" aria-live="polite">
-              {preflight.summary.map((line) => (
+              {preflightResult.summary.map((line) => (
                 <p key={line} className="text-kumo-subtle">
                   {line}
                 </p>
               ))}
-              {preflight.issues.map((issue) => (
+              {preflightResult.issues.map((issue) => (
                 <p
                   key={issue.message}
                   className={
@@ -1114,7 +1114,7 @@ export function Sidebar() {
               disabled={
                 state.sourceWidth === 0 ||
                 state.sourceHeight === 0 ||
-                !preflight.ok
+                !preflightResult.ok
               }
             >
               {state.presetTarget === "audio-extract"

@@ -202,7 +202,8 @@ flowchart LR
 - `store/exportQueueSlice.ts` + `components/export/QueueDock.tsx`: queue rows,
   dock pill/panel (`QueueDock`), nav widgets — `QueueActivityNav` (expanded
   nav, click toggles the dock) / `QueueActivityBadge` (collapsed nav, opens).
-- `lib/preflight.ts`: `preflightExport`, `probeApiConnectivity`.
+- `lib/preflight.ts` (`Preflight` service:
+  `preflight.check/probeApiConnectivity`).
 - `lib/export-history.ts` (`ExportHistory` service:
   `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`) +
   `store/exportHistorySlice.ts`: `trackHistoryEntry`.
