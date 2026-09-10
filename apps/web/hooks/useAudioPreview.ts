@@ -173,37 +173,37 @@ export function useAudioPreview({
       if (!transport || disposed) return;
       await Promise.all(
         activeTracks.map(async (track) => {
-        let blob: Blob;
-        try {
-          blob = await audioUpload.postBlobWith(
-            `/api/audio/extract?format=wav&track=${track.trackIndex}`,
-            file,
-            transport,
-          );
-        } catch {
-          return;
-        }
-        if (disposed) return;
-        const objectUrl = URL.createObjectURL(blob);
-        if (disposed) {
-          URL.revokeObjectURL(objectUrl);
-          return;
-        }
-        const element = new Audio(objectUrl);
-        element.preload = "auto";
-        const gain = context.createGain();
-        context
-          .createMediaElementSource(element)
-          .connect(gain)
-          .connect(context.destination);
-        entries.push({
-          trackIndex: track.trackIndex,
-          element,
-          gain,
-          objectUrl,
-          lastGain: -1,
-        });
-        if (!video.paused) void playAudio();
+          let blob: Blob;
+          try {
+            blob = await audioUpload.postBlobWith(
+              `/api/audio/extract?format=wav&track=${track.trackIndex}`,
+              file,
+              transport,
+            );
+          } catch {
+            return;
+          }
+          if (disposed) return;
+          const objectUrl = URL.createObjectURL(blob);
+          if (disposed) {
+            URL.revokeObjectURL(objectUrl);
+            return;
+          }
+          const element = new Audio(objectUrl);
+          element.preload = "auto";
+          const gain = context.createGain();
+          context
+            .createMediaElementSource(element)
+            .connect(gain)
+            .connect(context.destination);
+          entries.push({
+            trackIndex: track.trackIndex,
+            element,
+            gain,
+            objectUrl,
+            lastGain: -1,
+          });
+          if (!video.paused) void playAudio();
         }),
       );
     })();

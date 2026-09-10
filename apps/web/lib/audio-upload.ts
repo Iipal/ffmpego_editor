@@ -61,9 +61,7 @@ class AudioUpload {
     const key = AudioUpload.fileKey(file);
     const cached = this.completedByFile.get(key);
     if (cached) {
-      const status = await uploadSessions
-        .fetchStatus(cached)
-        .catch(() => null);
+      const status = await uploadSessions.fetchStatus(cached).catch(() => null);
       if (
         status &&
         status.totalSize === file.size &&
@@ -161,11 +159,7 @@ class AudioUpload {
     }
     const form = new FormData();
     form.append("file", file);
-    return apiClient.formPost<T>(
-      endpoint,
-      form,
-      AudioUpload.signalInit(opts),
-    );
+    return apiClient.formPost<T>(endpoint, form, AudioUpload.signalInit(opts));
   }
 
   /**
@@ -207,9 +201,7 @@ class AudioUpload {
    * required"). Degrades to no-retry if the text ever changes.
    */
   private static isFileRequiredError(e: unknown): boolean {
-    return (
-      e instanceof Error && e.message.includes("Audio file is required")
-    );
+    return e instanceof Error && e.message.includes("Audio file is required");
   }
 }
 

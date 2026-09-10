@@ -786,7 +786,7 @@ export function Sidebar() {
         </Collapsible>
       </Card>
       <Card className="p-4 rounded-lg">
-        <Collapsible defaultOpen>
+        <Collapsible>
           <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
             Filters <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>
@@ -796,7 +796,7 @@ export function Sidebar() {
         </Collapsible>
       </Card>
       <Card className="p-4 rounded-lg">
-        <Collapsible>
+        <Collapsible defaultOpen>
           <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-semibold tracking-normal">
             Export <ChevronDown className="size-4 text-kumo-subtle" />
           </CollapsibleTrigger>

@@ -46,16 +46,21 @@ async function fetchVideoMetadata(
     if (!res.ok) {
       const err = (await res.json().catch(() => null)) as unknown;
       throw new Error(
-        transcodeJobs.serverErrorMessage(err) ?? `Metadata failed: ${res.status}`,
+        transcodeJobs.serverErrorMessage(err) ??
+          `Metadata failed: ${res.status}`,
       );
     }
     return (await res.json()) as VideoMetadata;
   }
   const form = new FormData();
   form.append("file", file);
-  return uploadChunked.uploadForm<VideoMetadata>(`/api/metadata${query}`, form, {
-    onUploadProgress: (sent, total) => setUploadProgress(sent, total),
-  });
+  return uploadChunked.uploadForm<VideoMetadata>(
+    `/api/metadata${query}`,
+    form,
+    {
+      onUploadProgress: (sent, total) => setUploadProgress(sent, total),
+    },
+  );
 }
 
 // Export prefs captured when a file selection starts a metadata fetch.

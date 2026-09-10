@@ -1,8 +1,9 @@
 "use client";
 
 import { memo } from "react";
-import { Captions, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Captions, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AreaShell } from "@/components/shared/AreaShell";
 import { formatTime } from "@/lib/format-time";
 import { getSubtitleTrack } from "./subtitle-helpers";
 import type { SubtitleAreaProps } from "./types";
@@ -27,48 +28,44 @@ export const SubtitleArea = memo(function SubtitleArea({
   const selectedTrack = selected ? getSubtitleTrack(selected) + 1 : null;
 
   return (
-    <div className="rounded-md border border-kumo-hairline bg-kumo-recessed">
-      {/* Top bar: identity + actions */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-7 items-center justify-center rounded-md border border-kumo-line bg-kumo-base text-kumo-subtle">
-            <Captions className="size-3.5" aria-hidden />
+    <AreaShell
+      icon={<Captions className="size-3.5" aria-hidden />}
+      title="Subtitle area"
+      badges={
+        <>
+          <span className="inline-flex items-center rounded-full border border-kumo-hairline bg-kumo-base px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-kumo-subtle">
+            {layoutMode}
           </span>
-          <div className="flex flex-col gap-0.5">
-            <span className="flex items-center gap-2 text-xs font-semibold leading-none">
-              Subtitle area
-              <span className="inline-flex items-center rounded-full border border-kumo-hairline bg-kumo-base px-1.5 py-0.5 text-[10px] font-medium leading-none tabular-nums text-kumo-subtle">
-                {layoutMode}
-              </span>
-              {selected ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-normal text-kumo-success">
-                  <span
-                    className="size-1.5 rounded-full bg-kumo-success"
-                    aria-hidden
-                  />
-                  editing
-                </span>
-              ) : null}
+          {selected ? (
+            <span className="inline-flex items-center gap-1 text-[11px] font-normal text-kumo-success">
+              <span
+                className="size-1.5 rounded-full bg-kumo-success"
+                aria-hidden
+              />
+              editing
             </span>
-            <span className="text-[11px] leading-none text-kumo-subtle tabular-nums">
-              {count} subtitle{count === 1 ? "" : "s"}
-              <span aria-hidden className="mx-1 text-kumo-hairline">
-                ·
-              </span>
-              {trackCount} track{trackCount === 1 ? "" : "s"}
-              <span aria-hidden className="mx-1 text-kumo-hairline">
-                ·
-              </span>
-              {durationLabel}
-              <span aria-hidden className="mx-1 text-kumo-hairline">
-                ·
-              </span>
-              source {sourceLabel}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5">
+          ) : null}
+        </>
+      }
+      subtitle={
+        <>
+          {count} subtitle{count === 1 ? "" : "s"}
+          <span aria-hidden className="mx-1 text-kumo-hairline">
+            ·
+          </span>
+          {trackCount} track{trackCount === 1 ? "" : "s"}
+          <span aria-hidden className="mx-1 text-kumo-hairline">
+            ·
+          </span>
+          {durationLabel}
+          <span aria-hidden className="mx-1 text-kumo-hairline">
+            ·
+          </span>
+          source {sourceLabel}
+        </>
+      }
+      actions={
+        <>
           <Button
             size="sm"
             variant="secondary"
@@ -92,27 +89,25 @@ export const SubtitleArea = memo(function SubtitleArea({
             <Trash2 className="size-3.5" aria-hidden />
             Delete
           </Button>
-        </div>
-      </div>
-
-      {/* Readout grid: count + selected + trim + export */}
-      <div className="grid grid-cols-2 gap-px border-t border-kumo-hairline bg-kumo-hairline sm:grid-cols-4">
-        <div className="bg-kumo-recessed px-3 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-kumo-subtle">
-            Subtitles / Tracks
-          </div>
-          <div className="mt-0.5 font-mono text-xs tabular-nums">
-            {count} · {trackCount} lane{trackCount === 1 ? "" : "s"}
-          </div>
-          <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            layout {layoutMode} · {fileName || "untitled"}
-          </div>
-        </div>
-        <div className="bg-kumo-recessed px-3 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-kumo-subtle">
-            Selected
-          </div>
-          {selected ? (
+        </>
+      }
+      readouts={[
+        {
+          label: "Subtitles / Tracks",
+          value: (
+            <>
+              <div className="mt-0.5 font-mono text-xs tabular-nums">
+                {count} · {trackCount} lane{trackCount === 1 ? "" : "s"}
+              </div>
+              <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+                layout {layoutMode} · {fileName || "untitled"}
+              </div>
+            </>
+          ),
+        },
+        {
+          label: "Selected",
+          value: selected ? (
             <>
               <div className="mt-0.5 truncate font-mono text-xs tabular-nums">
                 {selected.text || "(empty)"}
@@ -135,36 +130,37 @@ export const SubtitleArea = memo(function SubtitleArea({
                 click a subtitle to edit
               </div>
             </>
-          )}
-        </div>
-        <div className="bg-kumo-recessed px-3 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-kumo-subtle">
-            Trim
-          </div>
-          <div className="mt-0.5 font-mono text-xs tabular-nums">
-            <span suppressHydrationWarning>{trimLabel}</span>
-          </div>
-          <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            <span suppressHydrationWarning>{durationLabel}</span> total
-          </div>
-        </div>
-        <div className="bg-kumo-recessed px-3 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-kumo-subtle">
-            Export
-          </div>
-          <div className="mt-0.5 truncate font-mono text-[11px] leading-4 tabular-nums text-kumo-subtle">
-            {exportName}
-          </div>
-          <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-            mp4 · 1080 × 1920 · burned-in PNGs
-          </div>
-        </div>
-      </div>
-
-      {/* Hint — operational, not decorative */}
-      <div className="flex items-center gap-1.5 border-t border-kumo-hairline px-3 py-2 text-[11px] leading-none text-kumo-subtle">
-        <SlidersHorizontal className="size-3 shrink-0" aria-hidden />
-        {selected ? (
+          ),
+        },
+        {
+          label: "Trim",
+          value: (
+            <>
+              <div className="mt-0.5 font-mono text-xs tabular-nums">
+                <span suppressHydrationWarning>{trimLabel}</span>
+              </div>
+              <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+                <span suppressHydrationWarning>{durationLabel}</span> total
+              </div>
+            </>
+          ),
+        },
+        {
+          label: "Export",
+          value: (
+            <>
+              <div className="mt-0.5 truncate font-mono text-[11px] leading-4 tabular-nums text-kumo-subtle">
+                {exportName}
+              </div>
+              <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+                mp4 · 1080 × 1920 · burned-in PNGs
+              </div>
+            </>
+          ),
+        },
+      ]}
+      hint={
+        selected ? (
           <span>
             Drag timeline blocks to retime · drag vertically to move tracks ·
             style in the sidebar
@@ -174,8 +170,8 @@ export const SubtitleArea = memo(function SubtitleArea({
             Click a subtitle on the preview or list to edit its style, position
             and timing
           </span>
-        )}
-      </div>
-    </div>
+        )
+      }
+    />
   );
 });

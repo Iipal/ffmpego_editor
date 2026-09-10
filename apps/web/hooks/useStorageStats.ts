@@ -1,7 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { storage, type StorageStats, type StorageSweepResult } from "@/lib/storage";
+import {
+  storage,
+  type StorageStats,
+  type StorageSweepResult,
+} from "@/lib/storage";
 
 export type { StorageStats, StorageSweepResult };
 

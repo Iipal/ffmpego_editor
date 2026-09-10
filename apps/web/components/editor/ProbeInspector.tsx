@@ -41,7 +41,10 @@ function PagedTable({
   useEffect(() => setPage(0), [rows]);
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(page, pageCount - 1);
-  const visible = rows.slice(safePage * pageSize, safePage * pageSize + pageSize);
+  const visible = rows.slice(
+    safePage * pageSize,
+    safePage * pageSize + pageSize,
+  );
   return (
     <div className="space-y-2">
       <div className="overflow-auto rounded-md border border-kumo-line">
@@ -166,9 +169,7 @@ export function ProbeInspector({
       const t = typeof f.pict_type === "string" ? f.pict_type : "?";
       counts.set(t, (counts.get(t) ?? 0) + 1);
     }
-    return [...counts.entries()]
-      .map(([t, n]) => `${t}: ${n}`)
-      .join(" · ");
+    return [...counts.entries()].map(([t, n]) => `${t}: ${n}`).join(" · ");
   }, [frames]);
 
   return (
@@ -226,9 +227,7 @@ export function ProbeInspector({
       <TabsContent value="packets" className="min-h-0 space-y-2 overflow-auto">
         {packets.length ? (
           <>
-            <p className="text-xs text-kumo-subtle">
-              {packets.length} packets
-            </p>
+            <p className="text-xs text-kumo-subtle">{packets.length} packets</p>
             <PagedTable rows={packets} columns={PACKET_COLUMNS} />
           </>
         ) : (
