@@ -31,7 +31,7 @@ export const ZoneOverlay = memo(function ZoneOverlay({
       role="button"
       tabIndex={0}
       aria-label={`${label} crop zone${zone.locked ? " locked" : ""}`}
-      aria-selected={isSelected}
+      aria-pressed={isSelected}
       className={cn(
         "absolute cursor-move rounded-md border transition-colors",
         isSelected
@@ -83,7 +83,10 @@ export const ZoneOverlay = memo(function ZoneOverlay({
             const startZoom = zone.zoom;
             const onMove = (ev: PointerEvent) => {
               const dy = (startY - ev.clientY) / 120;
-              onZoom(zone.id, mobileLayoutService.clamp(startZoom + dy, 0.5, 3));
+              onZoom(
+                zone.id,
+                mobileLayoutService.clamp(startZoom + dy, 0.5, 3),
+              );
             };
             const onUp = () => {
               window.removeEventListener("pointermove", onMove);

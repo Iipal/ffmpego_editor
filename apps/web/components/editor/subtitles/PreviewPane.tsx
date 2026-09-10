@@ -188,7 +188,7 @@ export function PreviewPane({
           currentTime={currentTime}
           duration={effectiveDuration}
           onTogglePlay={onTogglePlayback}
-          onSeek={onTimelineSeek}
+          onSeek={onProgressSeek}
           volume={volume}
           onVolumeChange={onVolumeChange}
           muted={muted}
@@ -208,7 +208,7 @@ export function PreviewPane({
           subtitles={e.deferredSubtitles}
           selectedId={e.selectedId}
           trackCount={e.trackCount}
-          onSeek={e.handleTimelineSeek}
+          onSeek={onTimelineSeek}
           onSelect={e.setSelectedId}
           onUpdateSubtitle={e.handleTimelineUpdateSubtitle}
           onUpdateTrack={e.handleMoveSubtitleToTrack}

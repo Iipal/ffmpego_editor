@@ -156,11 +156,7 @@ export const JobRow = memo(function JobRow({
                 autoFocus
                 aria-label="Job name"
               />
-              <Button
-                type="submit"
-                size="xs"
-                disabled={renamePending}
-              >
+              <Button type="submit" size="xs" disabled={renamePending}>
                 Save
               </Button>
               <Button
@@ -242,7 +238,12 @@ export const JobRow = memo(function JobRow({
             </Button>
           ) : null}
           {onRename && !renaming ? (
-            <Button variant="ghost" size="xs" onClick={startRename} title="Rename job">
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={startRename}
+              title="Rename job"
+            >
               Rename
             </Button>
           ) : null}

@@ -132,7 +132,7 @@ export function SubtitleBasicsPanel({
             onChange={(e) => {
               const v = parseFloat(e.target.value);
               if (!Number.isFinite(v)) return;
-              let ns = mobileLayoutService.clamp(
+              const ns = mobileLayoutService.clamp(
                 v,
                 trimStart,
                 trimEnd - SubtitleStorage.MIN_DURATION,
@@ -161,7 +161,7 @@ export function SubtitleBasicsPanel({
             onChange={(e) => {
               const v = parseFloat(e.target.value);
               if (!Number.isFinite(v)) return;
-              let ne = mobileLayoutService.clamp(
+              const ne = mobileLayoutService.clamp(
                 v,
                 trimStart + SubtitleStorage.MIN_DURATION,
                 trimEnd,

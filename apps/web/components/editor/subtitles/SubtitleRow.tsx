@@ -27,7 +27,7 @@ export const SubtitleRow = memo(function SubtitleRow({
         isVisible && "ring-1 ring-primary/20",
       )}
       aria-label={`Select subtitle ${sub.text}`}
-      aria-selected={isSelected}
+      aria-pressed={isSelected}
       style={
         {
           contentVisibility: "auto",

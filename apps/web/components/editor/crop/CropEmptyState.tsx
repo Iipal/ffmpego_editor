@@ -1,10 +1,6 @@
 import { Crop, Film, Scissors } from "lucide-react";
 import { CapabilityCard } from "../shared/CapabilityCard";
-import {
-  DashedPreviewHint,
-  EmptyStateShell,
-  UploaderCard,
-} from "../shared/EmptyState";
+import { EmptyStateShell, UploaderCard } from "../shared/EmptyState";
 
 export function CropEmptyState() {
   return (

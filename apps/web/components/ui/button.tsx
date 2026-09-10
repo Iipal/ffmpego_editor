@@ -62,13 +62,7 @@ function Button({
     <ButtonPrimitive
       data-slot="button"
       data-kumo-component="button"
-      className={cn(
-        buttonVariants({
-          variant: variant as any,
-          size: size as any,
-          className,
-        }),
-      )}
+      className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   );

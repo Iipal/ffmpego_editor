@@ -178,7 +178,11 @@ export function Sidebar() {
   useEffect(() => {
     if (!state.file || !basename) return;
     if (!state.exportFilename) {
-      update({ exportFilename: basename });
+      setCutState((previous) =>
+        previous.exportFilename
+          ? previous
+          : { ...previous, exportFilename: basename },
+      );
     }
   }, [basename, state.exportFilename, state.file]);
   const selectReplacementFile = (file: File | undefined) => {
@@ -290,7 +294,10 @@ export function Sidebar() {
   const [presetId, setPresetId] = useState("");
   const [customPresetName, setCustomPresetName] = useState("");
   const [presetsTick, setPresetsTick] = useState(0);
-  const presets = useMemo(() => exportPresets.all(), [presetsTick]);
+  const presets = useMemo(() => {
+    void presetsTick;
+    return exportPresets.all();
+  }, [presetsTick]);
   const selectedPreset = presets.find((p) => p.id === presetId);
 
   const preflightResult = preflight.check({

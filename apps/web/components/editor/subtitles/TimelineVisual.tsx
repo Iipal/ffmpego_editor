@@ -145,7 +145,11 @@ export function TimelineVisual({
           const isActive =
             currentTime >= sub.startTime && currentTime < sub.endTime;
           const trackIdx = getSubtitleTrack(sub);
-          const clampedTrack = mobileLayoutService.clamp(trackIdx, 0, Math.max(trackCount - 1, 0));
+          const clampedTrack = mobileLayoutService.clamp(
+            trackIdx,
+            0,
+            Math.max(trackCount - 1, 0),
+          );
           const top = HEADER_H + clampedTrack * ROW_H + 3;
           return (
             <div
@@ -170,7 +174,7 @@ export function TimelineVisual({
               onClick={() => onSelect(sub.id)}
               role="button"
               aria-label={`Subtitle ${sub.text} track ${clampedTrack + 1} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
-              aria-selected={isSelected}
+              aria-pressed={isSelected}
               title={`Track ${clampedTrack + 1} · drag vertically to move`}
             >
               <div

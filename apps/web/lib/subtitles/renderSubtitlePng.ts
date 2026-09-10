@@ -70,7 +70,6 @@ export async function renderSubtitlePng(
   } catch {}
   // Ensure fonts are loaded if possible (best effort)
   try {
-    // @ts-ignore
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
   } catch {}
 
@@ -122,7 +121,6 @@ export async function renderSubtitlePng(
     // Rounded rect
     if (typeof ctx.roundRect === "function") {
       ctx.beginPath();
-      // @ts-ignore
       ctx.roundRect(x, y, w, h, r);
       ctx.fill();
     } else {

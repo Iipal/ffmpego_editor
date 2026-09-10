@@ -65,7 +65,7 @@ function computeNextRect(args: {
   lockedRatio: number | null; // width/height in pct-space = targetRatio / srcAspect
 }): Rect {
   const { start, dxPct, dyPct, handle, lockedRatio } = args;
-  let next: Rect = { ...start };
+  const next: Rect = { ...start };
 
   // ---- move ---------------------------------------------------------------
   if (handle === "move") {
@@ -127,8 +127,6 @@ function computeNextRect(args: {
     // corner — anchored diagonally to opposite point.
     // ne -> sw, nw -> se, se -> nw, sw -> ne per spec. The anchor never moves.
     const isE = handle.includes("e");
-    const isW = handle.includes("w");
-    const isN = handle.includes("n");
     const isS = handle.includes("s");
 
     // Opposite corner is the anchor

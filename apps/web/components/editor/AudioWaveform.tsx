@@ -52,7 +52,7 @@ export function AudioWaveform({
           : track,
       ),
     }));
-  }, [data, file]);
+  }, [data, file, trackIndex]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

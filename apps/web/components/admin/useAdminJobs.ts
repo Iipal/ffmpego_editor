@@ -302,7 +302,7 @@ export function useAdminJobs() {
   // js-cache-property-access, js-index-maps, js-set-map-lookups, js-tosorted-immutable,
   // js-min-max-loop, js-flatmap-filter, js-length-check-first, js-early-exit
   // -----------------------------------------------------------------------
-  const jobs = data?.jobs ?? [];
+  const jobs = useMemo(() => data?.jobs ?? [], [data]);
 
   // js-index-maps: O(1) lookup for job by id (1M find calls -> 2K map ops if used in handlers)
   const jobById = useMemo(

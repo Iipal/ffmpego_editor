@@ -33,9 +33,7 @@ export function useJobsLiveSync(
     let closed = false;
     let seenMessage = false;
     setStatus("connecting");
-    const source = new EventSource(
-      apiClient.url("/api/transcode/jobs/stream"),
-    );
+    const source = new EventSource(apiClient.url("/api/transcode/jobs/stream"));
     source.onopen = () => {
       if (!closed) setStatus(seenMessage ? "live" : "connecting");
     };
