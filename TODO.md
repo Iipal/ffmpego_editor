@@ -32,8 +32,10 @@ Derived from an architecture/feature audit (2026-09-10). Keep in sync with
 - [ ] **Add tests (currently zero repo-wide).**
   - Vitest (bun) on pure logic first: `lib/mobile-layout.ts` (zone math), `lib/upload-chunked.ts`, `lib/transcode-jobs.ts`, `lib/validate-settings.ts`, store slices.
   - Playwright smoke on the upload → transcode → download path.
-- [ ] **Unify duplicated player/uploader code.**
+- [x] **Unify duplicated player code.**
   - Three playback implementations: `components/editor/shared/useVideoPlayer.ts`, `subtitles/useVideoPlayback.ts`, `cut/useCutPlayback.ts` → one `usePlaybackEngine`.
+  - Done 2026-09-10: new `components/editor/shared/usePlaybackEngine.ts` owns element transport, isolated playhead clock, trim clamp (unconditional `loopRange` + `trimRange`/`trimLoop` pause-at-end policy), throttle+rAF sync, volume/muted/rate/loop sync, WebAudio preview, plus shared `seekVideoElement` helper. `useVideoPlayer` is a compat alias; `subtitles/useVideoPlayback` keeps its public API (trim-aware seeks, preview-height observer) over the engine with direct-drive transport; `cut/useCutPlayback`(+`useSeekTo`) delegates to the engine; crop `VideoPlayer` dropped its inline wiring for the engine.
+- [ ] **Unify duplicated uploader code**
   - Four near-identical `UploadOtherButton.tsx` copies (crop/cut/mobile/shared) → one shared component.
 - [x] **Fix render-path playhead clock**
   - `currentTime` ticks through `sourceSlice` and re-renders subscribers (throttled store writes per frame); move playhead to a transient/rAF subscription.
@@ -41,10 +43,10 @@ Derived from an architecture/feature audit (2026-09-10). Keep in sync with
 - [ ] **list scaling**
   - Real virtualization for `JobsList`, subtitle rows, `BulkArea` grids (only `content-visibility` today).
 - [ ] **Break up mega-files**
-  - `components/editor/Sidebar.tsx` (1143 LOC) → split export form sections; `components/admin/useAdminJobs.ts` (479 LOC) → split query/mutations/actions.
+  - `components/editor/Sidebar.tsx` (1143 LOC) → split export form sections;
+  - `components/admin/useAdminJobs.ts` (479 LOC) → split query/mutations/actions.
 - [x] **prune dead deps**
   - Removed unused root deps: `framer-motion`, `react-rnd`, `@phosphor-icons/react` (zero imports in `apps/`/`packages/`; remaining copies are transitive via `@cloudflare/kumo`). Kept `@cloudflare/kumo` — actively used via `@import "@cloudflare/kumo/styles/tailwind"` in `apps/web/app/globals.css`. Also pruned unused web deps: `hono` (api-only), `cn`/`clsx`/`tailwind-merge` (still present transitively via `shadcn`/`@repo/ui`).
   - Done 2026-09-10.
-- [ ] **Error boundaries + CI.**
+- [ ] **Error boundaries**
   - No `ErrorBoundary` in `app/` — add route-level boundaries + one central API-envelope→toast mapper replacing ad-hoc try/catches per hook.
-  - Add `.github/workflows` running turbo `typecheck + lint + test`.

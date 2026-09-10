@@ -2,19 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { mobileLayoutService } from "@/lib/mobile-layout";
-import { NOOP } from "./heavy-modules";
 import { useSelector } from "@tanstack/react-store";
-import { sourceStore, setSourceState } from "@/store/sourceSlice";
-import {
-  commitPlayheadTime,
-  getPlayheadTime,
-  setPlayheadTime,
-  usePlayheadTime,
-} from "@/store/playheadSlice";
-import { mobileStore, setMobileState } from "@/store/mobileSlice";
-import { audioStore } from "@/store/audioSlice";
-import { cutStore } from "@/store/cutSlice";
-import { useAudioPreview } from "@/hooks/useAudioPreview";
+import { commitPlayheadTime } from "@/store/playheadSlice";
+import { mobileStore } from "@/store/mobileSlice";
+import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 
 export type UseVideoPlaybackArgs = {
   mediaUrl: string | null;
@@ -24,7 +15,10 @@ export type UseVideoPlaybackArgs = {
 };
 
 // Video element sync + transport state for the subtitles editor.
-// Owns the hidden <video> ref, playhead tick, trim/loop refs and effects.
+// Thin wrapper over the shared playback engine: trim loop / pause-at-end
+// policy comes from `trimRange` + `trimLoop`, transport + volume/mute/rate
+// sync from the engine. Only the preview-height layout observer and the
+// trim-aware seek helpers below are subtitles-specific.
 export function useVideoPlayback({
   mediaUrl,
   srcDuration,
@@ -33,32 +27,42 @@ export function useVideoPlayback({
 }: UseVideoPlaybackArgs) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Transient playhead ref (no re-render) + isolated store snapshot for UI.
-  // Per-frame ticks stay out of sourceStore so unrelated subscribers idle.
-  const currentTimeRef = useRef(getPlayheadTime());
-  const currentTime = usePlayheadTime();
-
-  // Effect 2: duration/display sync — separate from font loading
-  const duration = useSelector(sourceStore, (s) => s.duration);
-  const isPlaying = useSelector(sourceStore, (s) => s.isPlaying);
-  const volume = useSelector(sourceStore, (s) => s.volume);
-  const muted = useSelector(sourceStore, (s) => s.isMuted);
-  const file = useSelector(sourceStore, (s) => s.file);
   const isLooping = useSelector(mobileStore, (s) => s.isLoopEnabled);
-  const [previewHeight, setPreviewHeight] = useState(560);
-  const previewWrapRef = useRef<HTMLDivElement>(null);
-  const tracks = useSelector(audioStore, (s) => s.tracks);
-  const trackCount = useSelector(audioStore, (s) => s.tracks.length);
-  const playbackSpeed = useSelector(cutStore, (s) => s.playbackSpeed);
-  useAudioPreview({ file, mediaUrl, videoRef, tracks, volume, muted });
+
+  const engine = usePlaybackEngine(videoRef, {
+    mediaUrl,
+    trimRange: [trimStart, trimEnd],
+    trimLoop: isLooping,
+    // 10 Hz throttled snapshots + rAF smooth sync while playing (same
+    // cadence family as the crop/mobile players).
+    throttleMs: 100,
+  });
+
+  const {
+    duration,
+    isPlaying,
+    volume,
+    muted,
+    currentTime,
+    timeRef: currentTimeRef,
+    setVolume,
+    toggleMute,
+    toggleLoop,
+    seekTo,
+  } = engine;
 
   const effectiveDuration = duration || srcDuration || 0;
+
+  const [previewHeight, setPreviewHeight] = useState(560);
+  const previewWrapRef = useRef<HTMLDivElement>(null);
 
   // ResizeObserver — keep stable, batch writes via cssText / class (js-batch-dom-css)
   useEffect(() => {
     const el = previewWrapRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
+
     let raf = 0;
+
     const obs = new ResizeObserver((entries) => {
       const entry = entries[0] as unknown as {
         contentRect: DOMRectReadOnly;
@@ -68,7 +72,9 @@ export function useVideoPlayback({
         entry.borderBoxSize?.[0]?.blockSize ??
         el.getBoundingClientRect().height;
       const h = Math.round(raw);
+
       if (!h || !Number.isFinite(h)) return;
+
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const clamped = Math.max(320, Math.min(900, h));
@@ -77,257 +83,80 @@ export function useVideoPlayback({
         );
       });
     });
+
     obs.observe(el);
+
     return () => {
       cancelAnimationFrame(raf);
       obs.disconnect();
     };
   }, []);
 
-  // advanced-event-handler-refs + rerender-use-ref-transient-values: keep latest trim/loop in refs for stable video handlers
+  // Latest trim in refs for stable seek helpers.
   const trimStartRef = useRef(trimStart);
   const trimEndRef = useRef(trimEnd);
-  const isLoopingRef = useRef(isLooping);
   useEffect(() => {
     trimStartRef.current = trimStart;
     trimEndRef.current = trimEnd;
-    isLoopingRef.current = isLooping;
-  }, [trimStart, trimEnd, isLooping]);
-
-  // video event handling — split effects, narrow deps, passive listeners
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const onLoadedMetadata = () => {
-      const d = v.duration;
-      if (Number.isFinite(d)) {
-        setSourceState((previous) => ({ ...previous, duration: d }));
-      }
-    };
-    const onTimeUpdate = () => {
-      const t = v.currentTime;
-      const s = trimStartRef.current;
-      const e = trimEndRef.current;
-      const looping = isLoopingRef.current;
-      if (looping && e > s) {
-        if (t >= e - 0.02) {
-          v.currentTime = s;
-          currentTimeRef.current = s;
-          commitPlayheadTime(s);
-          return;
-        }
-        if (t < s - 0.01) {
-          v.currentTime = s;
-          currentTimeRef.current = s;
-          commitPlayheadTime(s);
-          return;
-        }
-      } else {
-        if (t >= e - 0.01 && e > 0) {
-          v.pause();
-          v.currentTime = e;
-          currentTimeRef.current = e;
-          commitPlayheadTime(e);
-          setSourceState((previous) => ({
-            ...previous,
-            isPlaying: false,
-          }));
-          return;
-        }
-      }
-      // Transient tick while scrubbing/paused-seek; rAF loop owns the
-      // throttled render snapshot while playing.
-      currentTimeRef.current = t;
-      setPlayheadTime(t);
-    };
-    const onPlay = () =>
-      setSourceState((previous) => ({ ...previous, isPlaying: true }));
-    const onPause = () => {
-      commitPlayheadTime(currentTimeRef.current);
-      setSourceState((previous) => ({ ...previous, isPlaying: false }));
-    };
-    const onEnded = () => {
-      const s = trimStartRef.current;
-      const e = trimEndRef.current;
-      if (isLoopingRef.current && e > s) {
-        v.currentTime = s;
-        currentTimeRef.current = s;
-        v.play().catch(NOOP);
-      } else {
-        setSourceState((previous) => ({ ...previous, isPlaying: false }));
-      }
-    };
-    v.addEventListener("loadedmetadata", onLoadedMetadata);
-    // client-passive-event-listeners: passive for scroll-proximate events
-    v.addEventListener("timeupdate", onTimeUpdate, {
-      passive: true,
-    } as AddEventListenerOptions);
-    v.addEventListener("play", onPlay);
-    v.addEventListener("pause", onPause);
-    v.addEventListener("ended", onEnded);
-    if (
-      v.readyState >= 1 &&
-      Number.isFinite(v.duration) &&
-      v.duration !== duration
-    ) {
-      setSourceState((previous) => ({ ...previous, duration: v.duration }));
-    }
-    return () => {
-      v.removeEventListener("loadedmetadata", onLoadedMetadata);
-      v.removeEventListener("timeupdate", onTimeUpdate);
-      v.removeEventListener("play", onPlay);
-      v.removeEventListener("pause", onPause);
-      v.removeEventListener("ended", onEnded);
-    };
-    // rerender-dependencies: only primitives/mediaUrl, videoRef omitted (stable ref)
-  }, [mediaUrl, duration]);
-
-  // RAF sync for smooth playhead — throttled transient writes; the source
-  // snapshot only moves on pause/seek/clamp so global subscribers stay idle.
-  useEffect(() => {
-    if (!isPlaying) return;
-    let raf = 0;
-    let lastTick = 0;
-    const loop = () => {
-      const v = videoRef.current;
-      if (v && !v.paused) {
-        const s = trimStartRef.current;
-        const e = trimEndRef.current;
-        if (isLoopingRef.current && e > s && v.currentTime >= e - 0.02) {
-          v.currentTime = s;
-          currentTimeRef.current = s;
-          commitPlayheadTime(s);
-        } else {
-          const t = v.currentTime;
-          currentTimeRef.current = t;
-          const now = performance.now();
-          if (now - lastTick > 100) {
-            lastTick = now;
-            setPlayheadTime(t);
-          }
-        }
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [isPlaying]);
-
-  // sync play/pause to video element — rerender-move-effect-to-event: keep minimal, narrow deps
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (isPlaying)
-      v.play().catch(() =>
-        setSourceState((previous) => ({ ...previous, isPlaying: false })),
-      );
-    else v.pause();
-  }, [isPlaying]);
-
-  // shared transport: keep element volume/muted/rate in sync (parity with
-  // the main VideoPlayer — mute the element while WebAudio preview tracks
-  // exist so audio isn't doubled; never set video.loop here, the JS
-  // trim-loop / pause-at-end logic above owns looping)
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.volume = volume;
-    v.muted = trackCount > 0 ? true : muted;
-  }, [volume, muted, trackCount]);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.playbackRate = playbackSpeed;
-  }, [playbackSpeed, mediaUrl]);
-
-  const setVolume = useCallback((v: number) => {
-    const next = mobileLayoutService.clamp(v, 0, 1);
-    setSourceState((previous) => ({
-      ...previous,
-      volume: next,
-      isMuted: next > 0 ? false : previous.isMuted,
-    }));
-  }, []);
-
-  const toggleMute = useCallback(
-    () =>
-      setSourceState((previous) => ({
-        ...previous,
-        isMuted: !previous.isMuted,
-      })),
-    [],
-  );
+  }, [trimStart, trimEnd]);
 
   // rerender-derived-state: derived staleness hint (no effect)
 
   const playFromTrimStart = useCallback(() => {
     const v = videoRef.current;
     if (!v || effectiveDuration === 0) return;
+
     const s = trimStartRef.current;
+
     v.currentTime = s;
     currentTimeRef.current = s;
+
     commitPlayheadTime(s);
-    setSourceState((previous) => ({
-      ...previous,
-      isPlaying: true,
-    }));
-  }, [effectiveDuration]);
+    // Direct-drive the element; the engine mirrors isPlaying from events.
+    v.play().catch(() => {});
+  }, [effectiveDuration, currentTimeRef]);
 
   const togglePlayback = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (!isPlaying) {
+
+    if (v.paused) {
       const cur = v.currentTime;
       const s = trimStartRef.current;
       const e = trimEndRef.current;
+
       if (cur < s || cur >= e) {
         v.currentTime = s;
         currentTimeRef.current = s;
         commitPlayheadTime(s);
       }
-      setSourceState((previous) => ({ ...previous, isPlaying: true }));
-    } else {
-      commitPlayheadTime(v.currentTime);
-      setSourceState((previous) => ({ ...previous, isPlaying: false }));
-    }
-  }, [isPlaying]);
 
-  const toggleLoop = useCallback(
-    () =>
-      setMobileState((previous) => ({
-        ...previous,
-        isLoopEnabled: !previous.isLoopEnabled,
-      })),
-    [],
-  );
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  }, [currentTimeRef]);
 
   const handleProgressSeek = useCallback(
     (value: number) => {
-      const v = videoRef.current;
-      if (!v || effectiveDuration === 0) return;
+      if (effectiveDuration === 0) return;
+
       const t = mobileLayoutService.clamp(
         value,
         trimStartRef.current,
         trimEndRef.current,
       );
-      v.currentTime = t;
-      currentTimeRef.current = t;
-      commitPlayheadTime(t);
+      seekTo(t);
     },
-    [effectiveDuration],
+    [effectiveDuration, seekTo],
   );
 
   const handleTimelineSeek = useCallback(
     (time: number) => {
-      const v = videoRef.current;
-      if (!v) return;
       const t = mobileLayoutService.clamp(time, 0, effectiveDuration);
-      v.currentTime = t;
-      currentTimeRef.current = t;
-      commitPlayheadTime(t);
+      seekTo(t);
     },
-    [effectiveDuration],
+    [effectiveDuration, seekTo],
   );
 
   return {

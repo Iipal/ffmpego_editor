@@ -1,10 +1,11 @@
 // Global playback bus: single-key shortcuts and the command palette drive
 // transport through here instead of reaching into page-local player hooks.
-// The three player implementations (`shared/useVideoPlayer`,
-// `subtitles/useVideoPlayback`, `cut/useCutPlayback`) all render a <video>
-// inside <main> and mirror state into `sourceStore`, so operating on the
+// All pages play through the shared engine (`shared/usePlaybackEngine` —
+// `shared/useVideoPlayer` is a compat alias, `subtitles/useVideoPlayback`
+// and `cut/useCutPlayback` are thin wrappers, crop `VideoPlayer` uses it
+// directly) and mirror state into `sourceStore`, so operating on the
 // active element + the store works uniformly across crop/mobile/subtitles/
-// bulk/cut without unifying the hooks first.
+// bulk/cut.
 
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import { setSourceState, sourceStore } from "@/store/sourceSlice";
@@ -15,7 +16,7 @@ import { setMobileState } from "@/store/mobileSlice";
  * Singleton service owning global transport: shortcuts and the command
  * palette drive playback/trim through here instead of reaching into
  * page-local player hooks. All DOM/store access lives here (never in the
- * callers), so the three player implementations stay interchangeable — the
+ * callers), so every page stays interchangeable — the
  * bus operates on the active `<video>` under `<main>` plus `sourceStore`,
  * which every page mirrors.
  */

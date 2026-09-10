@@ -77,7 +77,8 @@ flowchart LR
 - `CropWorkspace` — grid shell + `UploadProgress` banner.
 - `CropArea` / `CropOverlay` — crop control/readout bar + canvas rect.
 - `VideoPlayer` (`DynamicVideoPlayer` lazy) + `PlayerControls` — preview with
-  CSS filter preview + audio preview.
+  CSS filter preview + audio preview, driven by `shared/usePlaybackEngine`
+  (the single transport engine for crop/mobile/subtitles/bulk/cut).
 - `Sidebar` — export form (format/fps/crf/speed, presets via
   `lib/export-presets.ts`, validation via `lib/validate-settings.ts`).
 - `TrimControls`, `VisualFiltersPanel`, `AudioControls`, `AudioWaveform`,
@@ -151,8 +152,9 @@ flowchart LR
 ```
 
 - Hooks (colocated `components/editor/cut/`): `useCutList` (CRUD +
-  sorted/overlap/outDuration), `useCutPlayback`/`useSeekTo` (cut-aware player),
-  `useCutLayouts` (stacked/single + watermark), `useCutExport`/`useExportName`
+  sorted/overlap/outDuration), `useCutPlayback`/`useSeekTo` (cut-aware layer
+  over `shared/usePlaybackEngine`), `useCutLayouts` (stacked/single +
+  watermark), `useCutExport`/`useExportName`
   → `POST /api/transcode/cut`.
 
 **`/admin` — `PageAdmin`** (jobs dashboard):

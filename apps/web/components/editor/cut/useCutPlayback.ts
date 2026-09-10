@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
-import { mobileLayoutService } from "@/lib/mobile-layout";
-import { commitPlayheadTime } from "@/store/playheadSlice";
 import { setSourceState } from "@/store/sourceSlice";
-import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
+import {
+  seekVideoElement,
+  usePlaybackEngine,
+} from "@/components/editor/shared/usePlaybackEngine";
 import type { Cut } from "./types";
 
 export function useCutPlayback({
@@ -32,7 +33,7 @@ export function useCutPlayback({
     sortedRef.current = sorted;
   }, [playAll, sorted]);
 
-  const player = useVideoPlayer(videoRef, {
+  const player = usePlaybackEngine(videoRef, {
     mediaUrl,
     // 20 Hz throttled snapshots + rAF smooth sync while playing (parity with
     // the crop/mobile players so seek slider, cut markers and audio
@@ -119,13 +120,7 @@ export function useSeekTo(
     (t: number) => {
       const v = videoRef.current;
       if (!v) return;
-      const next = mobileLayoutService.clamp(
-        t,
-        0,
-        Math.max(0.01, v.duration || duration || 0),
-      );
-      v.currentTime = next;
-      commitPlayheadTime(next);
+      seekVideoElement(v, t, duration);
     },
     [duration, videoRef],
   );
