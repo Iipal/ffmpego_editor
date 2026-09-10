@@ -99,7 +99,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 - `VideoPlayer.tsx`, `PlayerControls.tsx`
   (+`shared/VideoPlayerControls.tsx`), `AudioControls.tsx`,
   `AudioWaveform.tsx`, `VideoUploader.tsx`, `UploadProgress.tsx`,
-  `TabSwitcher.tsx`, `shared/AreaShell` (top-bar/readout-grid/hint card shell
+  `shared/AreaShell` (top-bar/readout-grid/hint card shell
   for Crop/Mobile/Bulk/Subtitle/Jobs areas) | `shared/TrimSlider` | EmptyState | `CapabilityCard.tsx`
 - `CustomArgsCollapsible.tsx` — shared Advanced `customFFmpegArgs`
   free-text field (crop `Sidebar`, mobile `PreviewPanel`,
