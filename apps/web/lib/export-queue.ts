@@ -5,8 +5,7 @@
 // back; progress streams into the exportQueueSlice and the QueueDock while
 // the UI stays interactive. The API bounds actual ffmpeg concurrency, so
 // submitting several tasks at once just queues them server-side (429 +
-// Retry-After is retried with backoff); a small client-side in-flight gate
-// keeps browser sockets per origin sane.
+// Retry-After is retried with backoff).
 //
 // Two task modes:
 // - job mode (default): multipart upload (chunked >256MB, reusing the
@@ -100,24 +99,18 @@ interface Runner {
 
 /**
  * Singleton service owning every fire-and-forget export: submission retries,
- * the client-side in-flight gate, SSE progress fan-out, saving/comparison and
- * cancellation. All mutable runner state lives here (never in the store), so
- * `exportQueueSlice` stays plain serializable data for the QueueDock UI.
+ * SSE progress fan-out, saving/comparison and cancellation. All mutable
+ * runner state lives here (never in the store), so `exportQueueSlice` stays
+ * plain serializable data for the QueueDock UI.
  */
 class ExportQueue {
   /** Attempts before a 429 (server queue full) submission is given up. */
   private static readonly MAX_SUBMIT_ATTEMPTS = 3;
   /** Fallback backoff between 429 retries when Retry-After is absent. */
   private static readonly RETRY_FALLBACK_MS = 2000;
-  /** Parallel tasks allowed to hold upload/SSE/download sockets at once. */
-  private static readonly MAX_INFLIGHT_TASKS = 3;
 
   /** Transport/SSE handles for each running task id. */
   private readonly runners = new Map<string, Runner>();
-  /** Current number of tasks holding an in-flight slot. */
-  private inFlightTasks = 0;
-  /** FIFO of wake callbacks waiting for a free in-flight slot. */
-  private readonly slotWaiters: Array<() => void> = [];
 
   // ------------------------------------------------------------------ public
 
@@ -195,7 +188,7 @@ class ExportQueue {
 
   /**
    * Drive one runner to a terminal state: produce the output Blob via the
-   * gated job pipeline or the direct producer, run the finisher, and route
+   * job pipeline or the direct producer, run the finisher, and route
    * any error into the shared failure handler. Always frees the runner.
    */
   private async execute(
@@ -206,33 +199,13 @@ class ExportQueue {
     try {
       const blob = task.run
         ? await this.runDirect(id, task, runner)
-        : await this.runGated(id, task, runner);
+        : await this.runJob(id, task, runner);
       if (runner.orphaned) throw new TranscodeCancelledError();
       await this.finishExport(id, task, blob, runner.jobId);
     } catch (e) {
       this.handleFailure(id, task, e);
     } finally {
       this.runners.delete(id);
-    }
-  }
-
-  /**
-   * Job-mode wrapper that parks the task in a locally "queued" row (progress
-   * 0) until an in-flight slot frees up, then runs the upload→POST→SSE→
-   * download pipeline. The slot is always released, even on failure.
-   */
-  private async runGated(
-    id: string,
-    task: ExportQueueTask,
-    runner: Runner,
-  ): Promise<Blob> {
-    patchQueueItem(id, { status: "queued", progress: 0 });
-    task.onProgress?.({ status: "queued", progress: 0, queuePosition: null });
-    await this.acquireTaskSlot(runner.abort.signal);
-    try {
-      return await this.runJob(id, task, runner);
-    } finally {
-      this.releaseTaskSlot();
     }
   }
 
@@ -466,44 +439,6 @@ class ExportQueue {
       description: message,
       id: ExportQueue.itemToastId(id),
     });
-  }
-
-  /**
-   * Wait for a free in-flight slot (or reject promptly when the signal is
-   * already/mid-way aborted) so bulk batches cannot exhaust the browser's
-   * per-origin connection pool.
-   */
-  private acquireTaskSlot(signal: AbortSignal): Promise<void> {
-    if (signal.aborted) {
-      return Promise.reject(new DOMException("Aborted", "AbortError"));
-    }
-    if (this.inFlightTasks < ExportQueue.MAX_INFLIGHT_TASKS) {
-      this.inFlightTasks += 1;
-      return Promise.resolve();
-    }
-    return new Promise<void>((resolve, reject) => {
-      const onAbort = () => {
-        const i = this.slotWaiters.indexOf(wake);
-        if (i >= 0) this.slotWaiters.splice(i, 1);
-        reject(new DOMException("Aborted", "AbortError"));
-      };
-      const wake = () => {
-        signal.removeEventListener("abort", onAbort);
-        this.inFlightTasks += 1;
-        resolve();
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-      this.slotWaiters.push(wake);
-    });
-  }
-
-  /**
-   * Release the current task's in-flight slot and wake the next queued
-   * waiter, if any (the woken task takes the slot back immediately).
-   */
-  private releaseTaskSlot(): void {
-    this.inFlightTasks -= 1;
-    this.slotWaiters.shift()?.();
   }
 
   /**
