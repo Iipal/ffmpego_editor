@@ -36,44 +36,140 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ## Where methods live
 
-| Area          | Key files                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Routes        | `app/editor/crop` \| mobile \| mobile/subtitles \| mobile/bulk \| `cut/page.tsx`→ thin `app/pageEditor*.tsx`+`app/admin/page.tsx`→`app/pageAdmin.tsx`                                                                                                                                                                                                                                                     |
-| Crop          | `components/editor/crop/CropWorkspace.tsx`, `CropArea.tsx`/`CropOverlay.tsx`, `VideoPlayer.tsx` (+`crop/VideoPlayerLazy.tsx`), `editor/Sidebar.tsx` (export form), `TrimControls.tsx`, `VisualFiltersPanel.tsx`                                                                                                                                                                                           |
-| Mobile        | `components/editor/mobile/MobileArea` \| SourcePanel \| PreviewPanel \| PortraitPreview \| ZoneCard \| ZoneOverlay \| `SourceStage.tsx`, `useMobilePageState.ts`, `useMobileExport.ts`                                                                                                                                                                                                                    |
-| Subtitles     | `components/editor/subtitles/useSubtitleEditor.ts`, `PreviewPane.tsx`, `SubtitleListPanel.tsx`/`SubtitleRow.tsx`, `SubtitleSettingsPanel.tsx` (+Basics/Font/Outline/Shadow/Background), `TimelineSection.tsx`, `heavy-modules.tsx`                                                                                                                                                                        |
-| Bulk          | `components/editor/bulk/hooks.ts` (`useBulkEditorState`), `useBulkExport.ts`, `BulkArea` \| Header \| ItemCard \| ExpandedView \| `SettingsPanel.tsx`, `CellPreview.tsx`                                                                                                                                                                                                                                  |
-| Cut           | `components/editor/cut/useCutList` \| useCutPlayback \| useCutLayouts \| `useCutExport.ts`, `CutTimeline` \| CutList \| CutBlock \| CutPreview \| CutSettingsSidebar \| CutHeader \| `ZoneSliders.tsx`                                                                                                                                                                                                    |
-| Admin         | `components/admin/useAdminJobs.ts`, `JobsArea` \| JobsList \| JobRow \| FilterBar \| AdminHeader (`GET /health` readiness via `useHealthQuery`) \|   `StorageArea` quota bar + Sweep (`GET /storage/stats` via `useStorageStatsQuery`, `POST /storage/sweep` mutation) \| `UploadSessions` orphan/resume-progress list + Abort (`GET /upload/sessions` via `useUploadSessionsQuery`, `DELETE /upload/:id` mutation) \| `ExtractRows.tsx`, `components/export/CompareDialog.tsx` \| `components/export/QueueDock.tsx` (global, mounted in providers) |
-| Shared editor | `VideoPlayer.tsx`, `PlayerControls.tsx` (+`shared/VideoPlayerControls.tsx`), `AudioControls.tsx`, `AudioWaveform.tsx`, `VideoUploader.tsx`, `UploadProgress.tsx`, `TabSwitcher.tsx`, `shared/TrimSlider` \| EmptyState \| `CapabilityCard.tsx`                                                                                                                                                            |
-| `lib/`        | One service/util per file — see `lib/` table below.                                                                                                                                                                                                                                                                                                                                                       |
-| `hooks/`      | `useVideoMetadata.ts`, `useAudioAnalysis.ts`, `useAudioPreview.ts`, `useSharedMobileLayout.ts`, `useHealth.ts` (`GET /health` readiness poll), `useStorageStats.ts` (`GET /storage/stats` 30 s poll + sweep mutation), `useUploadSessions.ts` (`GET /upload/sessions` 10 s poll + abort mutation)                                                                                                                                                     |
-| `store/`      | `sourceSlice` (file/mediaUrl/trim), `cropSlice`, `cutSlice`, `filterSlice` (visual filters), `audioSlice`, `subtitleSlice`, `mobileSlice`, `exportHistorySlice`, `exportQueueSlice` (export queue rows + dock), `compareSlice`                                                                                                                                                                            |
+### Routes
 
-### `lib/` services & utils
+- `app/editor/crop` | mobile | mobile/subtitles | mobile/bulk |
+  `cut/page.tsx` → thin `app/pageEditor*.tsx` + `app/admin/page.tsx` →
+  `app/pageAdmin.tsx`
 
-| File                     | Owns / exports                                                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `api-client.ts`          | `APIClient` service: `apiClient.url/get/post/formPost/patch/delete/postBlob`                                       |
-| `export-queue.ts`        | `ExportQueue` service: `exportQueue.enqueue/cancel/dismiss`                                                        |
-| `export-history.ts`      | `ExportHistory` service: `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`                     |
-| `export-presets.ts`      | `ExportPresets` service: `exportPresets.all/customs/save/remove/toPatch`                                           |
-| `global-listener-bus.ts` | `GlobalListenerBus` service: pointer move/up + admin scroll/touch buses                                            |
-| `upload-chunked.ts`      | `UploadChunked` service: `uploadChunked.shouldUseChunked/uploadFile/uploadForm` (+ transparent resume via `upload-sessions` memory: status-verified `chunks[]` skip-set, `resumed/resumedBytes` result) |
-| `transcode-progress.ts`  | `TranscodeProgress` service: `transcodeProgress.subscribe/awaitCompletion`                                         |
-| `transcode-jobs.ts`      | `TranscodeJobs` service: `transcodeJobs.cancelTranscodeJob/serverErrorMessage`                                     |
-| `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity` via lightweight `GET /health`      |
-| `health.ts`              | `Health` service: `health.fetchHealth` (`GET /health` readiness snapshot: ffmpeg, disk, queue)                     |
-| `storage.ts`             | `Storage` service: `storage.fetchStats` (`GET /api/storage/stats` census) + `runSweep` (`POST /api/storage/sweep`) |
-| `validate-settings.ts`   | `ValidateSettings` service: `validateSettings.assertGeneric/assertMobile/assertCut`                                |
-| `playback-bus.ts`        | `PlaybackBus` service: `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`                                         |
-| `video-file.ts`          | `VideoFileService`: `videoFileService.isAcceptedVideoFile/formatFileSize/...`, `VideoFileService.MAX_UPLOAD_BYTES` |
-| `mobile-layout.ts`       | `MobileLayoutService`: `mobileLayoutService.clamp/normalizeLayout/...`, `MobileLayoutService.OUTPUT_W/H`           |
-| `format-time.ts`         | `formatTime` display helper                                                                                        |
-| `save-blob-file.ts`      | `SaveBlobFile` service: `saveBlobFile.save/fetchDownload/pickerTypesForExt`                                        |
-| `preload.ts`             | hover/focus intent preloads (`preloadUploadChunked`)                                                               |
-| `utils.ts`               | `cn` re-export, `NOOP` default callback                                                                            |
-| `subtitles/`             | PNG render, `GoogleFonts` + `SubtitleStorage` services                                                             |
+### Crop
+
+- `components/editor/crop/CropWorkspace.tsx`, `CropArea.tsx`/`CropOverlay.tsx`,
+  `VideoPlayer.tsx` (+`crop/VideoPlayerLazy.tsx`), `editor/Sidebar.tsx`
+  (export form), `TrimControls.tsx`, `VisualFiltersPanel.tsx`
+
+### Mobile
+
+- `components/editor/mobile/MobileArea` | SourcePanel | PreviewPanel |
+  PortraitPreview | ZoneCard | ZoneOverlay | `SourceStage.tsx`,
+  `useMobilePageState.ts`, `useMobileExport.ts`
+
+### Subtitles
+
+- `components/editor/subtitles/useSubtitleEditor.ts`, `PreviewPane.tsx`,
+  `SubtitleListPanel.tsx`/`SubtitleRow.tsx`, `SubtitleSettingsPanel.tsx`
+  (+Basics/Font/Outline/Shadow/Background), `TimelineSection.tsx`,
+  `heavy-modules.tsx`
+
+### Bulk
+
+- `components/editor/bulk/hooks.ts` (`useBulkEditorState`),
+  `useBulkExport.ts`, `BulkArea` | Header | ItemCard | ExpandedView |
+  `SettingsPanel.tsx`, `CellPreview.tsx`
+
+### Cut
+
+- `components/editor/cut/useCutList` | useCutPlayback | useCutLayouts |
+  `useCutExport.ts`, `CutTimeline` | CutList | CutBlock | CutPreview |
+  CutSettingsSidebar | CutHeader | `ZoneSliders.tsx`
+
+### Admin
+
+- Jobs: `components/admin/useAdminJobs.ts`, `JobsArea` | JobsList | JobRow
+  (incl. alternate output Alt download via `GET /api/files/:id/download` +
+  Alt compare via `exportHistory.openFileComparison`) | FilterBar
+- Readiness: AdminHeader (`GET /health` via `useHealthQuery`) — status dot +
+  ffmpeg/disk/queue line
+- Storage: `StorageArea` quota bar + Sweep (`GET /storage/stats` via
+  `useStorageStatsQuery`, `POST /storage/sweep` mutation)
+- Upload sessions: `UploadSessions` orphan/resume-progress list + Abort
+  (`GET /upload/sessions` via `useUploadSessionsQuery`,
+  `DELETE /upload/:id` mutation)
+- Local extracts: `ExtractRows.tsx` (audio-extract history, no server job)
+- Shared export UI: `components/export/CompareDialog.tsx` |
+  `components/export/QueueDock.tsx` (global, mounted in providers)
+
+## Shared editor components
+
+- `VideoPlayer.tsx`, `PlayerControls.tsx`
+  (+`shared/VideoPlayerControls.tsx`), `AudioControls.tsx`,
+  `AudioWaveform.tsx`, `VideoUploader.tsx`, `UploadProgress.tsx`,
+  `TabSwitcher.tsx`, `shared/TrimSlider` | EmptyState | `CapabilityCard.tsx`
+
+### `hooks/` — async server state (TanStack Query + SSE live sync)
+
+- `useVideoMetadata.ts`, `useAudioAnalysis.ts`, `useAudioPreview.ts`,
+  `useSharedMobileLayout.ts`
+- `useHealth.ts` (`GET /health` readiness poll)
+- `useStorageStats.ts` (`GET /storage/stats` 30 s poll + sweep mutation)
+- `useUploadSessions.ts` (`GET /upload/sessions` 10 s poll + abort mutation)
+
+### `store/` — sync UI state (TanStack Store)
+
+- `sourceSlice` (file/mediaUrl/trim), `cropSlice`, `cutSlice`,
+  `filterSlice` (visual filters), `audioSlice`, `subtitleSlice`,
+  `mobileSlice`, `playheadSlice`, `exportHistorySlice`,
+  `exportQueueSlice` (export queue rows + dock), `compareSlice`
+
+### `lib/` services & utils — one service/util per file
+
+#### Transport & export pipeline
+
+- `api-client.ts` — `APIClient` service:
+  `apiClient.url/get/post/formPost/patch/delete/postBlob`
+- `export-queue.ts` — `ExportQueue` service:
+  `exportQueue.enqueue/cancel/dismiss`
+- `export-history.ts` — `ExportHistory` service:
+  `exportHistory.renameJob/retryEntry/openComparison/openFileComparison/retryAudioExtract`
+- `export-presets.ts` — `ExportPresets` service:
+  `exportPresets.all/customs/save/remove/toPatch`
+- `transcode-progress.ts` — `TranscodeProgress` service:
+  `transcodeProgress.subscribe/awaitCompletion`
+- `transcode-jobs.ts` — `TranscodeJobs` service:
+  `transcodeJobs.cancelTranscodeJob/serverErrorMessage`
+- `preflight.ts` — `Preflight` service: `preflight.check` (fail-fast gate),
+  `probeApiConnectivity` via lightweight `GET /health`
+- `save-blob-file.ts` — `SaveBlobFile` service:
+  `saveBlobFile.save/fetchDownload/pickerTypesForExt`
+
+#### Upload
+
+- `upload-chunked.ts` — `UploadChunked` service:
+  `uploadChunked.shouldUseChunked/uploadFile/uploadForm` (+ transparent
+  resume via `upload-sessions` memory: status-verified `chunks[]` skip-set,
+  `resumed/resumedBytes` result)
+- `upload-sessions.ts` — session list/status/abort client + `localStorage`
+  resume memory (name+size+lastModified key, 6 h TTL)
+
+#### Readiness & storage snapshots
+
+- `health.ts` — `Health` service: `health.fetchHealth` (`GET /health`
+  readiness snapshot: ffmpeg, disk, queue)
+- `storage.ts` — `Storage` service: `storage.fetchStats`
+  (`GET /api/storage/stats` census) + `runSweep`
+  (`POST /api/storage/sweep`)
+
+#### Validation, layout & media
+
+- `validate-settings.ts` — `ValidateSettings` service:
+  `validateSettings.assertGeneric/assertMobile/assertCut`
+- `mobile-layout.ts` — `MobileLayoutService`:
+  `mobileLayoutService.clamp/normalizeLayout/...`,
+  `MobileLayoutService.OUTPUT_W/H`
+- `video-file.ts` — `VideoFileService`:
+  `videoFileService.isAcceptedVideoFile/formatFileSize/...`,
+  `VideoFileService.MAX_UPLOAD_BYTES`
+- `format-time.ts` — `formatTime` display helper
+- `subtitles/` — PNG render, `GoogleFonts` + `SubtitleStorage` services
+
+#### Playback & UI infra
+
+- `playback-bus.ts` — `PlaybackBus` service:
+  `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`
+- `global-listener-bus.ts` — `GlobalListenerBus` service: pointer move/up +
+  admin scroll/touch buses
+- `preload.ts` — hover/focus intent preloads (`preloadUploadChunked`)
+- `utils.ts` — `cn` re-export, `NOOP` default callback
 
 ## Shared packages used
 

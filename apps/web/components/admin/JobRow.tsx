@@ -24,6 +24,8 @@ export const JobRow = memo(function JobRow({
   onCancel,
   onDownload,
   onCompare,
+  onDownloadAlternate,
+  onCompareAlternate,
   onRetry,
   onRename,
   deletePending,
@@ -71,6 +73,14 @@ export const JobRow = memo(function JobRow({
   const handleCompare = useCallback(() => {
     onCompare?.(job);
   }, [job, onCompare]);
+
+  const handleDownloadAlternate = useCallback(() => {
+    onDownloadAlternate?.(job);
+  }, [job, onDownloadAlternate]);
+
+  const handleCompareAlternate = useCallback(() => {
+    onCompareAlternate?.(job);
+  }, [job, onCompareAlternate]);
 
   const handleRetry = useCallback(() => {
     if (entry) onRetry?.(entry);
@@ -140,6 +150,30 @@ export const JobRow = memo(function JobRow({
             {job.alternateFile ? (
               <span className="font-mono break-all text-kumo-subtle">
                 + {job.alternateFile.name}
+              </span>
+            ) : null}
+            {isCompleted && job.alternateFile ? (
+              <span className="inline-flex items-center gap-1">
+                {onDownloadAlternate ? (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={handleDownloadAlternate}
+                    title={`Download alternate output ${job.alternateFile.name} (saved with -alt suffix)`}
+                  >
+                    Alt download
+                  </Button>
+                ) : null}
+                {onCompareAlternate ? (
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={handleCompareAlternate}
+                    title={`Side-by-side source/alternate comparison (${job.alternateFile.name})`}
+                  >
+                    Alt compare
+                  </Button>
+                ) : null}
               </span>
             ) : null}
           </div>

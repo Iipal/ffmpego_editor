@@ -34,6 +34,46 @@ import { exportHistory } from "@/lib/export-history";
 
 let didPreloadHeavyCard = false;
 
+/**
+ * Save-picker plan for a server-side output file: the stored job filename
+ * is a bare export name (or the source file name) while the real output
+ * extension lives on the server descriptor (outputFile.name, e.g.
+ * export.webm). Re-attach it so webm/mov jobs don't save with a wrong .mp4
+ * extension, and offer the matching picker filter instead of the MP4-only
+ * default. `nameSuffix` (e.g. "-alt") keeps alternate downloads from
+ * colliding with the primary file.
+ */
+function downloadPlan(
+  label: string | undefined,
+  serverName: string,
+  nameSuffix = "",
+): {
+  filename: string;
+  types: [{ description: string; accept: Record<string, string[]> }];
+} {
+  const serverExt = serverName.split(".").pop()?.toLowerCase() || "mp4";
+  const rawBase = (label || serverName).split("/").pop() || serverName;
+  const base = rawBase.replace(/\.(mp4|webm|mov|mkv|m4v|avi)$/i, "");
+  const filename = `${base}${nameSuffix}.${serverExt}`;
+  const mimeType =
+    serverExt === "mp4"
+      ? "video/mp4"
+      : serverExt === "webm"
+        ? "video/webm"
+        : serverExt === "mov"
+          ? "video/quicktime"
+          : "application/octet-stream";
+  return {
+    filename,
+    types: [
+      {
+        description: `${serverExt.toUpperCase()} video`,
+        accept: { [mimeType]: [`.${serverExt}`] },
+      },
+    ],
+  };
+}
+
 export function useAdminJobs() {
   const queryClient = useQueryClient();
   // rerender-lazy-state-init: read localStorage only once (cheap guard: window check)
@@ -163,37 +203,62 @@ export function useAdminJobs() {
         const blob = await saveBlobFile.fetchDownload(
           apiClient.url(`/api/transcode/download/${job.jobId}`),
         );
-        // The stored job.filename is a bare export name (or the source file
-        // name) — the real output extension lives on the server descriptor
-        // (outputFile.name, e.g. export.webm). Re-attach it so webm/mov/webm-tg
-        // jobs don't save with a wrong .mp4 extension, and offer the matching
-        // picker filter instead of the MP4-only default.
         const serverName = job.outputFile?.name || `${job.jobId}.mp4`;
-        const serverExt = serverName.split(".").pop()?.toLowerCase() || "mp4";
-        const rawBase =
-          (job.filename || serverName).split("/").pop() || job.jobId;
-        const base = rawBase.replace(/\.(mp4|webm|mov|mkv|m4v|avi)$/i, "");
-        const filename = `${base}.${serverExt}`;
-        const mimeType =
-          serverExt === "mp4"
-            ? "video/mp4"
-            : serverExt === "webm"
-              ? "video/webm"
-              : serverExt === "mov"
-                ? "video/quicktime"
-                : "application/octet-stream";
-        const saved = await saveBlobFile.save(blob, filename, [
-          {
-            description: `${serverExt.toUpperCase()} video`,
-            accept: { [mimeType]: [`.${serverExt}`] },
-          },
-        ]);
+        const { filename, types } = downloadPlan(job.filename, serverName);
+        const saved = await saveBlobFile.save(blob, filename, types);
         toast.success("Download saved", { description: saved });
       } catch (e) {
         if ((e as DOMException)?.name === "AbortError") return;
         toast.error(e instanceof Error ? e.message : "Download failed");
       }
     })();
+  }, []);
+
+  // Alternate outputs (webm-tg CRF-search runner-up) are display-only until
+  // now: pull by opaque file id via GET /api/files/:id/download and save
+  // with an "-alt" suffix so the file can't collide with the primary.
+  const handleDownloadAlternateOne = useCallback((job: JobEntry) => {
+    const alt = job.alternateFile;
+    if (!alt) {
+      toast.error("No alternate output on this job.");
+      return;
+    }
+    void (async () => {
+      const [{ apiClient }, { saveBlobFile }] = await Promise.all([
+        import("@/lib/api-client"),
+        import("@/lib/save-blob-file"),
+      ]);
+      try {
+        const blob = await saveBlobFile.fetchDownload(
+          apiClient.url(`/api/files/${alt.id}/download`),
+        );
+        const { filename, types } = downloadPlan(
+          job.filename,
+          alt.name,
+          "-alt",
+        );
+        const saved = await saveBlobFile.save(blob, filename, types);
+        toast.success("Alternate download saved", { description: saved });
+      } catch (e) {
+        if ((e as DOMException)?.name === "AbortError") return;
+        toast.error(
+          e instanceof Error ? e.message : "Alternate download failed",
+        );
+      }
+    })();
+  }, []);
+
+  const handleCompareAlternateOne = useCallback((job: JobEntry) => {
+    const alt = job.alternateFile;
+    if (!alt) {
+      toast.error("No alternate output on this job.");
+      return;
+    }
+    void exportHistory.openFileComparison(
+      alt.id,
+      alt.name,
+      "Admin · alternate",
+    );
   }, []);
 
   // --- Merged export-history actions (were /editor/exports) ---
@@ -431,7 +496,9 @@ export function useAdminJobs() {
     handleDeleteOne,
     handleCancelOne,
     handleDownloadOne,
+    handleDownloadAlternateOne,
     handleCompareOne,
+    handleCompareAlternateOne,
     handleRetryEntry,
     handleRenameOne,
     handleExtractRename,

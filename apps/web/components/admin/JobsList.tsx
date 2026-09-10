@@ -21,6 +21,8 @@ type JobsListProps = {
   onCancel: (id: string) => void;
   onDownload: (job: JobEntry) => void;
   onCompare?: (job: JobEntry) => void;
+  onDownloadAlternate?: (job: JobEntry) => void;
+  onCompareAlternate?: (job: JobEntry) => void;
   onRetry?: (entry: HistoryEntry) => void;
   onRename?: (jobId: string, name: string) => Promise<void>;
 };
@@ -39,6 +41,8 @@ export const JobsList = memo(function JobsList({
   onCancel,
   onDownload,
   onCompare,
+  onDownloadAlternate,
+  onCompareAlternate,
   onRetry,
   onRename,
 }: JobsListProps) {
@@ -73,6 +77,8 @@ export const JobsList = memo(function JobsList({
                 onCancel={onCancel}
                 onDownload={onDownload}
                 onCompare={onCompare}
+                onDownloadAlternate={onDownloadAlternate}
+                onCompareAlternate={onCompareAlternate}
                 onRetry={onRetry}
                 onRename={onRename}
                 deletePending={deletePending}

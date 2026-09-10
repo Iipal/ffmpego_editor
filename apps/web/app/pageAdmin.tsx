@@ -135,7 +135,9 @@ export default function PageAdmin() {
     handleDeleteOne,
     handleCancelOne,
     handleDownloadOne,
+    handleDownloadAlternateOne,
     handleCompareOne,
+    handleCompareAlternateOne,
     handleRetryEntry,
     handleRenameOne,
     handleExtractRename,
@@ -243,6 +245,8 @@ export default function PageAdmin() {
             onCancel={handleCancelOne}
             onDownload={handleDownloadOne}
             onCompare={handleCompareOne}
+            onDownloadAlternate={handleDownloadAlternateOne}
+            onCompareAlternate={handleCompareAlternateOne}
             onRetry={handleRetryEntry}
             onRename={handleRenameOne}
           />

@@ -77,15 +77,30 @@ class ExportHistory {
       const blob = await saveBlobFile.fetchDownload(
         apiClient.url(`/api/transcode/download/${jobId}`),
       );
-      openComparison({
-        title,
-        sourceUrl: sourceStore.state.mediaUrl,
-        outputUrl: URL.createObjectURL(blob),
-        outputKind: ExportHistory.outputKindFor(title),
-        meta: meta ?? null,
-      });
+      this.openBlobComparison(blob, title, meta ?? null);
     } catch {
       // Compare is advisory — the save toast already confirmed success.
+    }
+  }
+
+  /**
+   * Best-effort: pull an alternate output by opaque file id
+   * (`GET /api/files/:id/download` — the first web caller; job downloads
+   * use the job-scoped endpoint above) and open the side-by-side
+   * comparison against the current source. Never rejects (advisory).
+   */
+  async openFileComparison(
+    fileId: string,
+    title: string,
+    meta?: string | null,
+  ): Promise<void> {
+    try {
+      const blob = await saveBlobFile.fetchDownload(
+        apiClient.url(`/api/files/${fileId}/download`),
+      );
+      this.openBlobComparison(blob, title, meta ?? null);
+    } catch {
+      // Compare is advisory — the row stays put on failure.
     }
   }
 
@@ -116,6 +131,24 @@ class ExportHistory {
   }
 
   // ----------------------------------------------------------------- private
+
+  /**
+   * Push fetched output bytes into the global side-by-side comparison
+   * dialog (source = current media, output = blob object URL).
+   */
+  private openBlobComparison(
+    blob: Blob,
+    title: string,
+    meta: string | null,
+  ): void {
+    openComparison({
+      title,
+      sourceUrl: sourceStore.state.mediaUrl,
+      outputUrl: URL.createObjectURL(blob),
+      outputKind: ExportHistory.outputKindFor(title),
+      meta,
+    });
+  }
 
   /**
    * POST stored settings with the current source file: chunked (>256 MB,

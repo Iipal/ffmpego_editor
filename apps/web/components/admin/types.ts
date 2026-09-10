@@ -58,6 +58,10 @@ export type JobRowProps = {
   onCancel: (id: string) => void;
   onDownload: (job: JobEntry) => void;
   onCompare?: (job: JobEntry) => void;
+  /** Alternate output (webm-tg CRF runner-up) download via /files/:id/download. */
+  onDownloadAlternate?: (job: JobEntry) => void;
+  /** Alternate output side-by-side comparison. */
+  onCompareAlternate?: (job: JobEntry) => void;
   onRetry?: (entry: import("@/store/exportHistorySlice").HistoryEntry) => void;
   onRename?: (jobId: string, name: string) => Promise<void>;
   deletePending: boolean;

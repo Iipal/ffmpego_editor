@@ -194,7 +194,9 @@ flowchart LR
 - `JobsArea` — totals/queue readout; `StorageArea` — quota bar with Sweep;
   `UploadSessions` — open upload sessions with resume progress + Abort;
   `FilterBar` — status filter;
-  `JobRow` — badge/progress/row actions; `ExtractRows` — audio-extract history;
+  `JobRow` — badge/progress/row actions (+ Alt download via
+  `GET /api/files/:id/download` with `-alt` save suffix, Alt compare via
+  `exportHistory.openFileComparison`); `ExtractRows` — audio-extract history;
   `CompareDialog` (`components/export/CompareDialog.tsx`) — source-vs-output.
 
 ## 3. Data flow (every export takes this path)
@@ -231,7 +233,7 @@ flowchart LR
 - `lib/preflight.ts` (`Preflight` service:
   `preflight.check` + `probeApiConnectivity` via lightweight `GET /health`).
 - `lib/export-history.ts` (`ExportHistory` service:
-  `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`) +
+  `exportHistory.renameJob/retryEntry/openComparison/openFileComparison/retryAudioExtract`) +
   `store/exportHistorySlice.ts`: `trackHistoryEntry`.
 
 ## 4. State map
