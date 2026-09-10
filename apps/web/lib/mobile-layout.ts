@@ -25,6 +25,18 @@ export type {
 } from "@repo/types";
 
 /**
+ * Drag-direction signs per resize handle, relative to the fixed anchor on
+ * the opposite corner, plus the per-corner max scale. `se` keeps max 2,
+ * the other corners 4 — preserved from the original four branches.
+ */
+const RESIZE_CORNERS: Record<string, { fx: 1 | -1; fy: 1 | -1; maxScale: number }> = {
+  se: { fx: 1, fy: 1, maxScale: 2 },
+  nw: { fx: -1, fy: -1, maxScale: 4 },
+  ne: { fx: 1, fy: -1, maxScale: 4 },
+  sw: { fx: -1, fy: 1, maxScale: 4 },
+};
+
+/**
  * Singleton service owning every mobile-layout concern: split/zone geometry,
  * aspect enforcement, default-layout construction, the portrait ffmpeg
  * filter builder, and per-mode localStorage prefs. Pure and stateless — all
@@ -153,6 +165,11 @@ export class MobileLayoutService {
    * Aspect-locked corner resize for the drag overlay: scales the zone from
    * the opposite anchor (`se`/`nw`/`ne`/`sw`), keeps the target ratio, and
    * clamps into the unit square. Unknown handles return `start` untouched.
+   *
+   * Corner table: `fx`/`fy` are the drag direction signs relative to the
+   * anchor (the anchor itself sits on the opposite corner). `se` keeps its
+   * original quirks verbatim: max scale 2 (others 4), ratio re-pin, and the
+   * anchor returned unclamped.
    */
   resizeZoneAspectLocked(
     start: CropZone,
@@ -163,141 +180,57 @@ export class MobileLayoutService {
     split: number,
     sourceAR = 16 / 9,
   ): CropZone {
+    const corner = RESIZE_CORNERS[handle];
+    if (!corner) return start;
+    const { fx, fy, maxScale } = corner;
     const A = this.zoneAspect(mode, split, start.id);
     const R = A / sourceAR;
-    let tentW: number, tentH: number;
-    let anchorX: number, anchorY: number;
     const sx = start.x,
       sy = start.y,
       sw = start.width,
       sh = start.height;
-    if (handle === "se") {
-      anchorX = sx;
-      anchorY = sy;
-      tentW = sw + dx;
-      tentH = sh + dy;
-      const scaleW = tentW / sw;
-      const scaleH = tentH / sh;
-      const scale = (scaleW + scaleH) / 2;
-      const clampedScale = this.clamp(
-        scale,
-        MobileLayoutService.MIN_ZONE / sw,
-        2,
-      );
-      let w = sw * clampedScale;
-      let h = w / R;
-      w = this.clamp(w, MobileLayoutService.MIN_ZONE, 1 - anchorX);
-      h = this.clamp(h, MobileLayoutService.MIN_ZONE, 1 - anchorY);
-      if (anchorX + w > 1) w = 1 - anchorX;
-      if (anchorY + h > 1) {
-        h = 1 - anchorY;
+    const anchorX = fx > 0 ? sx : sx + sw;
+    const anchorY = fy > 0 ? sy : sy + sh;
+    const scale = this.clamp(
+      ((sw + fx * dx) / sw + (sh + fy * dy) / sh) / 2,
+      MobileLayoutService.MIN_ZONE / sw,
+      maxScale,
+    );
+    let w = sw * scale;
+    let h = w / R;
+    w = this.clamp(w, MobileLayoutService.MIN_ZONE, fx > 0 ? 1 - anchorX : anchorX);
+    h = this.clamp(h, MobileLayoutService.MIN_ZONE, fy > 0 ? 1 - anchorY : anchorY);
+    let x = fx > 0 ? anchorX : anchorX - w;
+    let y = fy > 0 ? anchorY : anchorY - h;
+    if (fx > 0 ? x + w > 1 : x < 0) {
+      if (fx > 0) {
+        w = 1 - x;
+        h = w / R;
+      } else {
+        x = 0;
+        w = anchorX;
+        h = w / R;
+      }
+      if (fy < 0) y = anchorY - h;
+    }
+    if (fy > 0 ? y + h > 1 : y < 0) {
+      if (fy > 0) {
+        h = 1 - y;
+        w = h * R;
+      } else {
+        y = 0;
+        h = anchorY;
         w = h * R;
       }
+      if (fx < 0) x = anchorX - w;
+    }
+    if (fx > 0 && fy > 0) {
       if (w / h - R > 0.001) h = w / R;
       return { ...start, x: anchorX, y: anchorY, width: w, height: h };
     }
-    if (handle === "nw") {
-      anchorX = sx + sw;
-      anchorY = sy + sh;
-      tentW = sw - dx;
-      tentH = sh - dy;
-      const scaleW = tentW / sw;
-      const scaleH = tentH / sh;
-      const scale = (scaleW + scaleH) / 2;
-      const clampedScale = this.clamp(
-        scale,
-        MobileLayoutService.MIN_ZONE / sw,
-        4,
-      );
-      let w = sw * clampedScale;
-      let h = w / R;
-      w = this.clamp(w, MobileLayoutService.MIN_ZONE, anchorX);
-      h = this.clamp(h, MobileLayoutService.MIN_ZONE, anchorY);
-      let x = anchorX - w;
-      let y = anchorY - h;
-      if (x < 0) {
-        x = 0;
-        w = anchorX;
-        h = w / R;
-        y = anchorY - h;
-      }
-      if (y < 0) {
-        y = 0;
-        h = anchorY;
-        w = h * R;
-        x = anchorX - w;
-      }
-      x = this.clamp(x, 0, 1 - w);
-      y = this.clamp(y, 0, 1 - h);
-      return { ...start, x, y, width: w, height: h };
-    }
-    if (handle === "ne") {
-      anchorX = sx;
-      anchorY = sy + sh;
-      tentW = sw + dx;
-      tentH = sh - dy;
-      const scaleW = tentW / sw;
-      const scaleH = tentH / sh;
-      const scale = (scaleW + scaleH) / 2;
-      const clampedScale = this.clamp(
-        scale,
-        MobileLayoutService.MIN_ZONE / sw,
-        4,
-      );
-      let w = sw * clampedScale;
-      let h = w / R;
-      w = this.clamp(w, MobileLayoutService.MIN_ZONE, 1 - anchorX);
-      h = this.clamp(h, MobileLayoutService.MIN_ZONE, anchorY);
-      const x = anchorX;
-      let y = anchorY - h;
-      if (x + w > 1) {
-        w = 1 - x;
-        h = w / R;
-        y = anchorY - h;
-      }
-      if (y < 0) {
-        y = 0;
-        h = anchorY;
-        w = h * R;
-      }
-      const cx = this.clamp(x, 0, 1 - w);
-      const cy = this.clamp(y, 0, 1 - h);
-      return { ...start, x: cx, y: cy, width: w, height: h };
-    }
-    if (handle === "sw") {
-      anchorX = sx + sw;
-      anchorY = sy;
-      tentW = sw - dx;
-      tentH = sh + dy;
-      const scaleW = tentW / sw;
-      const scaleH = tentH / sh;
-      const scale = (scaleW + scaleH) / 2;
-      const clampedScale = this.clamp(
-        scale,
-        MobileLayoutService.MIN_ZONE / sw,
-        4,
-      );
-      let w = sw * clampedScale;
-      let h = w / R;
-      w = this.clamp(w, MobileLayoutService.MIN_ZONE, anchorX);
-      h = this.clamp(h, MobileLayoutService.MIN_ZONE, 1 - anchorY);
-      let x = anchorX - w;
-      const y = anchorY;
-      if (x < 0) {
-        x = 0;
-        w = anchorX;
-        h = w / R;
-      }
-      if (y + h > 1) {
-        h = 1 - y;
-        w = h * R;
-        x = anchorX - w;
-      }
-      const cx = this.clamp(x, 0, 1 - w);
-      const cy = this.clamp(y, 0, 1 - h);
-      return { ...start, x: cx, y: cy, width: w, height: h };
-    }
-    return start;
+    x = this.clamp(x, 0, 1 - w);
+    y = this.clamp(y, 0, 1 - h);
+    return { ...start, x, y, width: w, height: h };
   }
 
   /**
