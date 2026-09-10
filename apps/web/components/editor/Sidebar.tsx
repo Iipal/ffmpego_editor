@@ -77,15 +77,7 @@ import { audioStore, getAudioRenderSettings, setAudioState } from "@/store/audio
 import { apiClient } from "@/lib/api-client";
 import { serverErrorMessage } from "@/lib/transcode-jobs";
 import { saveBlobFile } from "@/lib/save-blob-file";
-import {
-  allPresets,
-  deleteCustomPreset,
-  isBuiltinPreset,
-  newCustomId,
-  presetToPatch,
-  saveCustomPreset,
-  type ExportPreset,
-} from "@/lib/export-presets";
+import { exportPresets, type ExportPreset } from "@/lib/export-presets";
 import { preflightExport, probeApiConnectivity } from "@/lib/preflight";
 import { trackHistoryEntry } from "@/store/exportHistorySlice";
 import { openComparison } from "@/store/compareSlice";
@@ -304,7 +296,7 @@ export function Sidebar() {
   const [presetId, setPresetId] = useState("");
   const [customPresetName, setCustomPresetName] = useState("");
   const [presetsTick, setPresetsTick] = useState(0);
-  const presets = useMemo(() => allPresets(), [presetsTick]);
+  const presets = useMemo(() => exportPresets.all(), [presetsTick]);
   const selectedPreset = presets.find((p) => p.id === presetId);
 
   const preflight = preflightExport({
@@ -343,7 +335,7 @@ export function Sidebar() {
     setPresetId(id);
     const preset = presets.find((p) => p.id === id);
     if (!preset) return;
-    const patch = presetToPatch(preset, state.exportFilename, basename);
+    const patch = exportPresets.toPatch(preset, state.exportFilename, basename);
     update(patch);
     // Visual filters live in filterStore, which update() doesn't route to.
     if (patch.visualFilters) {
@@ -366,7 +358,7 @@ export function Sidebar() {
     }
     const preset: ExportPreset = {
       version: 1,
-      id: newCustomId(),
+      id: exportPresets.newCustomId(),
       name,
       target: state.presetTarget,
       settings:
@@ -388,7 +380,7 @@ export function Sidebar() {
         ? { audioFormat: state.audioFormat }
         : {}),
     };
-    saveCustomPreset(preset);
+    exportPresets.save(preset);
     setPresetsTick((t) => t + 1);
     setPresetId(preset.id);
     setCustomPresetName("");
@@ -396,8 +388,8 @@ export function Sidebar() {
   };
 
   const deleteSelectedPreset = () => {
-    if (!selectedPreset || isBuiltinPreset(selectedPreset.id)) return;
-    deleteCustomPreset(selectedPreset.id);
+    if (!selectedPreset || exportPresets.isBuiltin(selectedPreset.id)) return;
+    exportPresets.remove(selectedPreset.id);
     setPresetsTick((t) => t + 1);
     setPresetId("");
     toast.success(`Preset deleted: ${selectedPreset.name}`);
@@ -818,7 +810,7 @@ export function Sidebar() {
                     ))}
                   </SelectContent>
                 </Select>
-                {selectedPreset && !isBuiltinPreset(selectedPreset.id) && (
+                {selectedPreset && !exportPresets.isBuiltin(selectedPreset.id) && (
                   <Button
                     variant="outline"
                     size="sm"
