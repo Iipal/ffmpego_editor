@@ -7,6 +7,7 @@ import { googleFonts } from "@/lib/subtitles/googleFonts";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
 import { NOOP } from "./heavy-modules";
 import { isValidHexColor, normalizeHex } from "./subtitle-helpers";
+import { NumberField } from "./StyleFields";
 
 export type SubtitleFontPanelProps = {
   selected: Subtitle;
@@ -37,23 +38,19 @@ export function SubtitleFontPanel({
         </p>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="font-size" className="text-xs">
-          Font Size
-        </Label>
-        <Input
-          id="font-size"
-          type="number"
-          min={1}
-          value={selected.style.fontSize}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value);
-            if (!Number.isFinite(v) || v <= 0) return;
-            onUpdateStyle({ fontSize: v });
-          }}
-          aria-label="Font Size"
-        />
-      </div>
+      <NumberField
+        id="font-size"
+        label="Font Size"
+        value={selected.style.fontSize}
+        onValue={(v) => {
+          if (v <= 0) return;
+          onUpdateStyle({ fontSize: v });
+        }}
+        min={1}
+        labelClassName="text-xs"
+        className="space-y-2"
+        ariaLabel="Font Size"
+      />
 
       <div className="space-y-2">
         <Label className="text-xs">Text Color</Label>

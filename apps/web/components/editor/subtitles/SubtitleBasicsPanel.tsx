@@ -18,6 +18,7 @@ import type {
   SubtitleTemplate,
 } from "@/lib/subtitles/subtitleStorage";
 import { getSubtitleTrack } from "./subtitle-helpers";
+import { NumberField } from "./StyleFields";
 
 export type SubtitleBasicsPanelProps = {
   selected: Subtitle;
@@ -234,48 +235,38 @@ export function SubtitleBasicsPanel({
       <div className="space-y-2">
         <Label className="text-xs font-semibold">Position</Label>
         <div className="grid grid-cols-2 gap-2">
-          <div className="space-y-1">
-            <Label htmlFor="pos-x" className="text-[11px]">
-              X (0-100)
-            </Label>
-            <Input
-              id="pos-x"
-              type="number"
-              min={0}
-              max={100}
-              value={selected.position.x}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!Number.isFinite(v)) return;
-                const x = mobileLayoutService.clamp(v, 0, 100);
-                onUpdateSubtitle(selected.id, {
-                  position: { ...selected.position, x },
-                });
-              }}
-              aria-label="Position X"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="pos-y" className="text-[11px]">
-              Y (0-100)
-            </Label>
-            <Input
-              id="pos-y"
-              type="number"
-              min={0}
-              max={100}
-              value={selected.position.y}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!Number.isFinite(v)) return;
-                const y = mobileLayoutService.clamp(v, 0, 100);
-                onUpdateSubtitle(selected.id, {
-                  position: { ...selected.position, y },
-                });
-              }}
-              aria-label="Position Y"
-            />
-          </div>
+          <NumberField
+            id="pos-x"
+            label="X (0-100)"
+            value={selected.position.x}
+            onValue={(v) =>
+              onUpdateSubtitle(selected.id, {
+                position: {
+                  ...selected.position,
+                  x: mobileLayoutService.clamp(v, 0, 100),
+                },
+              })
+            }
+            min={0}
+            max={100}
+            ariaLabel="Position X"
+          />
+          <NumberField
+            id="pos-y"
+            label="Y (0-100)"
+            value={selected.position.y}
+            onValue={(v) =>
+              onUpdateSubtitle(selected.id, {
+                position: {
+                  ...selected.position,
+                  y: mobileLayoutService.clamp(v, 0, 100),
+                },
+              })
+            }
+            min={0}
+            max={100}
+            ariaLabel="Position Y"
+          />
         </div>
       </div>
     </>

@@ -2,9 +2,8 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
+import { NumberField, ToggleSection } from "./StyleFields";
 
 export type SubtitleBackgroundPanelProps = {
   selected: Subtitle;
@@ -24,28 +23,13 @@ export function SubtitleBackgroundPanel({
         : bgRaw
       : "#000000";
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold">Background</Label>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-kumo-subtle">
-            {selected.style.backgroundEnabled ? "On" : "Off"}
-          </span>
-          <Switch
-            checked={selected.style.backgroundEnabled}
-            onCheckedChange={(checked) =>
-              onUpdateStyle({ backgroundEnabled: checked })
-            }
-            aria-label="Toggle background"
-          />
-        </div>
-      </div>
-      <div
-        className={cn(
-          !selected.style.backgroundEnabled && "opacity-50 pointer-events-none",
-        )}
-      >
-        <div className="space-y-2">
+    <ToggleSection
+      title="Background"
+      enabled={selected.style.backgroundEnabled}
+      onToggle={(checked) => onUpdateStyle({ backgroundEnabled: checked })}
+      toggleLabel="Toggle background"
+    >
+      <div className="space-y-2">
           <div className="space-y-1">
             <Label htmlFor="bg-color" className="text-[11px]">
               Color
@@ -75,45 +59,32 @@ export function SubtitleBackgroundPanel({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <Label htmlFor="bg-pad" className="text-[11px]">
-                Padding
-              </Label>
-              <Input
-                id="bg-pad"
-                type="number"
-                min={0}
-                value={selected.style.backgroundPadding}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!Number.isFinite(v) || v < 0) return;
-                  onUpdateStyle({ backgroundPadding: v });
-                }}
-                aria-label="Background Padding"
-                disabled={!selected.style.backgroundEnabled}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="bg-radius" className="text-[11px]">
-                Corner Radius
-              </Label>
-              <Input
-                id="bg-radius"
-                type="number"
-                min={0}
-                value={selected.style.backgroundBorderRadius}
-                onChange={(e) => {
-                  const v = parseFloat(e.target.value);
-                  if (!Number.isFinite(v) || v < 0) return;
-                  onUpdateStyle({ backgroundBorderRadius: v });
-                }}
-                aria-label="Background Corner Radius"
-                disabled={!selected.style.backgroundEnabled}
-              />
-            </div>
+            <NumberField
+              id="bg-pad"
+              label="Padding"
+              value={selected.style.backgroundPadding}
+              onValue={(v) => {
+                if (v < 0) return;
+                onUpdateStyle({ backgroundPadding: v });
+              }}
+              min={0}
+              disabled={!selected.style.backgroundEnabled}
+              ariaLabel="Background Padding"
+            />
+            <NumberField
+              id="bg-radius"
+              label="Corner Radius"
+              value={selected.style.backgroundBorderRadius}
+              onValue={(v) => {
+                if (v < 0) return;
+                onUpdateStyle({ backgroundBorderRadius: v });
+              }}
+              min={0}
+              disabled={!selected.style.backgroundEnabled}
+              ariaLabel="Background Corner Radius"
+            />
           </div>
         </div>
-      </div>
-    </div>
+    </ToggleSection>
   );
 }

@@ -2,10 +2,9 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
 import { isValidHexColor } from "./subtitle-helpers";
+import { NumberField, ToggleSection } from "./StyleFields";
 
 export type SubtitleOutlinePanelProps = {
   selected: Subtitle;
@@ -17,47 +16,26 @@ export function SubtitleOutlinePanel({
   onUpdateStyle,
 }: SubtitleOutlinePanelProps) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <Label className="text-xs font-semibold">Outline</Label>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-kumo-subtle">
-            {selected.style.outlineEnabled ? "On" : "Off"}
-          </span>
-          <Switch
-            checked={selected.style.outlineEnabled}
-            onCheckedChange={(checked) =>
-              onUpdateStyle({ outlineEnabled: checked })
-            }
-            aria-label="Toggle outline"
-          />
-        </div>
-      </div>
-      <div
-        className={cn(
-          "grid grid-cols-2 gap-2",
-          !selected.style.outlineEnabled && "opacity-50 pointer-events-none",
-        )}
-      >
-        <div className="space-y-1">
-          <Label htmlFor="outline-thick" className="text-[11px]">
-            Thickness
-          </Label>
-          <Input
-            id="outline-thick"
-            type="number"
-            min={0}
-            step={0.5}
-            value={selected.style.outlineThickness}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              if (!Number.isFinite(v) || v < 0) return;
-              onUpdateStyle({ outlineThickness: v });
-            }}
-            aria-label="Outline Thickness"
-            disabled={!selected.style.outlineEnabled}
-          />
-        </div>
+    <ToggleSection
+      title="Outline"
+      enabled={selected.style.outlineEnabled}
+      onToggle={(checked) => onUpdateStyle({ outlineEnabled: checked })}
+      toggleLabel="Toggle outline"
+      bodyClassName="grid grid-cols-2 gap-2"
+    >
+      <NumberField
+        id="outline-thick"
+        label="Thickness"
+        value={selected.style.outlineThickness}
+        onValue={(v) => {
+          if (v < 0) return;
+          onUpdateStyle({ outlineThickness: v });
+        }}
+        min={0}
+        step={0.5}
+        disabled={!selected.style.outlineEnabled}
+        ariaLabel="Outline Thickness"
+      />
         <div className="space-y-1">
           <Label htmlFor="outline-color" className="text-[11px]">
             Color
@@ -85,7 +63,6 @@ export function SubtitleOutlinePanel({
             />
           </div>
         </div>
-      </div>
-    </div>
+    </ToggleSection>
   );
 }
