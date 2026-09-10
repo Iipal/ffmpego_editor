@@ -5,6 +5,13 @@ import { useSelector } from "@tanstack/react-store";
 export interface SourceSlice {
   file: File | null;
   mediaUrl: string | null;
+  /**
+   * Committed playhead snapshot (seek / pause / ended / loop-clamp /
+   * file-reset). The live per-frame clock lives in `playheadSlice`;
+   * read it via `usePlayheadTime()` / `getPlayheadTime()` and write
+   * per-frame ticks via `setPlayheadTime()` — never write this field
+   * per-frame or every `sourceStore` subscriber re-renders at 60fps.
+   */
   currentTime: number;
   duration: number;
   isPlaying: boolean;

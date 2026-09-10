@@ -8,6 +8,11 @@ import { AudioControls } from "@/components/editor/AudioControls";
 import { CropOverlay } from "@/components/editor/CropOverlay";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import {
+  commitPlayheadTime,
+  setPlayheadTime,
+  usePlayheadTime,
+} from "@/store/playheadSlice";
 import { cropStore, setCropState } from "@/store/cropSlice";
 import { cutStore } from "@/store/cutSlice";
 import { mobileStore } from "@/store/mobileSlice";
@@ -25,15 +30,17 @@ export function VideoPlayer() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
-  const {
-    file,
-    mediaUrl,
-    volume,
-    isMuted,
-    currentTime,
-    trimRange,
-    sourceAspectRatio,
-  } = useSelector(sourceStore);
+  const file = useSelector(sourceStore, (s) => s.file);
+  const mediaUrl = useSelector(sourceStore, (s) => s.mediaUrl);
+  const volume = useSelector(sourceStore, (s) => s.volume);
+  const isMuted = useSelector(sourceStore, (s) => s.isMuted);
+  const trimRange = useSelector(sourceStore, (s) => s.trimRange);
+  const sourceAspectRatio = useSelector(
+    sourceStore,
+    (s) => s.sourceAspectRatio,
+  );
+  // Isolated playhead: ticks here never re-render other sourceStore readers.
+  const currentTime = usePlayheadTime();
   const { isCropMode, canvasZoom, canvasOffset } = useSelector(cropStore);
   const { playbackSpeed } = useSelector(cutStore);
   const { isLoopEnabled } = useSelector(mobileStore);
@@ -93,12 +100,10 @@ export function VideoPlayer() {
     const video = videoRef.current;
     if (!video) return;
     let animationFrame = 0;
+    // Transient rAF clock: playhead-only writes while playing. The committed
+    // sourceStore snapshot moves on pause/seek/trim-clamp, not per frame.
     const syncCurrentTime = () => {
-      setSourceState((previous) =>
-        previous.currentTime === video.currentTime
-          ? previous
-          : { ...previous, currentTime: video.currentTime },
-      );
+      setPlayheadTime(video.currentTime);
       animationFrame = requestAnimationFrame(syncCurrentTime);
     };
     const startSync = () => {
@@ -122,6 +127,7 @@ export function VideoPlayer() {
     const video = videoRef.current;
     if (video && currentTime > trimRange[1]) {
       video.currentTime = trimRange[0];
+      commitPlayheadTime(trimRange[0]);
     }
   }, [currentTime, trimRange]);
 
@@ -140,8 +146,7 @@ export function VideoPlayer() {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const { canvasZoom: zoom, canvasOffset: offset } = cropStore.state;
-      const delta =
-        event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+      const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
       const nextZoom = Math.min(
         4,
         Math.max(0.25, zoom * Math.exp(-delta * 0.0015)),
@@ -149,10 +154,8 @@ export function VideoPlayer() {
       if (nextZoom === zoom) return;
       const rect = canvas.getBoundingClientRect();
       // Cursor in unscaled canvas coords, relative to canvas center.
-      const lx =
-        (event.clientX - rect.left) / zoom - rect.width / zoom / 2;
-      const ly =
-        (event.clientY - rect.top) / zoom - rect.height / zoom / 2;
+      const lx = (event.clientX - rect.left) / zoom - rect.width / zoom / 2;
+      const ly = (event.clientY - rect.top) / zoom - rect.height / zoom / 2;
       setCropState((previous) => ({
         ...previous,
         canvasZoom: nextZoom,
@@ -246,28 +249,28 @@ export function VideoPlayer() {
                   });
                 }}
                 onTimeUpdate={(event) => {
-                  setSourceState((previous) => ({
-                    ...previous,
-                    currentTime: event.currentTarget.currentTime,
-                  }));
+                  setPlayheadTime(event.currentTarget.currentTime);
                 }}
                 onPlay={(event) => {
                   if (
                     event.currentTarget.currentTime < trimRange[0] ||
                     event.currentTarget.currentTime > trimRange[1]
-                  )
+                  ) {
                     event.currentTarget.currentTime = trimRange[0];
+                    commitPlayheadTime(trimRange[0]);
+                  }
                   setSourceState((previous) => ({
                     ...previous,
                     isPlaying: true,
                   }));
                 }}
-                onPause={() =>
+                onPause={(event) => {
+                  commitPlayheadTime(event.currentTarget.currentTime);
                   setSourceState((previous) => ({
                     ...previous,
                     isPlaying: false,
-                  }))
-                }
+                  }));
+                }}
               />
               {isCropMode && <CropOverlay />}
             </div>

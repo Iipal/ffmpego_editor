@@ -53,6 +53,7 @@ import {
   setSourceState,
   type SourceSlice,
 } from "@/store/sourceSlice";
+import { resetPlayheadTime } from "@/store/playheadSlice";
 import { useSelector } from "@tanstack/react-store";
 import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
@@ -230,6 +231,7 @@ export function Sidebar() {
       ...previous,
       exportFilename: defaultFilename,
     }));
+    resetPlayheadTime(0);
     metadataMutation.mutate(file);
     extendedMetadataMutation.reset();
   };

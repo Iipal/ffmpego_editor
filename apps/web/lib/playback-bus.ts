@@ -8,6 +8,7 @@
 
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import { setSourceState, sourceStore } from "@/store/sourceSlice";
+import { commitPlayheadTime, getPlayheadTime } from "@/store/playheadSlice";
 import { setMobileState } from "@/store/mobileSlice";
 
 /**
@@ -138,16 +139,15 @@ class PlaybackBus {
     return any instanceof HTMLVideoElement ? any : null;
   }
 
-  /** Playhead of the active video, or the mirrored store time as fallback. */
+  /** Playhead of the active video, or the transient playhead as fallback. */
   private readTime(video: HTMLVideoElement | null): number {
     if (video) return video.currentTime;
-    return sourceStore.state.currentTime;
+    return getPlayheadTime();
   }
 
   /**
    * Clamp a seek target to the media duration and apply it to both the
-   * element and the mirrored store time (skipping the store write when the
-   * value is unchanged).
+   * element and the committed playhead (transient + source snapshot).
    */
   private commitSeek(video: HTMLVideoElement | null, time: number): void {
     const duration =
@@ -159,9 +159,7 @@ class PlaybackBus {
         ? mobileLayoutService.clamp(time, 0, Math.max(0.01, duration))
         : time;
     if (video) video.currentTime = t;
-    setSourceState((previous) =>
-      previous.currentTime === t ? previous : { ...previous, currentTime: t },
-    );
+    commitPlayheadTime(t);
   }
 }
 

@@ -21,6 +21,7 @@ import {
   type SubtitleSlice,
 } from "@/store/subtitleSlice";
 import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
+import { resetPlayheadTime } from "@/store/playheadSlice";
 import { toast } from "sonner";
 import { VideoFileService, videoFileService } from "@/lib/video-file";
 
@@ -103,6 +104,7 @@ export const UploadOtherButton = memo(function UploadOtherButton({
       setCutState((prev) => ({ ...prev, ...(resetState.cut || {}) }));
       setMobileState((prev) => ({ ...prev, ...(resetState.mobile || {}) }));
       setSubtitleState((prev) => ({ ...prev, ...(resetState.subtitle || {}) }));
+      resetPlayheadTime(resetState.source?.currentTime ?? 0);
       metadataMutation.mutate(file);
     },
     [metadataMutation, reset, clearTrimCache],

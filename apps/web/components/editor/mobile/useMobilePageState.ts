@@ -12,10 +12,7 @@ import {
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { formatTime } from "@/lib/format-time";
-import {
-  MobileLayoutService,
-  mobileLayoutService,
-} from "@/lib/mobile-layout";
+import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
@@ -30,15 +27,13 @@ export function useMobilePageState() {
     ensureAppInitOnce();
   }, []);
 
-  const {
-    file,
-    mediaUrl,
-    uploadStatus,
-    duration: srcDuration,
-    sourceWidth,
-    sourceHeight,
-    trimRange,
-  } = useSelector(sourceStore);
+  const file = useSelector(sourceStore, (s) => s.file);
+  const mediaUrl = useSelector(sourceStore, (s) => s.mediaUrl);
+  const uploadStatus = useSelector(sourceStore, (s) => s.uploadStatus);
+  const srcDuration = useSelector(sourceStore, (s) => s.duration);
+  const sourceWidth = useSelector(sourceStore, (s) => s.sourceWidth);
+  const sourceHeight = useSelector(sourceStore, (s) => s.sourceHeight);
+  const trimRange = useSelector(sourceStore, (s) => s.trimRange);
   const ed = useMobileEditor();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPending, startTransition] = useTransition();
@@ -115,7 +110,10 @@ export function useMobilePageState() {
   const handleResetAll = useCallback(() => {
     const saved = mobileLayoutService.loadPrefForMode(ed.layout.mode);
     if (saved) ed.setLayout(saved);
-    else ed.setLayout(mobileLayoutService.createDefaultLayout(ed.layout.mode, 0.5));
+    else
+      ed.setLayout(
+        mobileLayoutService.createDefaultLayout(ed.layout.mode, 0.5),
+      );
     if (duration > 0) {
       const next: [number, number] = [0, duration];
       setSourceState((prev) => ({ ...prev, trimRange: next }));

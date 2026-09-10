@@ -11,6 +11,7 @@ import {
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { commitPlayheadTime, usePlayheadTime } from "@/store/playheadSlice";
 import { mobileStore, setMobileState } from "@/store/mobileSlice";
 
 interface PlayerControlsProps {
@@ -21,8 +22,14 @@ interface PlayerControlsProps {
 // Store-backed adapter over the shared transport bar. Used by the main
 // VideoPlayer (and crop, which renders it lazily).
 export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
-  const { currentTime, duration, isMuted, isPlaying, volume, trimRange } =
-    useSelector(sourceStore);
+  const duration = useSelector(sourceStore, (s) => s.duration);
+  const isMuted = useSelector(sourceStore, (s) => s.isMuted);
+  const isPlaying = useSelector(sourceStore, (s) => s.isPlaying);
+  const volume = useSelector(sourceStore, (s) => s.volume);
+  const trimRange = useSelector(sourceStore, (s) => s.trimRange);
+  // Live playhead from the isolated clock — this bar re-renders on tick
+  // without waking other sourceStore subscribers.
+  const currentTime = usePlayheadTime();
   const isLoopEnabled = useSelector(
     mobileStore,
     (state) => state.isLoopEnabled,
@@ -39,7 +46,7 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
     if (player) {
       player.currentTime = nextTime;
     }
-    setSourceState((previous) => ({ ...previous, currentTime: nextTime }));
+    commitPlayheadTime(nextTime);
   };
 
   const playFromTrimStart = async () => {

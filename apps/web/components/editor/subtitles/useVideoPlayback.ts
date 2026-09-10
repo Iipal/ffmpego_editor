@@ -5,6 +5,12 @@ import { mobileLayoutService } from "@/lib/mobile-layout";
 import { NOOP } from "./heavy-modules";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import {
+  commitPlayheadTime,
+  getPlayheadTime,
+  setPlayheadTime,
+  usePlayheadTime,
+} from "@/store/playheadSlice";
 import { mobileStore, setMobileState } from "@/store/mobileSlice";
 import { audioStore } from "@/store/audioSlice";
 import { cutStore } from "@/store/cutSlice";
@@ -27,21 +33,23 @@ export function useVideoPlayback({
 }: UseVideoPlaybackArgs) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // rerender-use-ref-transient-values: transient currentTime via ref to avoid 60fps parent re-renders
-  const currentTimeRef = useRef(sourceStore.state.currentTime);
-  // read current time via ref for handlers, tick for render
-  const currentTime = useSelector(sourceStore).currentTime;
+  // Transient playhead ref (no re-render) + isolated store snapshot for UI.
+  // Per-frame ticks stay out of sourceStore so unrelated subscribers idle.
+  const currentTimeRef = useRef(getPlayheadTime());
+  const currentTime = usePlayheadTime();
 
   // Effect 2: duration/display sync — separate from font loading
-  const source = useSelector(sourceStore);
-  const { duration, isPlaying, volume, isMuted: muted } = source;
-  const isLooping = useSelector(mobileStore).isLoopEnabled;
+  const duration = useSelector(sourceStore, (s) => s.duration);
+  const isPlaying = useSelector(sourceStore, (s) => s.isPlaying);
+  const volume = useSelector(sourceStore, (s) => s.volume);
+  const muted = useSelector(sourceStore, (s) => s.isMuted);
+  const file = useSelector(sourceStore, (s) => s.file);
+  const isLooping = useSelector(mobileStore, (s) => s.isLoopEnabled);
   const [previewHeight, setPreviewHeight] = useState(560);
   const previewWrapRef = useRef<HTMLDivElement>(null);
-  const { file } = source;
-  const { tracks } = useSelector(audioStore);
-  const trackCount = tracks.length;
-  const { playbackSpeed } = useSelector(cutStore);
+  const tracks = useSelector(audioStore, (s) => s.tracks);
+  const trackCount = useSelector(audioStore, (s) => s.tracks.length);
+  const playbackSpeed = useSelector(cutStore, (s) => s.playbackSpeed);
   useAudioPreview({ file, mediaUrl, videoRef, tracks, volume, muted });
 
   const effectiveDuration = duration || srcDuration || 0;
@@ -105,13 +113,13 @@ export function useVideoPlayback({
         if (t >= e - 0.02) {
           v.currentTime = s;
           currentTimeRef.current = s;
-          setSourceState((previous) => ({ ...previous, currentTime: s }));
+          commitPlayheadTime(s);
           return;
         }
         if (t < s - 0.01) {
           v.currentTime = s;
           currentTimeRef.current = s;
-          setSourceState((previous) => ({ ...previous, currentTime: s }));
+          commitPlayheadTime(s);
           return;
         }
       } else {
@@ -119,21 +127,25 @@ export function useVideoPlayback({
           v.pause();
           v.currentTime = e;
           currentTimeRef.current = e;
+          commitPlayheadTime(e);
           setSourceState((previous) => ({
             ...previous,
             isPlaying: false,
-            currentTime: e,
           }));
           return;
         }
       }
+      // Transient tick while scrubbing/paused-seek; rAF loop owns the
+      // throttled render snapshot while playing.
       currentTimeRef.current = t;
-      setSourceState((previous) => ({ ...previous, currentTime: t }));
+      setPlayheadTime(t);
     };
     const onPlay = () =>
       setSourceState((previous) => ({ ...previous, isPlaying: true }));
-    const onPause = () =>
+    const onPause = () => {
+      commitPlayheadTime(currentTimeRef.current);
       setSourceState((previous) => ({ ...previous, isPlaying: false }));
+    };
     const onEnded = () => {
       const s = trimStartRef.current;
       const e = trimEndRef.current;
@@ -170,7 +182,8 @@ export function useVideoPlayback({
     // rerender-dependencies: only primitives/mediaUrl, videoRef omitted (stable ref)
   }, [mediaUrl, duration]);
 
-  // RAF sync for smooth playhead — throttled, uses ref to avoid 60fps re-renders of parent (rerender-use-ref-transient-values)
+  // RAF sync for smooth playhead — throttled transient writes; the source
+  // snapshot only moves on pause/seek/clamp so global subscribers stay idle.
   useEffect(() => {
     if (!isPlaying) return;
     let raf = 0;
@@ -182,17 +195,16 @@ export function useVideoPlayback({
         const e = trimEndRef.current;
         if (isLoopingRef.current && e > s && v.currentTime >= e - 0.02) {
           v.currentTime = s;
-        }
-        const t = v.currentTime;
-        currentTimeRef.current = t;
-        const now = performance.now();
-        if (now - lastTick > 100) {
-          lastTick = now;
-          setSourceState((previous) =>
-            previous.currentTime === t
-              ? previous
-              : { ...previous, currentTime: t },
-          );
+          currentTimeRef.current = s;
+          commitPlayheadTime(s);
+        } else {
+          const t = v.currentTime;
+          currentTimeRef.current = t;
+          const now = performance.now();
+          if (now - lastTick > 100) {
+            lastTick = now;
+            setPlayheadTime(t);
+          }
         }
       }
       raf = requestAnimationFrame(loop);
@@ -252,19 +264,12 @@ export function useVideoPlayback({
   const playFromTrimStart = useCallback(() => {
     const v = videoRef.current;
     if (!v || effectiveDuration === 0) return;
-    const cur = currentTimeRef.current;
     const s = trimStartRef.current;
-    const e = trimEndRef.current;
-    if (cur < s || cur > e) {
-      v.currentTime = s;
-      currentTimeRef.current = s;
-    } else {
-      v.currentTime = s;
-      currentTimeRef.current = s;
-    }
+    v.currentTime = s;
+    currentTimeRef.current = s;
+    commitPlayheadTime(s);
     setSourceState((previous) => ({
       ...previous,
-      currentTime: s,
       isPlaying: true,
     }));
   }, [effectiveDuration]);
@@ -279,10 +284,11 @@ export function useVideoPlayback({
       if (cur < s || cur >= e) {
         v.currentTime = s;
         currentTimeRef.current = s;
-        setSourceState((previous) => ({ ...previous, currentTime: s }));
+        commitPlayheadTime(s);
       }
       setSourceState((previous) => ({ ...previous, isPlaying: true }));
     } else {
+      commitPlayheadTime(v.currentTime);
       setSourceState((previous) => ({ ...previous, isPlaying: false }));
     }
   }, [isPlaying]);
@@ -300,10 +306,14 @@ export function useVideoPlayback({
     (value: number) => {
       const v = videoRef.current;
       if (!v || effectiveDuration === 0) return;
-      const t = mobileLayoutService.clamp(value, trimStartRef.current, trimEndRef.current);
+      const t = mobileLayoutService.clamp(
+        value,
+        trimStartRef.current,
+        trimEndRef.current,
+      );
       v.currentTime = t;
       currentTimeRef.current = t;
-      setSourceState((previous) => ({ ...previous, currentTime: t }));
+      commitPlayheadTime(t);
     },
     [effectiveDuration],
   );
@@ -315,7 +325,7 @@ export function useVideoPlayback({
       const t = mobileLayoutService.clamp(time, 0, effectiveDuration);
       v.currentTime = t;
       currentTimeRef.current = t;
-      setSourceState((previous) => ({ ...previous, currentTime: t }));
+      commitPlayheadTime(t);
     },
     [effectiveDuration],
   );

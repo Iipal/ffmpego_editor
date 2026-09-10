@@ -7,6 +7,11 @@ import { NOOP } from "@/lib/utils";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
 import { setSourceState } from "@/store/sourceSlice";
+import {
+  commitPlayheadTime,
+  setPlayheadTime,
+  usePlayheadTime,
+} from "@/store/playheadSlice";
 import { mobileStore, setMobileState } from "@/store/mobileSlice";
 import { audioStore } from "@/store/audioSlice";
 import { cutStore } from "@/store/cutSlice";
@@ -76,13 +81,18 @@ export function useVideoPlayer(
   } = options;
   const mediaUrl = options.mediaUrl ?? null;
 
-  const source = useSelector(sourceStore);
-  const { file } = source;
-  const { isLoopEnabled: loop } = useSelector(mobileStore);
-  const { playbackSpeed } = useSelector(cutStore);
-  const { isPlaying, currentTime, duration, volume, isMuted: muted } = source;
-  const { tracks } = useSelector(audioStore);
-  const trackCount = tracks.length;
+  // Narrow subscriptions: the playhead ticks at frame rate in its own
+  // isolated store so sourceStore subscribers never re-render while playing.
+  const file = useSelector(sourceStore, (s) => s.file);
+  const isPlaying = useSelector(sourceStore, (s) => s.isPlaying);
+  const duration = useSelector(sourceStore, (s) => s.duration);
+  const volume = useSelector(sourceStore, (s) => s.volume);
+  const muted = useSelector(sourceStore, (s) => s.isMuted);
+  const currentTime = usePlayheadTime();
+  const loop = useSelector(mobileStore, (s) => s.isLoopEnabled);
+  const playbackSpeed = useSelector(cutStore, (s) => s.playbackSpeed);
+  const trackCount = useSelector(audioStore, (s) => s.tracks.length);
+  const tracks = useSelector(audioStore, (s) => s.tracks);
   useAudioPreview({ file, mediaUrl, videoRef, tracks, volume, muted });
 
   const timeRef = useRef(0);
@@ -106,6 +116,8 @@ export function useVideoPlayer(
     const v = videoRef.current;
     if (!v) return;
 
+    // Transient tick: isolated playhead only, so sourceStore subscribers
+    // (headers, panels, lists) never re-render while the video plays.
     const pushTime = (t: number) => {
       timeRef.current = t;
       const now = performance.now();
@@ -114,14 +126,12 @@ export function useVideoPlayer(
         now - lastTickRef.current >= throttleRef.current
       ) {
         lastTickRef.current = now;
-        setSourceState((previous) =>
-          previous.currentTime === t
-            ? previous
-            : { ...previous, currentTime: t },
-        );
+        setPlayheadTime(t);
       }
     };
 
+    // Committed clamp: loop jumps are seeks — keep the source snapshot in
+    // sync for handlers without a video element.
     const clampToLoopRange = () => {
       const range = loopRangeRef.current;
       if (!range) return false;
@@ -130,11 +140,7 @@ export function useVideoPlayer(
         v.currentTime = s;
         timeRef.current = s;
         lastTickRef.current = performance.now();
-        setSourceState((previous) =>
-          previous.currentTime === s
-            ? previous
-            : { ...previous, currentTime: s },
-        );
+        commitPlayheadTime(s);
         return true;
       }
       return false;
@@ -146,6 +152,17 @@ export function useVideoPlayer(
         return;
       }
       pushTime(v.currentTime);
+      onTimeRef.current?.(v);
+    };
+    // Seeks are committed (snapshot + transient); in-between frames stay
+    // transient so scrubbing doesn't spam the global store either.
+    const onSeeked = () => {
+      if (clampToLoopRange()) {
+        onTimeRef.current?.(v);
+        return;
+      }
+      timeRef.current = v.currentTime;
+      commitPlayheadTime(v.currentTime);
       onTimeRef.current?.(v);
     };
     // Smooth sync while playing (parity with the main VideoPlayer):
@@ -175,6 +192,8 @@ export function useVideoPlayer(
     };
     const onPause = () => {
       stopSync();
+      // Commit the resting playhead so store-only readers see the pause spot.
+      commitPlayheadTime(timeRef.current || v.currentTime);
       setSourceState((previous) => ({ ...previous, isPlaying: false }));
     };
     const onEndedNative = () => {
@@ -186,7 +205,8 @@ export function useVideoPlayer(
       const range = loopRangeRef.current;
       if (range && range[1] > range[0]) {
         v.currentTime = range[0];
-        pushTime(range[0]);
+        timeRef.current = range[0];
+        commitPlayheadTime(range[0]);
         v.play().catch(NOOP);
       } else {
         setSourceState((previous) => ({ ...previous, isPlaying: false }));
@@ -202,7 +222,7 @@ export function useVideoPlayer(
     v.addEventListener("timeupdate", onTimeUpdate, {
       passive: true,
     } as AddEventListenerOptions);
-    v.addEventListener("seeked", onTimeUpdate);
+    v.addEventListener("seeked", onSeeked);
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("ended", onEndedNative);
@@ -213,7 +233,7 @@ export function useVideoPlayer(
     return () => {
       stopSync();
       v.removeEventListener("timeupdate", onTimeUpdate);
-      v.removeEventListener("seeked", onTimeUpdate);
+      v.removeEventListener("seeked", onSeeked);
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
       v.removeEventListener("ended", onEndedNative);
@@ -297,10 +317,7 @@ export function useVideoPlayer(
           : timeRef.current;
       v.currentTime = mobileLayoutService.clamp(t, 0, Math.max(0.01, d || 0));
       timeRef.current = v.currentTime;
-      setSourceState((previous) => ({
-        ...previous,
-        currentTime: v.currentTime,
-      }));
+      commitPlayheadTime(v.currentTime);
     },
     [videoRef],
   );

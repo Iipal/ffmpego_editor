@@ -13,6 +13,7 @@ import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { setCutState } from "@/store/cutSlice";
 import { setCropState } from "@/store/cropSlice";
 import { setSubtitleState } from "@/store/subtitleSlice";
+import { resetPlayheadTime } from "@/store/playheadSlice";
 import { VideoFileService, videoFileService } from "@/lib/video-file";
 import { toast } from "sonner";
 
@@ -81,6 +82,7 @@ export function VideoUploader() {
         selectedSubtitleId: null,
         subtitleTrackCountExplicit: 1,
       }));
+      resetPlayheadTime(0);
       metadataMutation.mutate(file);
     },
     [metadataMutation],

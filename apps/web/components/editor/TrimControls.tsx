@@ -12,7 +12,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { SkipBack, SkipForward } from "lucide-react";
-import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { sourceStore } from "@/store/sourceSlice";
+import { commitPlayheadTime, usePlayheadTime } from "@/store/playheadSlice";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format-time";
 import {
@@ -40,20 +41,17 @@ export type TrimControlsProps = {
   playerRef: RefObject<HTMLVideoElement | null>;
 };
 
-// Seeks a player element and mirrors the seek into the source store.
-// Module-level so handlers can take prop-owned refs without tripping the
-// react-hooks/immutability rule (reads are fine, direct writes are not).
+// Seeks a player element and commits the seek to the playhead clock
+// (transient + source snapshot). Module-level so handlers can take
+// prop-owned refs without tripping the react-hooks/immutability rule
+// (reads are fine, direct writes are not).
 export function seekPlayerElement(
   player: HTMLVideoElement | null,
   time: number,
 ) {
   if (!player) return;
   player.currentTime = time;
-  setSourceState((previous) =>
-    previous.currentTime === time
-      ? previous
-      : { ...previous, currentTime: time },
-  );
+  commitPlayheadTime(time);
 }
 
 // Self-owned trim card: owns the source-store trimRange tuple via
@@ -72,7 +70,8 @@ export function TrimControls({
   sliderMax,
   playerRef,
 }: TrimControlsProps) {
-  const { file, duration: srcDuration, currentTime } = useSelector(sourceStore);
+  const { file, duration: srcDuration } = useSelector(sourceStore);
+  const currentTime = usePlayheadTime();
   const duration = durationProp ?? srcDuration;
 
   const {

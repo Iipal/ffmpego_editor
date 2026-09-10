@@ -20,6 +20,7 @@ import {
   type AudioTrackState,
 } from "@/store/audioSlice";
 import { sourceStore } from "@/store/sourceSlice";
+import { usePlayheadTime } from "@/store/playheadSlice";
 import { formatTime } from "@/lib/format-time";
 import { apiClient } from "@/lib/api-client";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
@@ -250,9 +251,10 @@ function TrackControls({
 
 export function AudioControls() {
   const audio = useSelector(audioStore);
-  const source = useSelector(sourceStore);
-  const { currentTime, trimRange, duration } = source;
-  const file = source.file;
+  const file = useSelector(sourceStore, (s) => s.file);
+  const trimRange = useSelector(sourceStore, (s) => s.trimRange);
+  const duration = useSelector(sourceStore, (s) => s.duration);
+  const currentTime = usePlayheadTime();
   const { data } = useAudioAnalysis(file, 0);
 
   useEffect(() => {

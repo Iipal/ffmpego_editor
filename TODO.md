@@ -35,8 +35,10 @@ Derived from an architecture/feature audit (2026-09-10). Keep in sync with
 - [ ] **Unify duplicated player/uploader code.**
   - Three playback implementations: `components/editor/shared/useVideoPlayer.ts`, `subtitles/useVideoPlayback.ts`, `cut/useCutPlayback.ts` → one `usePlaybackEngine`.
   - Four near-identical `UploadOtherButton.tsx` copies (crop/cut/mobile/shared) → one shared component.
-- [ ] **Fix render-path playhead clock + list scaling.**
+- [x] **Fix render-path playhead clock**
   - `currentTime` ticks through `sourceSlice` and re-renders subscribers (throttled store writes per frame); move playhead to a transient/rAF subscription.
+  - Done 2026-09-10: isolated `store/playheadSlice.ts` (`playheadAtom` via `createAtom<number>`, `usePlayheadTime`, `setPlayheadTime` per-frame transient, `commitPlayheadTime` for seek/pause/ended/file-reset snapshots into `sourceStore.currentTime`); writers migrated (`useVideoPlayer`, `VideoPlayer`, `subtitles/useVideoPlayback`, `lib/playback-bus`, `PlayerControls`, `TrimControls`, `AudioControls`, cut `useCutPlayback`, file-reset paths); live readers (`VideoPlayerControls`, `TrimSlider`, `AudioWaveform`, `SourcePanel`, `PreviewPane`, `CutTimeline`) fed via parents; `sourceSlice.currentTime` documented as committed snapshot only.
+- [ ] **list scaling**
   - Real virtualization for `JobsList`, subtitle rows, `BulkArea` grids (only `content-visibility` today).
 - [ ] **Break up mega-files and prune dead deps.**
   - `components/editor/Sidebar.tsx` (1143 LOC) → split export form sections; `components/admin/useAdminJobs.ts` (479 LOC) → split query/mutations/actions.
