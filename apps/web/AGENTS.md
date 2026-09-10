@@ -52,26 +52,26 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ### `lib/` services & utils
 
-| File                     | Owns / exports                                                                                 |
-| ------------------------ | ---------------------------------------------------------------------------------------------- |
-| `api-client.ts`          | `APIClient` service: `apiClient.url/get/post/formPost/patch/delete/postBlob`                   |
-| `export-queue.ts`        | `ExportQueue` service: `exportQueue.enqueue/cancel/dismiss`                                    |
-| `export-history.ts`      | `ExportHistory` service: `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract` |
-| `export-presets.ts`      | `ExportPresets` service: `exportPresets.all/customs/save/remove/toPatch`                       |
-| `global-listener-bus.ts` | `GlobalListenerBus` service: pointer move/up + admin scroll/touch buses                        |
-| `upload-chunked.ts`      | `uploadFileChunked` (>256 MB), `uploadFormWithProgress` (XHR progress), `shouldUseChunked`     |
-| `transcode-progress.ts`  | `subscribeTranscodeProgress` (SSE `progressUrl` fan-out)                                       |
-| `transcode-jobs.ts`      | `cancelTranscodeJob`, envelope errors (`serverErrorMessage`, `throwTranscodeHttpError`)        |
-| `preflight.ts`           | `preflightExport` (fail-fast summary), `probeApiConnectivity`                                  |
-| `validate-settings.ts`   | contracts pre-validation before every `POST`                                                   |
-| `playback-bus.ts`        | global transport bus (shortcuts/palette → active `<video>` + `sourceStore`)                    |
-| `video-file.ts`          | accepted input attrs, size guards, filename helpers                                            |
+| File                     | Owns / exports                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `api-client.ts`          | `APIClient` service: `apiClient.url/get/post/formPost/patch/delete/postBlob`                             |
+| `export-queue.ts`        | `ExportQueue` service: `exportQueue.enqueue/cancel/dismiss`                                              |
+| `export-history.ts`      | `ExportHistory` service: `exportHistory.renameJob/retryEntry/openComparison/retryAudioExtract`           |
+| `export-presets.ts`      | `ExportPresets` service: `exportPresets.all/customs/save/remove/toPatch`                                 |
+| `global-listener-bus.ts` | `GlobalListenerBus` service: pointer move/up + admin scroll/touch buses                                  |
+| `upload-chunked.ts`      | `uploadFileChunked` (>256 MB), `uploadFormWithProgress` (XHR progress), `shouldUseChunked`               |
+| `transcode-progress.ts`  | `subscribeTranscodeProgress` (SSE `progressUrl` fan-out)                                                 |
+| `transcode-jobs.ts`      | `cancelTranscodeJob`, envelope errors (`serverErrorMessage`, `throwTranscodeHttpError`)                  |
+| `preflight.ts`           | `preflightExport` (fail-fast summary), `probeApiConnectivity`                                            |
+| `validate-settings.ts`   | contracts pre-validation before every `POST`                                                             |
+| `playback-bus.ts`        | `PlaybackBus` service: `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`                               |
+| `video-file.ts`          | accepted input attrs, size guards, filename helpers                                                      |
 | `mobile-layout.ts`       | `MobileLayoutService`: `mobileLayoutService.clamp/normalizeLayout/...`, `MobileLayoutService.OUTPUT_W/H` |
-| `format-time.ts`         | `formatTime` display helper                                                                    |
-| `save-blob-file.ts`      | `saveBlobFile` (picker), `fetchDownloadBlob`, `pickerTypesForExt`                              |
-| `preload.ts`             | hover/focus intent preloads (`preloadUploadChunked`)                                           |
-| `utils.ts`               | `cn` re-export, `NOOP` default callback                                                        |
-| `subtitles/`             | PNG render, Google Fonts, defaults, storage, subtitle types                                    |
+| `format-time.ts`         | `formatTime` display helper                                                                              |
+| `save-blob-file.ts`      | `saveBlobFile` (picker), `fetchDownloadBlob`, `pickerTypesForExt`                                        |
+| `preload.ts`             | hover/focus intent preloads (`preloadUploadChunked`)                                                     |
+| `utils.ts`               | `cn` re-export, `NOOP` default callback                                                                  |
+| `subtitles/`             | PNG render, Google Fonts, defaults, storage, subtitle types                                              |
 
 ## Shared packages used
 

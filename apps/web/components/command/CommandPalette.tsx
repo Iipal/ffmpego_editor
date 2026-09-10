@@ -29,16 +29,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
-import {
-  clearTrim,
-  seekBy,
-  setTrimInToPlayhead,
-  setTrimOutToPlayhead,
-  stepFrame,
-  toggleLoop,
-  toggleMute,
-  togglePlay,
-} from "@/lib/playback-bus";
+import { playbackBus } from "@/lib/playback-bus";
 import { sourceStore } from "@/store/sourceSlice";
 import {
   setPaletteOpen,
@@ -106,7 +97,7 @@ export function CommandPalette() {
             <CommandItem
               value="play pause toggle space k"
               keywords={["play", "pause", "space"]}
-              onSelect={() => run(togglePlay)}
+              onSelect={() => run(() => playbackBus.togglePlay())}
             >
               {sourceStore.state.isPlaying ? <Pause /> : <Play />}
               <span>Play / pause</span>
@@ -115,7 +106,7 @@ export function CommandPalette() {
             <CommandItem
               value="seek back 10 seconds j"
               keywords={["rewind", "back", "j"]}
-              onSelect={() => run(() => seekBy(-10))}
+              onSelect={() => run(() => playbackBus.seekBy(-10))}
             >
               <SkipBack />
               <span>Back 10 seconds</span>
@@ -124,7 +115,7 @@ export function CommandPalette() {
             <CommandItem
               value="seek forward 10 seconds l"
               keywords={["forward", "l"]}
-              onSelect={() => run(() => seekBy(10))}
+              onSelect={() => run(() => playbackBus.seekBy(10))}
             >
               <SkipForward />
               <span>Forward 10 seconds</span>
@@ -133,7 +124,7 @@ export function CommandPalette() {
             <CommandItem
               value="previous frame step"
               keywords={["frame", "previous", "step"]}
-              onSelect={() => run(() => stepFrame(-1))}
+              onSelect={() => run(() => playbackBus.stepFrame(-1))}
             >
               <StepBack />
               <span>Previous frame</span>
@@ -142,7 +133,7 @@ export function CommandPalette() {
             <CommandItem
               value="next frame step"
               keywords={["frame", "next", "step"]}
-              onSelect={() => run(() => stepFrame(1))}
+              onSelect={() => run(() => playbackBus.stepFrame(1))}
             >
               <StepForward />
               <span>Next frame</span>
@@ -151,7 +142,7 @@ export function CommandPalette() {
             <CommandItem
               value="mute unmute volume m"
               keywords={["mute", "volume", "audio"]}
-              onSelect={() => run(toggleMute)}
+              onSelect={() => run(() => playbackBus.toggleMute())}
             >
               <VolumeX />
               <span>Mute / unmute</span>
@@ -160,7 +151,7 @@ export function CommandPalette() {
             <CommandItem
               value="loop trim repeat"
               keywords={["loop", "repeat"]}
-              onSelect={() => run(toggleLoop)}
+              onSelect={() => run(() => playbackBus.toggleLoop())}
             >
               <Repeat />
               <span>Toggle trim loop</span>
@@ -173,7 +164,7 @@ export function CommandPalette() {
             <CommandItem
               value="set trim in point i"
               keywords={["trim", "in", "start"]}
-              onSelect={() => run(() => void setTrimInToPlayhead())}
+              onSelect={() => run(() => void playbackBus.setTrimInToPlayhead())}
             >
               <span className="flex size-4 items-center justify-center font-mono text-xs font-semibold">
                 I
@@ -184,7 +175,9 @@ export function CommandPalette() {
             <CommandItem
               value="set trim out point o"
               keywords={["trim", "out", "end"]}
-              onSelect={() => run(() => void setTrimOutToPlayhead())}
+              onSelect={() =>
+                run(() => void playbackBus.setTrimOutToPlayhead())
+              }
             >
               <span className="flex size-4 items-center justify-center font-mono text-xs font-semibold">
                 O
@@ -195,7 +188,7 @@ export function CommandPalette() {
             <CommandItem
               value="clear trim full length x"
               keywords={["trim", "clear", "reset", "full"]}
-              onSelect={() => run(clearTrim)}
+              onSelect={() => run(() => playbackBus.clearTrim())}
             >
               <span className="flex size-4 items-center justify-center font-mono text-xs font-semibold">
                 X

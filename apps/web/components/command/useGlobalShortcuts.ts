@@ -3,15 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { NAV_ITEMS } from "@/components/view-transition/AppNav";
-import {
-  clearTrim,
-  seekBy,
-  setTrimInToPlayhead,
-  setTrimOutToPlayhead,
-  stepFrame,
-  toggleMute,
-  togglePlay,
-} from "@/lib/playback-bus";
+import { playbackBus } from "@/lib/playback-bus";
 import { paletteStore, setPaletteOpen, togglePalette } from "./paletteStore";
 
 function isTypingTarget(target: EventTarget | null) {
@@ -86,47 +78,47 @@ export function useGlobalShortcuts() {
         case "k":
         case "K":
           e.preventDefault();
-          togglePlay();
+          playbackBus.togglePlay();
           break;
         case "j":
         case "J":
-          seekBy(e.shiftKey ? -30 : -10);
+          playbackBus.seekBy(e.shiftKey ? -30 : -10);
           break;
         case "l":
         case "L":
-          seekBy(e.shiftKey ? 30 : 10);
+          playbackBus.seekBy(e.shiftKey ? 30 : 10);
           break;
         case "ArrowLeft":
           e.preventDefault();
-          if (e.shiftKey) stepFrame(-1);
-          else seekBy(-5);
+          if (e.shiftKey) playbackBus.stepFrame(-1);
+          else playbackBus.seekBy(-5);
           break;
         case "ArrowRight":
           e.preventDefault();
-          if (e.shiftKey) stepFrame(1);
-          else seekBy(5);
+          if (e.shiftKey) playbackBus.stepFrame(1);
+          else playbackBus.seekBy(5);
           break;
         case ",":
-          stepFrame(-1);
+          playbackBus.stepFrame(-1);
           break;
         case ".":
-          stepFrame(1);
+          playbackBus.stepFrame(1);
           break;
         case "i":
         case "I":
-          setTrimInToPlayhead();
+          playbackBus.setTrimInToPlayhead();
           break;
         case "o":
         case "O":
-          setTrimOutToPlayhead();
+          playbackBus.setTrimOutToPlayhead();
           break;
         case "x":
         case "X":
-          clearTrim();
+          playbackBus.clearTrim();
           break;
         case "m":
         case "M":
-          toggleMute();
+          playbackBus.toggleMute();
           break;
         default:
           return;

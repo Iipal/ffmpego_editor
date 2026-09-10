@@ -10,111 +10,160 @@ import { mobileLayoutService } from "@/lib/mobile-layout";
 import { setSourceState, sourceStore } from "@/store/sourceSlice";
 import { setMobileState } from "@/store/mobileSlice";
 
-export const TRIM_MIN_GAP = 0.2;
+/**
+ * Singleton service owning global transport: shortcuts and the command
+ * palette drive playback/trim through here instead of reaching into
+ * page-local player hooks. All DOM/store access lives here (never in the
+ * callers), so the three player implementations stay interchangeable — the
+ * bus operates on the active `<video>` under `<main>` plus `sourceStore`,
+ * which every page mirrors.
+ */
+class PlaybackBus {
+  /** Min trim length (s) preserved by the I/O playhead actions. */
+  private static readonly TRIM_MIN_GAP = 0.2;
 
-/** The video element currently on screen (first <video> under <main>). */
-export function getActiveVideo(): HTMLVideoElement | null {
-  if (typeof document === "undefined") return null;
-  const scoped = document.querySelector("main video");
-  if (scoped instanceof HTMLVideoElement) return scoped;
-  const any = document.querySelector("video");
-  return any instanceof HTMLVideoElement ? any : null;
+  // ------------------------------------------------------------------ public
+
+  /** Space — toggle the active video, no-op when none is on screen. */
+  togglePlay(): void {
+    const video = this.getActiveVideo();
+    if (!video) return;
+    if (video.paused) video.play().catch(() => {});
+    else video.pause();
+  }
+
+  /** Play the active video, no-op when none is on screen. */
+  play(): void {
+    this.getActiveVideo()
+      ?.play()
+      .catch(() => {});
+  }
+
+  /** Pause the active video, no-op when none is on screen. */
+  pause(): void {
+    this.getActiveVideo()?.pause();
+  }
+
+  /** Relative seek (J/L, arrows). Positive = forward. */
+  seekBy(deltaSeconds: number): void {
+    const video = this.getActiveVideo();
+    this.commitSeek(video, this.readTime(video) + deltaSeconds);
+  }
+
+  /** Single-frame step (`,`/`.` or Shift+arrows). Pauses first, NLE-style. */
+  stepFrame(direction: 1 | -1): void {
+    const video = this.getActiveVideo();
+    if (video && !video.paused) video.pause();
+    const fps = sourceStore.state.sourceFrameRate;
+    const step = fps > 0 && Number.isFinite(fps) ? 1 / fps : 1 / 30;
+    const video2 = video ?? this.getActiveVideo();
+    this.commitSeek(video2, this.readTime(video2) + direction * step);
+  }
+
+  /**
+   * I — set trim start to the playhead (min gap preserved). Returns false
+   * when the playhead is already past the clamp bound (nothing to set).
+   */
+  setTrimInToPlayhead(): boolean {
+    const video = this.getActiveVideo();
+    const t = this.readTime(video);
+    const cur = sourceStore.state.trimRange;
+    const next = mobileLayoutService.clamp(
+      t,
+      0,
+      cur[1] - PlaybackBus.TRIM_MIN_GAP,
+    );
+    if (next >= cur[1] - PlaybackBus.TRIM_MIN_GAP && t > next) return false;
+    setSourceState((previous) => ({ ...previous, trimRange: [next, cur[1]] }));
+    return true;
+  }
+
+  /**
+   * O — set trim end to the playhead (min gap preserved). Returns false
+   * when the playhead is already before the clamp bound (nothing to set).
+   */
+  setTrimOutToPlayhead(): boolean {
+    const video = this.getActiveVideo();
+    const t = this.readTime(video);
+    const cur = sourceStore.state.trimRange;
+    const duration =
+      (video && Number.isFinite(video.duration) ? video.duration : 0) ||
+      sourceStore.state.duration ||
+      0;
+    const next = mobileLayoutService.clamp(
+      t,
+      cur[0] + PlaybackBus.TRIM_MIN_GAP,
+      duration,
+    );
+    if (next <= cur[0] + PlaybackBus.TRIM_MIN_GAP && t < next) return false;
+    setSourceState((previous) => ({ ...previous, trimRange: [cur[0], next] }));
+    return true;
+  }
+
+  /** Reset trim to the full media length. No-op when duration is unknown. */
+  clearTrim(): void {
+    const duration =
+      sourceStore.state.duration || this.getActiveVideo()?.duration || 0;
+    if (!(duration > 0)) return;
+    setSourceState((previous) => ({ ...previous, trimRange: [0, duration] }));
+  }
+
+  /** Flip the global muted flag in `sourceStore`. */
+  toggleMute(): void {
+    setSourceState((previous) => ({
+      ...previous,
+      isMuted: !previous.isMuted,
+    }));
+  }
+
+  /** Flip loop playback in `mobileSlice`. */
+  toggleLoop(): void {
+    setMobileState((previous) => ({
+      ...previous,
+      isLoopEnabled: !previous.isLoopEnabled,
+    }));
+  }
+
+  // ----------------------------------------------------------------- private
+
+  /**
+   * The video element currently on screen (first `<video>` under `<main>`,
+   * falling back to any `<video>`). Null on the server or with no player.
+   */
+  private getActiveVideo(): HTMLVideoElement | null {
+    if (typeof document === "undefined") return null;
+    const scoped = document.querySelector("main video");
+    if (scoped instanceof HTMLVideoElement) return scoped;
+    const any = document.querySelector("video");
+    return any instanceof HTMLVideoElement ? any : null;
+  }
+
+  /** Playhead of the active video, or the mirrored store time as fallback. */
+  private readTime(video: HTMLVideoElement | null): number {
+    if (video) return video.currentTime;
+    return sourceStore.state.currentTime;
+  }
+
+  /**
+   * Clamp a seek target to the media duration and apply it to both the
+   * element and the mirrored store time (skipping the store write when the
+   * value is unchanged).
+   */
+  private commitSeek(video: HTMLVideoElement | null, time: number): void {
+    const duration =
+      (video && Number.isFinite(video.duration) ? video.duration : 0) ||
+      sourceStore.state.duration ||
+      0;
+    const t =
+      duration > 0
+        ? mobileLayoutService.clamp(time, 0, Math.max(0.01, duration))
+        : time;
+    if (video) video.currentTime = t;
+    setSourceState((previous) =>
+      previous.currentTime === t ? previous : { ...previous, currentTime: t },
+    );
+  }
 }
 
-function readTime(video: HTMLVideoElement | null): number {
-  if (video) return video.currentTime;
-  return sourceStore.state.currentTime;
-}
-
-function commitSeek(video: HTMLVideoElement | null, time: number) {
-  const duration =
-    (video && Number.isFinite(video.duration) ? video.duration : 0) ||
-    sourceStore.state.duration ||
-    0;
-  const t =
-    duration > 0
-      ? mobileLayoutService.clamp(time, 0, Math.max(0.01, duration))
-      : time;
-  if (video) video.currentTime = t;
-  setSourceState((previous) =>
-    previous.currentTime === t ? previous : { ...previous, currentTime: t },
-  );
-}
-
-export function togglePlay() {
-  const video = getActiveVideo();
-  if (!video) return;
-  if (video.paused) video.play().catch(() => {});
-  else video.pause();
-}
-
-export function play() {
-  getActiveVideo()
-    ?.play()
-    .catch(() => {});
-}
-
-export function pause() {
-  getActiveVideo()?.pause();
-}
-
-/** Relative seek (J/L, arrows). Positive = forward. */
-export function seekBy(deltaSeconds: number) {
-  const video = getActiveVideo();
-  commitSeek(video, readTime(video) + deltaSeconds);
-}
-
-/** Single-frame step (`,`/`.` or Shift+arrows). Pauses first, NLE-style. */
-export function stepFrame(direction: 1 | -1) {
-  const video = getActiveVideo();
-  if (video && !video.paused) video.pause();
-  const fps = sourceStore.state.sourceFrameRate;
-  const step = fps > 0 && Number.isFinite(fps) ? 1 / fps : 1 / 30;
-  const video2 = video ?? getActiveVideo();
-  commitSeek(video2, readTime(video2) + direction * step);
-}
-
-/** I — set trim start to the playhead (min 0.2 s gap preserved). */
-export function setTrimInToPlayhead(): boolean {
-  const video = getActiveVideo();
-  const t = readTime(video);
-  const cur = sourceStore.state.trimRange;
-  const next = mobileLayoutService.clamp(t, 0, cur[1] - TRIM_MIN_GAP);
-  if (next >= cur[1] - TRIM_MIN_GAP && t > next) return false;
-  setSourceState((previous) => ({ ...previous, trimRange: [next, cur[1]] }));
-  return true;
-}
-
-/** O — set trim end to the playhead (min 0.2 s gap preserved). */
-export function setTrimOutToPlayhead(): boolean {
-  const video = getActiveVideo();
-  const t = readTime(video);
-  const cur = sourceStore.state.trimRange;
-  const duration =
-    (video && Number.isFinite(video.duration) ? video.duration : 0) ||
-    sourceStore.state.duration ||
-    0;
-  const next = mobileLayoutService.clamp(t, cur[0] + TRIM_MIN_GAP, duration);
-  if (next <= cur[0] + TRIM_MIN_GAP && t < next) return false;
-  setSourceState((previous) => ({ ...previous, trimRange: [cur[0], next] }));
-  return true;
-}
-
-/** Reset trim to the full media length. */
-export function clearTrim() {
-  const duration =
-    sourceStore.state.duration || getActiveVideo()?.duration || 0;
-  if (!(duration > 0)) return;
-  setSourceState((previous) => ({ ...previous, trimRange: [0, duration] }));
-}
-
-export function toggleMute() {
-  setSourceState((previous) => ({ ...previous, isMuted: !previous.isMuted }));
-}
-
-export function toggleLoop() {
-  setMobileState((previous) => ({
-    ...previous,
-    isLoopEnabled: !previous.isLoopEnabled,
-  }));
-}
+/** App-wide singleton — shortcuts and the palette drive through this bus. */
+export const playbackBus = new PlaybackBus();
