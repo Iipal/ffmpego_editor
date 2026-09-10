@@ -183,7 +183,7 @@ flowchart LR
     Chunk -- yes --> Big[uploadFileChunked<br/>/upload/init-chunk-complete]
     Form --> TR[exportQueue.enqueue<br/>lib/export-queue.ts]
     Big --> TR
-    TR --> SSE[subscribeTranscodeProgress<br/>SSE progressUrl]
+    TR --> SSE[transcodeProgress.subscribe<br/>SSE progressUrl]
     SSE --> Save([saveBlobFile + openComparison<br/>or custom onFinish])
     SSE -. live progress .-> QD[QueueDock + AppNav badge<br/>store/exportQueueSlice]
 ```
@@ -195,8 +195,9 @@ flowchart LR
   429 retry, in-flight gate, orphan guard), `cancel`, `dismiss`.
   Progress mapping: upload 0–50, queued 50,
   processing 50–95, saving 97, completed 100.
-- `lib/transcode-progress.ts`: `subscribeTranscodeProgress` (SSE subscriber
-  with reconnect) + `awaitTranscodeCompletion` (promise wrapper, admin use).
+- `lib/transcode-progress.ts` (`TranscodeProgress` service:
+  `transcodeProgress.subscribe` (SSE subscriber
+  with reconnect) + `awaitCompletion` (promise wrapper, admin use)).
 - `lib/transcode-jobs.ts` (`TranscodeJobs` service:
   `transcodeJobs.cancelTranscodeJob/serverErrorMessage`), `parseRetryAfterMs`,
   `TranscodeHttpError`, `queuedLabel`, `withLogTail`.

@@ -38,7 +38,7 @@ import {
   TranscodeHttpError,
   transcodeJobs,
 } from "./transcode-jobs";
-import { subscribeTranscodeProgress } from "./transcode-progress";
+import { transcodeProgress } from "./transcode-progress";
 import {
   shouldUseChunked,
   uploadFileChunked,
@@ -333,7 +333,7 @@ class ExportQueue {
     // against the API origin or EventSource would hit the Next.js dev server.
     const progressUrl = apiClient.url(submitted.progressUrl);
     await new Promise<void>((resolve, reject) => {
-      runner.closeSse = subscribeTranscodeProgress(progressUrl, {
+      runner.closeSse = transcodeProgress.subscribe(progressUrl, {
         onProgress: (p, info) => {
           const status = info.status === "queued" ? "queued" : "processing";
           const progress =

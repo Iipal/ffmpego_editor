@@ -27,7 +27,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
    (`POST /metadata`) → editors call `exportQueue.enqueue` (`lib/export-queue.ts` service):
    chunked (`uploadFileChunked`, >256 MB via `/upload/init-chunk-complete`)
    or direct (`uploadFormWithProgress`) upload → `POST /transcode*` →
-   `subscribeTranscodeProgress` (SSE `progressUrl`) → `saveBlobFile` +
+   `transcodeProgress.subscribe` (SSE `progressUrl`) → `saveBlobFile` +
    `openComparison`. Fire-and-forget: progress lives in `exportQueueSlice`
    (QueueDock + AppNav badge); `uploadId` reuse means big files upload once.
 4. **State split.** TanStack Store (`store/`) = sync UI (file, trim, crop,
@@ -60,7 +60,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 | `export-presets.ts`      | `ExportPresets` service: `exportPresets.all/customs/save/remove/toPatch`                                 |
 | `global-listener-bus.ts` | `GlobalListenerBus` service: pointer move/up + admin scroll/touch buses                                  |
 | `upload-chunked.ts`      | `uploadFileChunked` (>256 MB), `uploadFormWithProgress` (XHR progress), `shouldUseChunked`               |
-| `transcode-progress.ts`  | `subscribeTranscodeProgress` (SSE `progressUrl` fan-out)                                                 |
+| `transcode-progress.ts`  | `TranscodeProgress` service: `transcodeProgress.subscribe/awaitCompletion`                               |
 | `transcode-jobs.ts`      | `TranscodeJobs` service: `transcodeJobs.cancelTranscodeJob/serverErrorMessage`                           |
 | `preflight.ts`           | `Preflight` service: `preflight.check` (fail-fast gate), `probeApiConnectivity`                          |
 | `validate-settings.ts`   | contracts pre-validation before every `POST`                                                             |
