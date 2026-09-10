@@ -16,6 +16,7 @@
 // lives in `hooks/useUploadSessions.ts`; rendering lives in
 // `components/admin/UploadSessions.tsx`.
 import { apiClient } from "./api-client";
+import { fetchJson } from "./fetch-json";
 
 /** One open upload session from `GET /api/upload/sessions`. */
 export interface UploadSession {
@@ -68,35 +69,11 @@ class UploadSessions {
   async listSessions(
     timeoutMs = UploadSessions.DEFAULT_TIMEOUT_MS,
   ): Promise<UploadSession[]> {
-    const baseUrl = apiClient.baseUrl;
-    if (!baseUrl) throw new Error("API base URL not configured");
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetch(apiClient.url("/api/upload/sessions"), {
-        signal: ctrl.signal,
-      });
-      if (!res.ok) {
-        throw new Error(`Upload sessions responded with HTTP ${res.status}.`);
-      }
-      const body = (await res.json()) as { sessions?: UploadSession[] };
-      return body.sessions ?? [];
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") {
-        throw new Error(
-          `Upload sessions timed out — is the backend running on ${baseUrl}?`,
-        );
-      }
-      if (e instanceof Error) {
-        if (e.message.startsWith("Upload sessions responded")) throw e;
-        throw new Error(
-          `API unreachable — is the backend running on ${baseUrl}?`,
-        );
-      }
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+    const body = await fetchJson<{ sessions?: UploadSession[] }>(
+      "/api/upload/sessions",
+      { timeoutMs, label: "Upload sessions" },
+    );
+    return body.sessions ?? [];
   }
 
   /**
@@ -108,29 +85,10 @@ class UploadSessions {
     uploadId: string,
     timeoutMs = UploadSessions.DEFAULT_TIMEOUT_MS,
   ): Promise<UploadSessionStatus | null> {
-    const baseUrl = apiClient.baseUrl;
-    if (!baseUrl) throw new Error("API base URL not configured");
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetch(apiClient.url(`/api/upload/status/${uploadId}`), {
-        signal: ctrl.signal,
-      });
-      if (res.status === 404) return null;
-      if (!res.ok) {
-        throw new Error(`Upload status responded with HTTP ${res.status}.`);
-      }
-      return (await res.json()) as UploadSessionStatus;
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") {
-        throw new Error(
-          `Upload status timed out — is the backend running on ${baseUrl}?`,
-        );
-      }
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+    return fetchJson<UploadSessionStatus | null>(
+      `/api/upload/status/${uploadId}`,
+      { timeoutMs, label: "Upload status", notFoundNull: true },
+    );
   }
 
   /** Abort a session server-side. Resolves when the bytes are released. */

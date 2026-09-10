@@ -6,7 +6,7 @@
 // raw `fetch()` so timeout + error shaping live in one place. TanStack Query
 // wiring lives in `hooks/useHealth.ts`; rendering lives in
 // `components/admin/AdminHeader.tsx` + `JobsArea.tsx`.
-import { apiClient } from "./api-client";
+import { fetchJson } from "./fetch-json";
 
 /** Queue depth snapshot mirrored from `GET /health` (`getQueueStats`). */
 export interface HealthQueueStats {
@@ -45,35 +45,10 @@ class Health {
   async fetchHealth(
     timeoutMs = Health.DEFAULT_TIMEOUT_MS,
   ): Promise<HealthSnapshot> {
-    const baseUrl = apiClient.baseUrl;
-    if (!baseUrl) throw new Error("API base URL not configured");
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetch(apiClient.url("/health"), {
-        signal: ctrl.signal,
-      });
-      if (!res.ok) {
-        throw new Error(`API responded with HTTP ${res.status}.`);
-      }
-      return (await res.json()) as HealthSnapshot;
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") {
-        throw new Error(
-          `Health check timed out — is the backend running on ${baseUrl}?`,
-        );
-      }
-      if (e instanceof Error) {
-        // `fetch` TypeError = connection refused (backend down).
-        if (e.message.startsWith("API responded")) throw e;
-        throw new Error(
-          `API unreachable — is the backend running on ${baseUrl}?`,
-        );
-      }
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+    return fetchJson<HealthSnapshot>("/health", {
+      timeoutMs,
+      label: "Health check",
+    });
   }
 }
 

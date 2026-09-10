@@ -162,6 +162,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 #### Readiness & storage snapshots
 
+- `fetch-json.ts` — `fetchJson(path, {timeoutMs, label})` funnel: base-URL
+  guard + abort timeout + human error shaping for the polling GETs below
 - `health.ts` — `Health` service: `health.fetchHealth` (`GET /health`
   readiness snapshot: ffmpeg, disk, queue)
 - `storage.ts` — `Storage` service: `storage.fetchStats`

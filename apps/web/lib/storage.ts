@@ -10,6 +10,7 @@
 // `hooks/useStorageStats.ts`; rendering lives in
 // `components/admin/JobsArea.tsx`.
 import { apiClient } from "./api-client";
+import { fetchJson } from "./fetch-json";
 
 /** Store census mirrored from `GET /api/storage/stats` (`store.stats()`). */
 export interface StorageStats {
@@ -48,34 +49,10 @@ class Storage {
   async fetchStats(
     timeoutMs = Storage.DEFAULT_TIMEOUT_MS,
   ): Promise<StorageStats> {
-    const baseUrl = apiClient.baseUrl;
-    if (!baseUrl) throw new Error("API base URL not configured");
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const res = await fetch(apiClient.url("/api/storage/stats"), {
-        signal: ctrl.signal,
-      });
-      if (!res.ok) {
-        throw new Error(`Storage stats responded with HTTP ${res.status}.`);
-      }
-      return (await res.json()) as StorageStats;
-    } catch (e) {
-      if ((e as Error)?.name === "AbortError") {
-        throw new Error(
-          `Storage stats timed out — is the backend running on ${baseUrl}?`,
-        );
-      }
-      if (e instanceof Error) {
-        if (e.message.startsWith("Storage stats responded")) throw e;
-        throw new Error(
-          `API unreachable — is the backend running on ${baseUrl}?`,
-        );
-      }
-      throw e;
-    } finally {
-      clearTimeout(timer);
-    }
+    return fetchJson<StorageStats>("/api/storage/stats", {
+      timeoutMs,
+      label: "Storage stats",
+    });
   }
 
   /**
