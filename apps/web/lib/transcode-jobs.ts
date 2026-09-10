@@ -131,7 +131,9 @@ export async function cancelTranscodeJob(jobId: string): Promise<string> {
   );
   if (!res.ok) {
     const payload = (await res.json().catch(() => null)) as unknown;
-    throw new Error(serverErrorMessage(payload) ?? `Cancel failed: ${res.status}`);
+    throw new Error(
+      serverErrorMessage(payload) ?? `Cancel failed: ${res.status}`,
+    );
   }
   const body = (await res.json()) as { status?: string };
   return body.status ?? "cancelled";

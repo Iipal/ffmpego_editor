@@ -7,7 +7,10 @@ export type SavePickerTypes = Array<{
   accept: Record<string, string[]>;
 }>;
 
-const PICKER_TYPES_BY_EXT: Record<string, { description: string; mime: string }> = {
+const PICKER_TYPES_BY_EXT: Record<
+  string,
+  { description: string; mime: string }
+> = {
   mp4: { description: "MP4 video", mime: "video/mp4" },
   webm: { description: "WebM video", mime: "video/webm" },
   mov: { description: "QuickTime video", mime: "video/quicktime" },
@@ -22,7 +25,12 @@ const PICKER_TYPES_BY_EXT: Record<string, { description: string; mime: string }>
 export function pickerTypesForExt(ext: string): SavePickerTypes {
   const known = PICKER_TYPES_BY_EXT[ext.toLowerCase()];
   if (!known) return pickerTypesForExt("mp4");
-  return [{ description: known.description, accept: { [known.mime]: [`.${ext.toLowerCase()}`] } }];
+  return [
+    {
+      description: known.description,
+      accept: { [known.mime]: [`.${ext.toLowerCase()}`] },
+    },
+  ];
 }
 
 export async function saveBlobFile(

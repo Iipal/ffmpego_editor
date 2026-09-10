@@ -8,9 +8,14 @@ Derived from an architecture/feature audit (2026-09-10). Keep in sync with
 - [ ] **SRT/VTT import + export (subtitles editor).**
   - `components/editor/subtitles/` — cues are manual-only today; `@repo/types` already has `Subtitle/*`.
   - Add parser/serializer in `lib/subtitles/`, drag-drop `.srt`/`.vtt`, and a "download sidecar" (no burn-in) option beside `useSubtitleExport.ts`.
-- [ ] **Command palette + keyboard shortcuts.**
-  - `cmdk` is already installed (`components/ui/command.tsx`); only `TabSwitcher.tsx` handles keys today.
-  - J/K/L, frame-step, `I`/`O` trim in/out, space, `⌘K` navigation across crop/mobile/subtitles/bulk/cut.
+- [x] **Command palette + keyboard shortcuts.**
+  - `cmdk` palette (`components/command/CommandPalette.tsx`, opened with
+    `⌘K`/`Ctrl+K`/`?` or the sidebar "Commands" button) with Go to /
+    Playback / Trim groups; global keys (`useGlobalShortcuts.ts`) drive the
+    shared `lib/playback-bus.ts` transport: Space/K play-pause, J/L ±10 s,
+    ←/→ ±5 s (⇧ = frame step, also `,`/`.`), `I`/`O` trim in/out, `X` reset
+    trim, `M` mute, `1..6` navigation across crop/mobile/subtitles/bulk/cut.
+  - Done 2026-09-10.
 - [ ] **Global undo/redo.**
   - Only mobile has partial undo (`components/editor/mobile/useMobileEditor.ts`).
   - History middleware over TanStack store slices: `cropSlice`, `cutSlice`, `filterSlice`, `subtitleSlice`.

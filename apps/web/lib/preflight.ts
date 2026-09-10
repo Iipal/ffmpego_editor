@@ -55,54 +55,87 @@ export function preflightExport(input: PreflightInput): PreflightResult {
     presetTarget,
   } = input;
 
-  if (!hasFile) issues.push({ level: "error", message: "No source file loaded." });
+  if (!hasFile)
+    issues.push({ level: "error", message: "No source file loaded." });
   if (sourceWidth === 0 || sourceHeight === 0)
-    issues.push({ level: "error", message: "Source dimensions unknown — metadata still loading." });
+    issues.push({
+      level: "error",
+      message: "Source dimensions unknown — metadata still loading.",
+    });
 
   const renderSeconds = ignoreTrim
     ? duration
     : Math.max(0, (trimRange[1] ?? 0) - (trimRange[0] ?? 0));
   if (!ignoreTrim && renderSeconds <= 0)
-    issues.push({ level: "error", message: "Trim range is empty — adjust trim or enable Ignore trim." });
+    issues.push({
+      level: "error",
+      message: "Trim range is empty — adjust trim or enable Ignore trim.",
+    });
 
   if (presetTarget === "audio-extract") {
     // No video-side constraints apply.
   } else if (exportFormat === "webm-tg") {
     if (!ignoreTrim && renderSeconds > 3)
-      issues.push({ level: "warn", message: "Telegram sticker caps output at 3s — trim will be cut." });
+      issues.push({
+        level: "warn",
+        message: "Telegram sticker caps output at 3s — trim will be cut.",
+      });
     if (exportSpeed !== 1)
-      issues.push({ level: "warn", message: "Speed is ignored for Telegram stickers." });
+      issues.push({
+        level: "warn",
+        message: "Speed is ignored for Telegram stickers.",
+      });
   } else if (exportFormat === "gif") {
     if (watermark && !hasMobileLayout)
-      issues.push({ level: "warn", message: "Watermark needs a mobile layout — it will be skipped for GIF." });
+      issues.push({
+        level: "warn",
+        message:
+          "Watermark needs a mobile layout — it will be skipped for GIF.",
+      });
     if (hasMobileLayout)
-      issues.push({ level: "warn", message: "Mobile layout is skipped for GIF (cropped source is scaled to 480px)." });
+      issues.push({
+        level: "warn",
+        message:
+          "Mobile layout is skipped for GIF (cropped source is scaled to 480px).",
+      });
   } else if (exportFormat === "mov") {
-    issues.push({ level: "warn", message: "MOV uses ProRes — the CRF slider has no effect." });
+    issues.push({
+      level: "warn",
+      message: "MOV uses ProRes — the CRF slider has no effect.",
+    });
   }
   if (watermark && !hasMobileLayout && exportFormat !== "gif")
-    issues.push({ level: "warn", message: "Watermark needs a mobile layout — it will be skipped." });
+    issues.push({
+      level: "warn",
+      message: "Watermark needs a mobile layout — it will be skipped.",
+    });
 
   const summary: string[] = [];
   if (presetTarget === "audio-extract") {
     summary.push(`Audio-only pull · ${fmtDuration(renderSeconds)}`);
   } else {
     const outSeconds =
-      exportFormat === "webm-tg" && !ignoreTrim ? Math.min(3, renderSeconds) : renderSeconds;
+      exportFormat === "webm-tg" && !ignoreTrim
+        ? Math.min(3, renderSeconds)
+        : renderSeconds;
     summary.push(
       `${exportFormat.toUpperCase()} · ${sourceWidth}×${sourceHeight} · ${input.exportFps}fps · ${fmtDuration(outSeconds)}${exportSpeed !== 1 ? ` · ${exportSpeed}x` : ""}`,
     );
   }
   if (input.bitrateKbps && renderSeconds > 0) {
     const mb = (input.bitrateKbps * renderSeconds) / 8 / 1024;
-    summary.push(`Rough size ~${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB (source bitrate)`);
+    summary.push(
+      `Rough size ~${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB (source bitrate)`,
+    );
   }
 
   return { ok: !issues.some((i) => i.level === "error"), issues, summary };
 }
 
 /** Fail-fast connectivity probe with a short timeout. Null = reachable. */
-export async function probeApiConnectivity(timeoutMs = 4000): Promise<string | null> {
+export async function probeApiConnectivity(
+  timeoutMs = 4000,
+): Promise<string | null> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {

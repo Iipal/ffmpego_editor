@@ -3,10 +3,7 @@
 import { API_BASE_URL, type TranscodeResponse } from "./api-client";
 import { fetchDownloadBlob } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
-import {
-  serverErrorMessage,
-  throwTranscodeHttpError,
-} from "./transcode-jobs";
+import { serverErrorMessage, throwTranscodeHttpError } from "./transcode-jobs";
 import {
   shouldUseChunked,
   uploadFileChunked,
@@ -18,7 +15,10 @@ import {
   type HistoryEntry,
 } from "@/store/exportHistorySlice";
 
-export async function renameJob(jobId: string, filename: string): Promise<string> {
+export async function renameJob(
+  jobId: string,
+  filename: string,
+): Promise<string> {
   const res = await fetch(`${API_BASE_URL}/api/transcode/jobs/${jobId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -38,7 +38,8 @@ async function submitWithCurrentFile(
   extra?: Record<string, string>,
 ): Promise<TranscodeResponse> {
   const file = sourceStore.state.file;
-  if (!file) throw new Error("Load the source file again to retry this export.");
+  if (!file)
+    throw new Error("Load the source file again to retry this export.");
   if (shouldUseChunked(file)) {
     const { uploadId } = await uploadFileChunked(file);
     const form = new FormData();
@@ -95,7 +96,12 @@ export async function openJobComparison(
       title,
       sourceUrl: sourceStore.state.mediaUrl,
       outputUrl: url,
-      outputKind: ext === "gif" ? "image" : ext === "mp3" || ext === "wav" ? "audio" : "video",
+      outputKind:
+        ext === "gif"
+          ? "image"
+          : ext === "mp3" || ext === "wav"
+            ? "audio"
+            : "video",
       meta: meta ?? null,
     });
   } catch {
@@ -108,7 +114,8 @@ export async function retryAudioExtract(
   label: string,
 ): Promise<Blob> {
   const file = sourceStore.state.file;
-  if (!file) throw new Error("Load the source file again to retry this export.");
+  if (!file)
+    throw new Error("Load the source file again to retry this export.");
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(

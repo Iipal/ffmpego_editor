@@ -276,7 +276,11 @@ class ExportQueue {
   ): Promise<Blob> {
     const signal = runner.abort.signal;
     patchQueueItem(id, { status: "uploading", progress: 0 });
-    task.onProgress?.({ status: "uploading", progress: 0, queuePosition: null });
+    task.onProgress?.({
+      status: "uploading",
+      progress: 0,
+      queuePosition: null,
+    });
 
     const form = new FormData();
     if (task.file) form.append("file", task.file);
@@ -435,9 +439,7 @@ class ExportQueue {
       }
     } catch (e) {
       if (ExportQueue.isAbortLike(e)) {
-        throw new TranscodeCancelledError(
-          "Save cancelled — file not saved.",
-        );
+        throw new TranscodeCancelledError("Save cancelled — file not saved.");
       }
       throw e;
     }

@@ -9,6 +9,7 @@ import {
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { CompareDialog } from "@/components/export/CompareDialog";
 import { QueueDock } from "@/components/export/QueueDock";
+import { CommandHost } from "@/components/command/CommandHost";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -35,6 +36,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <TooltipProvider>{children}</TooltipProvider>
         <CompareDialog />
         <QueueDock />
+        <CommandHost />
       </QueryClientProvider>
     </ThemeProvider>
   );
