@@ -1,11 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { preconnect, preload } from "react-dom";
-import { apiClient } from "@/lib/api-client";
 import type { Card } from "@/components/ui/card";
 import type { Progress } from "@/components/ui/progress";
-import { NOOP } from "./helpers";
 
 // bundle-analyzable-paths: explicit literal dynamic import map (statically analyzable)
 // Heavy UI chunks split via next/dynamic. Each value is a fn () => import("literal-path")
@@ -17,25 +14,8 @@ export const HEAVY_MODULES = {
   card: () => import("@/components/ui/card"),
 } as const;
 
-// bundle-defer-third-party + js-request-idle-callback: defer non-critical preconnect/preload
-let didPreconnect = false;
-export function ensurePreconnect() {
-  if (didPreconnect || typeof window === "undefined") return;
-  didPreconnect = true;
-  try {
-    // rendering-resource-hints: preconnect/preload for API origin + critical image
-    preconnect(apiClient.baseUrl);
-    preload("/minozavr.png", { as: "image" } as unknown as Parameters<
-      typeof preload
-    >[1]);
-  } catch {}
-}
-
-// advanced-init-once: module-level guard for app-wide init (once per app load, not per mount)
-export let didInitApp = false;
-export function markAppInit() {
-  didInitApp = true;
-}
+// bundle-defer-third-party + js-request-idle-callback: origin preconnect +
+// mascot preload live in lib/heavy (initAppOnce), shared with subtitles/mobile.
 
 // bundle-dynamic-imports: heavy Progress/Card lazy-loaded (still keep static imports for above-the-fold;
 // dynamic variant demonstrates code-splitting & is used in JobRow fallback)
@@ -76,9 +56,3 @@ export function preloadHeavyCard() {
   if (typeof window !== "undefined") void HEAVY_MODULES.card();
 }
 export { preloadUploadChunked } from "@/lib/preload";
-
-// bundle-conditional: only load sweep helper when needed (example: temp file sweep not bundled until invoked)
-export function ensureSweepHelper() {
-  if (typeof window === "undefined") return;
-  void import("@/lib/video-file").catch(NOOP);
-}

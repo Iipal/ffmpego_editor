@@ -1,4 +1,3 @@
-import { preconnect, preload } from "react-dom";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 
@@ -12,25 +11,8 @@ export const HEAVY_MODULES = {
   portrait: () => import("@/components/editor/MobilePreviewShared"),
 } as const;
 
-let didPreconnect = false;
-export function ensurePreconnect() {
-  if (didPreconnect || typeof window === "undefined") return;
-  didPreconnect = true;
-  try {
-    preconnect("https://api.local");
-    preload("/minozavr.png", { as: "image" } as unknown as Parameters<
-      typeof preload
-    >[1]);
-  } catch {}
-}
-
-let didInitApp = false;
-export function ensureAppInitOnce(): boolean {
-  if (didInitApp) return false;
-  didInitApp = true;
-  ensurePreconnect();
-  return true;
-}
+// bundle-defer-third-party + rendering-resource-hints: origin preconnect +
+// mascot preload live in lib/heavy (initAppOnce), shared with admin/subtitles.
 
 export function preloadHeavyPreview() {
   if (typeof window !== "undefined") void HEAVY_MODULES.portrait();

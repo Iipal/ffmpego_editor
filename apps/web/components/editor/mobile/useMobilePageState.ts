@@ -16,15 +16,13 @@ import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
-import {
-  cachedBuildMobileFilter,
-  ensureAppInitOnce,
-  NOOP,
-} from "./mobile-helpers";
+import { cachedBuildMobileFilter, NOOP } from "./mobile-helpers";
+import { initAppOnce } from "@/lib/heavy";
+import { apiClient } from "@/lib/api-client";
 
 export function useMobilePageState() {
   useEffect(() => {
-    ensureAppInitOnce();
+    initAppOnce("mobile", [apiClient.baseUrl]);
   }, []);
 
   const file = useSelector(sourceStore, (s) => s.file);

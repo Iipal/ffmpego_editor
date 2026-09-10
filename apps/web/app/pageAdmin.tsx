@@ -27,12 +27,8 @@ import { JobsList } from "@/components/admin/JobsList";
 import { StorageArea } from "@/components/admin/StorageArea";
 import { UploadSessions } from "@/components/admin/UploadSessions";
 import { TipsHoisted } from "@/components/admin/placeholders";
-import {
-  didInitApp,
-  ensurePreconnect,
-  markAppInit,
-  preloadHeavyCard,
-} from "@/components/admin/heavy";
+import { preloadHeavyCard } from "@/components/admin/heavy";
+import { initAppOnce } from "@/lib/heavy";
 import { useAdminJobs } from "@/components/admin/useAdminJobs";
 import { useHealthQuery } from "@/hooks/useHealth";
 import {
@@ -47,9 +43,7 @@ import {
 export default function PageAdmin() {
   // advanced-init-once: one-time preconnect, not per mount
   useEffect(() => {
-    if (didInitApp) return;
-    markAppInit();
-    ensurePreconnect();
+    initAppOnce("admin", [apiClient.baseUrl]);
   }, []);
 
   const admin = useAdminJobs();

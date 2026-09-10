@@ -3,11 +3,7 @@
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
 import { DynamicCardProbe } from "./placeholders";
-import {
-  ensureSweepHelper,
-  preloadHeavyCard,
-  preloadUploadChunked,
-} from "./heavy";
+import { preloadHeavyCard, preloadUploadChunked } from "./heavy";
 import type { AdminHealthProps } from "./types";
 import { cn } from "@/lib/utils";
 
@@ -124,8 +120,6 @@ export const AdminHeader = memo(function AdminHeader({
           size="sm"
           onClick={onClearAll}
           disabled={clearAllPending || jobsLength === 0}
-          onMouseEnter={ensureSweepHelper}
-          onFocus={ensureSweepHelper}
         >
           {clearAllPending ? "Clearing…" : `Clear all (${jobsLength})`}
         </Button>

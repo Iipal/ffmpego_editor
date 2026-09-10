@@ -9,7 +9,8 @@ import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import { googleFonts } from "@/lib/subtitles/googleFonts";
-import { NOOP, initAppOnce } from "./heavy-modules";
+import { NOOP } from "./heavy-modules";
+import { initAppOnce } from "@/lib/heavy";
 import { getSubtitleTrack } from "./subtitle-helpers";
 import { useSubtitleExport } from "./useSubtitleExport";
 import { useSubtitleMutations } from "./useSubtitleMutations";
@@ -20,7 +21,10 @@ import { useVideoPlayback } from "./useVideoPlayback";
 export function useSubtitleEditor() {
   // advanced-init-once: ensure one-time preconnect, not per mount
   useEffect(() => {
-    initAppOnce();
+    initAppOnce("subtitles", [
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com",
+    ]);
   }, []);
 
   // rerender-derived-state + rerender-dependencies: subscribe narrowly to
