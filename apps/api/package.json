@@ -18,7 +18,7 @@
     "@hono/node-server": "^2.1.1",
     "hono": "^4.13.7",
     "shell-quote": "^1.10.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.1"
   },
   "devDependencies": {
     "@repo/config": "*",

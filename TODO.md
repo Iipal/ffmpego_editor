@@ -40,9 +40,11 @@ Derived from an architecture/feature audit (2026-09-10). Keep in sync with
   - Done 2026-09-10: isolated `store/playheadSlice.ts` (`playheadAtom` via `createAtom<number>`, `usePlayheadTime`, `setPlayheadTime` per-frame transient, `commitPlayheadTime` for seek/pause/ended/file-reset snapshots into `sourceStore.currentTime`); writers migrated (`useVideoPlayer`, `VideoPlayer`, `subtitles/useVideoPlayback`, `lib/playback-bus`, `PlayerControls`, `TrimControls`, `AudioControls`, cut `useCutPlayback`, file-reset paths); live readers (`VideoPlayerControls`, `TrimSlider`, `AudioWaveform`, `SourcePanel`, `PreviewPane`, `CutTimeline`) fed via parents; `sourceSlice.currentTime` documented as committed snapshot only.
 - [ ] **list scaling**
   - Real virtualization for `JobsList`, subtitle rows, `BulkArea` grids (only `content-visibility` today).
-- [ ] **Break up mega-files and prune dead deps.**
+- [ ] **Break up mega-files**
   - `components/editor/Sidebar.tsx` (1143 LOC) → split export form sections; `components/admin/useAdminJobs.ts` (479 LOC) → split query/mutations/actions.
-  - Remove unused root deps: `framer-motion`, `react-rnd`, `@phosphor-icons/react`, `@cloudflare/kumo` (no code imports in `apps/`/`packages/`).
+- [x] **prune dead deps**
+  - Removed unused root deps: `framer-motion`, `react-rnd`, `@phosphor-icons/react` (zero imports in `apps/`/`packages/`; remaining copies are transitive via `@cloudflare/kumo`). Kept `@cloudflare/kumo` — actively used via `@import "@cloudflare/kumo/styles/tailwind"` in `apps/web/app/globals.css`. Also pruned unused web deps: `hono` (api-only), `cn`/`clsx`/`tailwind-merge` (still present transitively via `shadcn`/`@repo/ui`).
+  - Done 2026-09-10.
 - [ ] **Error boundaries + CI.**
   - No `ErrorBoundary` in `app/` — add route-level boundaries + one central API-envelope→toast mapper replacing ad-hoc try/catches per hook.
   - Add `.github/workflows` running turbo `typecheck + lint + test`.
