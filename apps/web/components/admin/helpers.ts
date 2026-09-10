@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import type { JobEntry, JobsResponse } from "./types";
 import { createGlobalListenerBus } from "@/lib/global-listener-bus";
 
@@ -92,12 +92,9 @@ export function setCachedFilter(v: string) {
 // async-api-routes: note — this is a client fetch to Hono API; server route runs on Bun via Bun.spawn (see apps/api)
 export async function fetchJobs(): Promise<JobsResponse> {
   // cheap condition first — avoid network if base URL missing (saves 4s timeout)
-  if (
-    !API_BASE_URL ||
-    typeof API_BASE_URL !== "string" ||
-    API_BASE_URL.length === 0
-  ) {
-    throw new Error("API_BASE_URL not configured");
+  const baseUrl = apiClient.baseUrl;
+  if (!baseUrl || typeof baseUrl !== "string" || baseUrl.length === 0) {
+    throw new Error("API base URL not configured");
   }
   // defer await: start timeout synchronously before any await
   const controller = new AbortController();
@@ -106,7 +103,7 @@ export async function fetchJobs(): Promise<JobsResponse> {
     // async-parallel note: if we needed health + jobs, we'd do Promise.all([fetchJobs, fetchHealth]) — not here (single resource)
     // async-dependencies note: jobs -> progress per job would chain via better-all / Promise.all(map(...then))
     // async-suspense-boundaries: page is client-polling via useQuery (SWR dedup), not RSC Suspense; streaming not applicable here
-    const res = await fetch(`${API_BASE_URL}/api/transcode/jobs`, {
+    const res = await fetch(apiClient.url("/api/transcode/jobs"), {
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -120,7 +117,7 @@ export async function fetchJobs(): Promise<JobsResponse> {
   } catch (e) {
     if ((e as Error).name === "AbortError")
       throw new Error(
-        `Fetch timeout to ${API_BASE_URL}/api/transcode/jobs (API not reachable)`,
+        `Fetch timeout to ${apiClient.url("/api/transcode/jobs")} (API not reachable)`,
       );
     throw e;
   } finally {

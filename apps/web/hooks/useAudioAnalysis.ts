@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { apiFormPost, type AudioAnalysis } from "@/lib/api-client";
+import { apiClient, type AudioAnalysis } from "@/lib/api-client";
 
 export function useAudioAnalysis(file: File | null, trackIndex: number) {
   return useQuery({
@@ -17,7 +17,7 @@ export function useAudioAnalysis(file: File | null, trackIndex: number) {
       if (!file) throw new Error("Audio source is required");
       const form = new FormData();
       form.append("file", file);
-      return apiFormPost<AudioAnalysis>(
+      return apiClient.formPost<AudioAnalysis>(
         `/api/audio/analysis?track=${trackIndex}`,
         form,
       );

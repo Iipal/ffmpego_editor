@@ -74,7 +74,7 @@ import { VisualFiltersPanel } from "@/components/editor/VisualFiltersPanel";
 import { filterStore, setFilterState } from "@/store/filterSlice";
 import { isVisualFiltersDefault } from "@repo/ffmpeg-filters";
 import { audioStore, getAudioRenderSettings, setAudioState } from "@/store/audioSlice";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { serverErrorMessage } from "@/lib/transcode-jobs";
 import { saveBlobFile } from "@/lib/save-blob-file";
 import {
@@ -417,7 +417,7 @@ export function Sidebar() {
         const form = new FormData();
         form.append("file", file);
         const res = await fetch(
-          `${API_BASE_URL}/api/audio/extract?format=${state.audioFormat}`,
+          apiClient.url(`/api/audio/extract?format=${state.audioFormat}`),
           { method: "POST", body: form },
         );
         if (!res.ok) {

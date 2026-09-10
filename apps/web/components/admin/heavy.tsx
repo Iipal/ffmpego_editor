@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { preconnect, preload } from "react-dom";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { NOOP } from "./helpers";
@@ -24,7 +24,7 @@ export function ensurePreconnect() {
   didPreconnect = true;
   try {
     // rendering-resource-hints: preconnect/preload for API origin + critical image
-    preconnect(API_BASE_URL);
+    preconnect(apiClient.baseUrl);
     preload("/minozavr.png", { as: "image" } as unknown as Parameters<
       typeof preload
     >[1]);

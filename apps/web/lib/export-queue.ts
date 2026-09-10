@@ -19,7 +19,7 @@
 // SSE, and DELETE the server job. Cancelling before the POST lands marks the
 // runner orphaned so the late job id is deleted instead of rendering.
 
-import { API_BASE_URL, type TranscodeResponse } from "./api-client";
+import { apiClient, type TranscodeResponse } from "./api-client";
 import {
   fetchDownloadBlob,
   pickerTypesForExt,
@@ -336,7 +336,7 @@ class ExportQueue {
     const submitted = response;
     // progressUrl is served relative ("/api/transcode/progress/:id") — resolve
     // against the API origin or EventSource would hit the Next.js dev server.
-    const progressUrl = new URL(submitted.progressUrl, API_BASE_URL).toString();
+    const progressUrl = apiClient.url(submitted.progressUrl);
     await new Promise<void>((resolve, reject) => {
       runner.closeSse = subscribeTranscodeProgress(progressUrl, {
         onProgress: (p, info) => {
@@ -364,7 +364,7 @@ class ExportQueue {
     patchQueueItem(id, { status: "saving", progress: 97 });
     task.onProgress?.({ status: "saving", progress: 97, queuePosition: null });
     return fetchDownloadBlob(
-      `${API_BASE_URL}/api/transcode/download/${response.jobId}`,
+      apiClient.url(`/api/transcode/download/${response.jobId}`),
     );
   }
 
@@ -384,7 +384,7 @@ class ExportQueue {
         onProgress: task.onUploadProgress,
         signal,
       });
-      const res = await fetch(`${API_BASE_URL}${task.endpoint}`, {
+      const res = await fetch(apiClient.url(task.endpoint), {
         method: "POST",
         headers: { "x-upload-id": uploadId },
         body: form,

@@ -162,14 +162,14 @@ export function useAdminJobs() {
   // job straight from the row.
   const handleDownloadOne = useCallback((job: JobEntry) => {
     void (async () => {
-      const { API_BASE_URL } = await import("@/lib/api-client");
+      const { apiClient } = await import("@/lib/api-client");
       const { fetchDownloadBlob, saveBlobFile } = await import(
         "@/lib/save-blob-file"
       );
       const { toast } = await import("sonner");
       try {
         const blob = await fetchDownloadBlob(
-          `${API_BASE_URL}/api/transcode/download/${job.jobId}`,
+          apiClient.url(`/api/transcode/download/${job.jobId}`),
         );
         // The stored job.filename is a bare export name (or the source file
         // name) — the real output extension lives on the server descriptor

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { useLatest } from "./hooks";
 import type { JobsResponse } from "./types";
 
@@ -34,7 +34,7 @@ export function useJobsLiveSync(
     let seenMessage = false;
     setStatus("connecting");
     const source = new EventSource(
-      `${API_BASE_URL}/api/transcode/jobs/stream`,
+      apiClient.url("/api/transcode/jobs/stream"),
     );
     source.onopen = () => {
       if (!closed) setStatus(seenMessage ? "live" : "connecting");

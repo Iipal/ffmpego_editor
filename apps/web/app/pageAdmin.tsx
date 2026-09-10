@@ -9,7 +9,7 @@
 // ---------------------------------------------------------------------------
 
 import { useEffect } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import {
   Card,
   CardContent,
@@ -109,7 +109,7 @@ export default function PageAdmin() {
         filter={deferredFilter}
         isStale={isFilterStale}
         isFetching={isFetching}
-        apiBase={API_BASE_URL}
+        apiBase={apiClient.baseUrl}
         queue={data?.queue}
         liveStatus={liveStatus}
         onRefresh={handleRefresh}

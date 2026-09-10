@@ -2,7 +2,7 @@
 // Uses server's /api/upload/{init,chunk,complete} with random-access writes
 // so Bun never buffers the whole file in RAM. Progress is reportable per chunk.
 
-import { API_BASE_URL } from "./api-client";
+import { apiClient } from "./api-client";
 import { serverErrorMessage, shapeXhrError } from "./transcode-jobs";
 
 export interface ChunkedUploadOptions {
@@ -33,7 +33,7 @@ export async function uploadFileChunked(
   const maxRetries = opts.maxRetries ?? MAX_RETRIES;
 
   // 1) init
-  const initRes = await fetch(`${API_BASE_URL}/api/upload/init`, {
+  const initRes = await fetch(apiClient.url("/api/upload/init"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -72,7 +72,9 @@ export async function uploadFileChunked(
       try {
         const buf = await blob.arrayBuffer();
         const res = await fetch(
-          `${API_BASE_URL}/api/upload/chunk/${uploadId}?index=${i}&offset=${offset}`,
+          apiClient.url(
+            `/api/upload/chunk/${uploadId}?index=${i}&offset=${offset}`,
+          ),
           {
             method: "POST",
             headers: {
@@ -104,7 +106,7 @@ export async function uploadFileChunked(
 
   // 3) complete
   const completeRes = await fetch(
-    `${API_BASE_URL}/api/upload/complete/${uploadId}`,
+    apiClient.url(`/api/upload/complete/${uploadId}`),
     {
       method: "POST",
       signal: opts.signal,
@@ -132,7 +134,7 @@ export function uploadFormWithProgress<T>(
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = apiClient.url(endpoint);
 
     if (opts.signal) {
       if (opts.signal.aborted)

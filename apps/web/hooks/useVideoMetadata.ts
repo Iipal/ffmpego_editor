@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { API_BASE_URL, type VideoMetadata } from "@/lib/api-client";
+import { apiClient, type VideoMetadata } from "@/lib/api-client";
 import { setSourceState } from "@/store/sourceSlice";
 import { cutStore, setCutState } from "@/store/cutSlice";
 import {
@@ -58,7 +58,7 @@ export function useVideoMetadataMutation() {
         const { uploadId } = await uploadFileChunked(file, {
           onProgress: (sent, total) => setUploadProgress(sent, total),
         });
-        const res = await fetch(`${API_BASE_URL}/api/metadata`, {
+        const res = await fetch(apiClient.url("/api/metadata"), {
           method: "POST",
           headers: { "x-upload-id": uploadId },
         });
@@ -156,7 +156,9 @@ export function useExtendedVideoMetadataMutation() {
           onProgress: (sent, total) => setUploadProgress(sent, total),
         });
         const res = await fetch(
-          `${API_BASE_URL}/api/metadata?includeFrames=false&includePackets=false`,
+          apiClient.url(
+            "/api/metadata?includeFrames=false&includePackets=false",
+          ),
           { method: "POST", headers: { "x-upload-id": uploadId } },
         );
         if (!res.ok) {

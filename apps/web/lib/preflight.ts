@@ -1,7 +1,7 @@
 // Preflight: fail-fast summary + estimates + connectivity check shown in the
 // export panel before anything uploads. Errors block the export action;
 // warnings are advisory (server ignores e.g. CRF for MOV silently).
-import { API_BASE_URL } from "./api-client";
+import { apiClient } from "./api-client";
 
 export interface PreflightIssue {
   level: "error" | "warn";
@@ -139,13 +139,15 @@ export async function probeApiConnectivity(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`${API_BASE_URL}/api/transcode/jobs`, {
+    const res = await fetch(apiClient.url("/api/transcode/jobs"), {
       signal: ctrl.signal,
     });
     if (!res.ok) return `API responded with HTTP ${res.status}.`;
     return null;
   } catch {
-    return "API unreachable — is the backend running on " + API_BASE_URL + "?";
+    return (
+      "API unreachable — is the backend running on " + apiClient.baseUrl + "?"
+    );
   } finally {
     clearTimeout(timer);
   }

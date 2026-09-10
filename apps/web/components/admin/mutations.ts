@@ -3,7 +3,7 @@
 import type { RefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { cancelTranscodeJob, serverErrorMessage } from "@/lib/transcode-jobs";
 import { JOB_ID_RE } from "./helpers";
 
@@ -16,7 +16,7 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
       // async-cheap-condition-before-await: validate cheap sync before async fetch
       if (!JOB_ID_RE.test(jobId)) throw new Error("Invalid jobId");
       // async-defer-await: start fetch, defer res.json until success branch
-      const res = await fetch(`${API_BASE_URL}/api/transcode/jobs/${jobId}`, {
+      const res = await fetch(apiClient.url(`/api/transcode/jobs/${jobId}`), {
         method: "DELETE",
       });
       if (!res.ok) {
@@ -47,7 +47,7 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
 
   const clearAllMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`${API_BASE_URL}/api/transcode/jobs`, {
+      const res = await fetch(apiClient.url("/api/transcode/jobs"), {
         method: "DELETE",
       });
       if (!res.ok) throw new Error(`Clear-all failed: ${res.status}`);
@@ -75,7 +75,7 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
       // B2: the server treats ?status=processing|pending as processing+queued,
       // so this clears both active and queued jobs.
       const res = await fetch(
-        `${API_BASE_URL}/api/transcode/jobs?status=processing`,
+        apiClient.url("/api/transcode/jobs?status=processing"),
         { method: "DELETE" },
       );
       if (!res.ok) throw new Error(`Clear pending failed: ${res.status}`);

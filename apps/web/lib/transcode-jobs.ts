@@ -11,7 +11,7 @@
 // - `cancelled` when a job is cooperatively cancelled.
 // - DELETE /api/transcode/jobs/:id?mode=cancel kills ffmpeg but keeps the row.
 
-import { API_BASE_URL } from "./api-client";
+import { apiClient } from "./api-client";
 
 /** Error carrying the HTTP status (+ Retry-After) of a failed transcode POST. */
 export class TranscodeHttpError extends Error {
@@ -126,7 +126,9 @@ export function shapeXhrError(
 /** Cooperative cancel: SIGTERM→SIGKILL ffmpeg, row + logTail kept server-side. */
 export async function cancelTranscodeJob(jobId: string): Promise<string> {
   const res = await fetch(
-    `${API_BASE_URL}/api/transcode/jobs/${encodeURIComponent(jobId)}?mode=cancel`,
+    apiClient.url(
+      `/api/transcode/jobs/${encodeURIComponent(jobId)}?mode=cancel`,
+    ),
     { method: "DELETE" },
   );
   if (!res.ok) {

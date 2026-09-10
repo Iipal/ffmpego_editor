@@ -1,6 +1,6 @@
 // Shared export-history actions: rename (PATCH), retry (re-submit stored
 // settings with the current source file), extract retry, download helper.
-import { API_BASE_URL, type TranscodeResponse } from "./api-client";
+import { apiClient, type TranscodeResponse } from "./api-client";
 import { fetchDownloadBlob } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import { serverErrorMessage, throwTranscodeHttpError } from "./transcode-jobs";
@@ -19,7 +19,7 @@ export async function renameJob(
   jobId: string,
   filename: string,
 ): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/transcode/jobs/${jobId}`, {
+  const res = await fetch(apiClient.url(`/api/transcode/jobs/${jobId}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ filename }),
@@ -45,7 +45,7 @@ async function submitWithCurrentFile(
     const form = new FormData();
     form.append("settings", settingsJson);
     if (extra) for (const [k, v] of Object.entries(extra)) form.append(k, v);
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const res = await fetch(apiClient.url(endpoint), {
       method: "POST",
       headers: { "x-upload-id": uploadId },
       body: form,
@@ -88,7 +88,7 @@ export async function openJobComparison(
 ): Promise<void> {
   try {
     const blob = await fetchDownloadBlob(
-      `${API_BASE_URL}/api/transcode/download/${jobId}`,
+      apiClient.url(`/api/transcode/download/${jobId}`),
     );
     const url = URL.createObjectURL(blob);
     const ext = (title.split(".").pop() ?? "").toLowerCase();
@@ -119,7 +119,7 @@ export async function retryAudioExtract(
   const form = new FormData();
   form.append("file", file);
   const res = await fetch(
-    `${API_BASE_URL}/api/audio/extract?format=${audioFormat}`,
+    apiClient.url(`/api/audio/extract?format=${audioFormat}`),
     { method: "POST", body: form },
   );
   if (!res.ok) {

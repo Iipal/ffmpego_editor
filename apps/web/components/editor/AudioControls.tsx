@@ -21,7 +21,7 @@ import {
 } from "@/store/audioSlice";
 import { sourceStore } from "@/store/sourceSlice";
 import { formatTime } from "@/lib/format-time";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
 import { AudioWaveform } from "./AudioWaveform";
 
@@ -59,7 +59,9 @@ function TrackControls({
     const form = new FormData();
     form.append("file", file);
     const response = await fetch(
-      `${API_BASE_URL}/api/audio/extract?format=${format}&track=${track.trackIndex}`,
+      apiClient.url(
+        `/api/audio/extract?format=${format}&track=${track.trackIndex}`,
+      ),
       { method: "POST", body: form },
     );
     if (!response.ok) return;

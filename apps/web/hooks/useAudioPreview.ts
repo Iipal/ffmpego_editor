@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { API_BASE_URL } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
 import type { AudioTrackState } from "@/store/audioSlice";
 
 type AudioEntry = {
@@ -169,7 +169,9 @@ export function useAudioPreview({
         const form = new FormData();
         form.append("file", file);
         const response = await fetch(
-          `${API_BASE_URL}/api/audio/extract?format=wav&track=${track.trackIndex}`,
+          apiClient.url(
+            `/api/audio/extract?format=wav&track=${track.trackIndex}`,
+          ),
           { method: "POST", body: form },
         );
         if (!response.ok || disposed) return;
