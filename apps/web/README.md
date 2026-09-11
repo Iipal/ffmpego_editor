@@ -240,11 +240,10 @@ flowchart LR
   Progress mapping: upload 0–50, queued 50,
   processing 50–95, saving 97, completed 100.
 - `lib/transcode-progress.ts` (`TranscodeProgress` service:
-  `transcodeProgress.subscribe` (SSE subscriber
-  with reconnect) + `awaitCompletion` (promise wrapper, admin use)).
+  `transcodeProgress.subscribe` (SSE subscriber with reconnect)).
 - `lib/transcode-jobs.ts` (`TranscodeJobs` service:
   `transcodeJobs.cancelTranscodeJob/serverErrorMessage`), `parseRetryAfterMs`,
-  `TranscodeHttpError`, `queuedLabel`, `withLogTail`.
+  `TranscodeHttpError`, `withLogTail`.
 - `store/exportQueueSlice.ts` + `components/export/QueueDock.tsx`: queue rows,
   dock pill/panel (`QueueDock`), nav widgets — `QueueActivityNav` (expanded
   nav, click toggles the dock) / `QueueActivityBadge` (collapsed nav, opens).

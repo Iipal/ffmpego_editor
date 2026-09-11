@@ -129,7 +129,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 #### Transport & export pipeline
 
 - `api-client.ts` — `APIClient` service:
-  `apiClient.url/get/post/formPost/postWithUploadId/patch/delete/postBlob/postBlobWithUploadId`
+  `apiClient.url/post/formPost/postWithUploadId/patch/delete/postBlob/postBlobWithUploadId`
 - `export-queue.ts` — `ExportQueue` service:
   `exportQueue.enqueue/cancel/dismiss`
 - `export-history.ts` — `ExportHistory` service:
@@ -137,7 +137,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 - `export-presets.ts` — `ExportPresets` service:
   `exportPresets.all/customs/save/remove/toPatch`
 - `transcode-progress.ts` — `TranscodeProgress` service:
-  `transcodeProgress.subscribe/awaitCompletion`
+  `transcodeProgress.subscribe`
 - `transcode-jobs.ts` — `TranscodeJobs` service:
   `transcodeJobs.cancelTranscodeJob/serverErrorMessage`
 - `preflight.ts` — `Preflight` service: `preflight.check` (fail-fast gate),

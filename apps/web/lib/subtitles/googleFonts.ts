@@ -5,7 +5,7 @@
 // Editors go through the `googleFonts` singleton below: `ensureGoogleFontLoaded`
 // injects the `fonts.googleapis.com` stylesheet for a family (deduped per
 // family, resolve-always so a failed font never blocks the export),
-// `fetchGoogleFontsMeta`/`fetchGoogleFontFamilies` pull the family catalog
+// `fetchGoogleFontsMeta` pulls the family catalog
 // (fontsource → gwfh → curated fallback), and `isCyrillicSupported` gates the
 // Cyrillic warning in the font picker. All mutable fetch/load caches live here
 // (never in the components), so concurrent panels share one in-flight request.
@@ -38,8 +38,6 @@ export class GoogleFonts {
   private static cachedFamilies: string[] | null = null;
   /** Full catalog entries (or null until fetched). */
   private static cachedMeta: GoogleFontMeta[] | null = null;
-  /** In-flight family-list fetch shared by concurrent callers. */
-  private static fetchPromise: Promise<string[]> | null = null;
   /** Lowercased family → subset list, filled from whichever source won. */
   private static readonly familyToSubsets = new Map<string, string[]>();
   /** Families whose stylesheet + `document.fonts` load already resolved. */
@@ -178,23 +176,6 @@ export class GoogleFonts {
   }
 
   /**
-   * Fetch the sorted family list (documented API; currently no external
-   * callers — panels use the richer `fetchGoogleFontsMeta`). Concurrent calls
-   * share one promise; derived from the catalog so both caches stay in sync.
-   */
-  async fetchGoogleFontFamilies(): Promise<string[]> {
-    if (GoogleFonts.cachedFamilies) return GoogleFonts.cachedFamilies;
-    if (GoogleFonts.fetchPromise) return GoogleFonts.fetchPromise;
-    GoogleFonts.fetchPromise = (async () => {
-      const meta = await this.fetchGoogleFontsMeta();
-      const families = meta.map((m) => m.family);
-      GoogleFonts.cachedFamilies = families;
-      return families;
-    })();
-    return GoogleFonts.fetchPromise;
-  }
-
-  /**
    * True when `family` can render Cyrillic: system stacks are assumed covered,
    * webfonts need a `cyrillic` subset in the catalog lookup. Unknown families
    * (catalog not loaded or missing) report false so the picker warns.
@@ -205,17 +186,6 @@ export class GoogleFonts {
     const subs = GoogleFonts.familyToSubsets.get(clean.toLowerCase());
     if (!subs) return false;
     return subs.some((s) => s.toLowerCase().includes("cyrillic"));
-  }
-
-  /**
-   * Normalize a family into a CSS `font-family` value (documented API;
-   * currently no external callers). Empty falls back to the app stack;
-   * stacks pass through untouched.
-   */
-  fontFamilyToCss(family: string): string {
-    if (!family) return "Inter, sans-serif";
-    if (family.includes(",")) return family;
-    return family;
   }
 
   // ----------------------------------------------------------------- private

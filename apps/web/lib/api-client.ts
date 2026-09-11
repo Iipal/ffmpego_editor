@@ -1,7 +1,7 @@
 // Central HTTP service for the local Hono API (`NEXT_PUBLIC_API_URL`).
 //
 // Editors never `fetch()` the backend directly — they go through the
-// `apiClient` singleton below (`apiClient.get/post/formPost/...`), which owns
+// `apiClient` singleton below (`apiClient.post/formPost/...`), which owns
 // base-URL resolution, JSON envelope error shaping (via `transcodeJobs`),
 // and the `x-upload-id` chunked-upload POST variant. `exportQueue`,
 // `upload-chunked`, `transcode-jobs`, and the admin/m Metadata hooks are all
@@ -87,14 +87,6 @@ class APIClient {
   url(endpoint: string): string {
     if (ABSOLUTE_URL_RE.test(endpoint)) return endpoint;
     return `${this._baseUrl}${endpoint}`;
-  }
-
-  /**
-   * GET JSON and parse it as `T`. Non-2xx responses throw with the server
-   * envelope message when present, else `API error: <status>`.
-   */
-  async get<T>(endpoint: string, init?: RequestInit): Promise<T> {
-    return this.requestJson<T>(this.url(endpoint), init);
   }
 
   /**

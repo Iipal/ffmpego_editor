@@ -13,8 +13,8 @@
 //
 // Callers go through the `transcodeJobs` singleton below instead of importing
 // free functions: envelope shaping (`serverErrorMessage`), Retry-After
-// parsing, shaped POST/XHR errors, cooperative cancel, and the small
-// queue/log-tail label helpers all live here.
+// parsing, shaped POST/XHR errors, cooperative cancel, and the log-tail
+// label helper all live here.
 
 import { apiClient } from "./api-client";
 
@@ -41,9 +41,6 @@ export class TranscodeCancelledError extends Error {
     this.name = "TranscodeCancelledError";
   }
 }
-
-/** Minimal header source accepted by `throwTranscodeHttpError`. */
-export type HeaderGetter = { get(name: string): string | null };
 
 /**
  * Singleton service owning every transcode-job concern outside the job
@@ -121,7 +118,7 @@ export class TranscodeJobs {
 
   /** Throw a shaped TranscodeHttpError for a non-OK transcode POST response. */
   public throwTranscodeHttpError(
-    res: { status: number; headers: HeaderGetter },
+    res: { status: number; headers: { get(name: string): string | null } },
     payload: unknown,
   ): never {
     const retryAfterMs = this.parseRetryAfterMs(res.headers.get("Retry-After"));
@@ -166,13 +163,6 @@ export class TranscodeJobs {
     }
     const body = (await res.json()) as { status?: string };
     return body.status ?? "cancelled";
-  }
-
-  /** "Queued #3" / "Queued" label for queuePosition-aware toasts. */
-  public queuedLabel(queuePosition?: number | null): string {
-    return typeof queuePosition === "number" && queuePosition >= 0
-      ? `Queued #${queuePosition + 1}`
-      : "Queued";
   }
 
   /** Append the ffmpeg tail log to a failure message (truncated, single block). */

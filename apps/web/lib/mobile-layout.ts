@@ -411,20 +411,6 @@ export class MobileLayoutService {
   }
 
   /**
-   * Vertically-centered zone constructor used by the default-layout
-   * builder. Kept private — no external caller builds zones directly.
-   */
-  private defaultZone(
-    id: CropZoneId,
-    x: number,
-    w: number,
-    h: number,
-    role?: CropRole,
-  ): CropZone {
-    return { id, x, y: (1 - h) / 2, width: w, height: h, zoom: 1, role };
-  }
-
-  /**
    * Normalized zone → pixel crop box for a source of `sw`×`sh`
    * (shared `@repo/ffmpeg-filters` math, so preview and exporter agree).
    */

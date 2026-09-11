@@ -35,5 +35,5 @@ export function useSharedMobileLayout() {
     };
   }, [refresh]);
 
-  return { layout, refresh, setLayout };
+  return { layout };
 }

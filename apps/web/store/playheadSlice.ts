@@ -3,7 +3,7 @@
 import { createAtom } from "@tanstack/store";
 import { useSelector } from "@tanstack/react-store";
 
-import { sourceStore, setSourceState } from "@/store/sourceSlice";
+import { setSourceState } from "@/store/sourceSlice";
 
 /**
  * Isolated playhead clock.
@@ -15,8 +15,6 @@ import { sourceStore, setSourceState } from "@/store/sourceSlice";
  * - `sourceStore.currentTime` is a committed snapshot updated on seek /
  *   pause / ended / loop-clamp / file-reset.
  * - Live React UI reads via `usePlayheadTime()`.
- * - Imperative/transient consumers can use `subscribeToPlayhead()` without
- *   causing React re-renders.
  */
 export const playheadAtom = createAtom<number>(0);
 
@@ -85,40 +83,4 @@ export function commitPlayheadTime(time: number): void {
  */
 export function resetPlayheadTime(time = 0): void {
   commitPlayheadTime(time);
-}
-
-/**
- * Transient subscription for high-frequency DOM updates without React
- * re-renders.
- *
- * Useful for:
- * - canvas playheads
- * - slider markers
- * - waveform cursors
- * - direct style updates
- *
- * The listener executes outside React.
- */
-export function subscribeToPlayhead(
-  listener: (time: number) => void,
-): () => void {
-  let last = playheadAtom.get();
-
-  const subscription = playheadAtom.subscribe(() => {
-    const next = playheadAtom.get();
-
-    if (next !== last) {
-      last = next;
-      listener(next);
-    }
-  });
-
-  return () => subscription.unsubscribe();
-}
-
-/**
- * Committed snapshot for code paths without a video element.
- */
-export function getCommittedTime(): number {
-  return sourceStore.state.currentTime;
 }

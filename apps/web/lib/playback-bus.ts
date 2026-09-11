@@ -33,18 +33,6 @@ class PlaybackBus {
     else video.pause();
   }
 
-  /** Play the active video, no-op when none is on screen. */
-  play(): void {
-    this.getActiveVideo()
-      ?.play()
-      .catch(() => {});
-  }
-
-  /** Pause the active video, no-op when none is on screen. */
-  pause(): void {
-    this.getActiveVideo()?.pause();
-  }
-
   /** Relative seek (J/L, arrows). Positive = forward. */
   seekBy(deltaSeconds: number): void {
     const video = this.getActiveVideo();

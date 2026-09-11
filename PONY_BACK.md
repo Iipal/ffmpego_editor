@@ -155,12 +155,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `components/admin/placeholders.tsx`, `components/admin/heavy.tsx`, `components/admin/AdminHeader.tsx`
 - **Result:** `DynamicCard`/`DynamicProgress` `dynamic()` wrappers deleted (grep-verified zero renders — probe's `{false ? … : null}` was the only `DynamicCard` render, `DynamicProgress` only a `JobRow` comment); `HEAVY_MODULES` preload map + `preloadHeavy*` fns kept (real hover/intent path used by `AdminHeader`/`pageAdmin`/`JobRow`/`useAdminJobs`). Stale comments fixed in `heavy.tsx`/`JobRow.tsx`. ~45 lines removed. `tsc` + `lint` clean. No AGENTS.md/README changes — neither documents the preload internals.
 
-## 20. Dead exports batch — ⬜ open
+## 20. Dead exports batch — ✅ done
 
 - **Tag:** delete
 - **Problem:** Grep-verified zero callers: `awaitCompletion`, `playbackBus.play/pause`, `subscribeToPlayhead`/`getCommittedTime`, `queuedLabel`/`HeaderGetter`, `setExportQueueState`/`selectActiveCount`, `fetchGoogleFontFamilies`/`fontFamilyToCss` (self-admitted), `apiClient.get` (all reads bypass it), `MobileLayoutService.defaultZone`, `useSharedMobileLayout` refresh/setLayout.
 - **Do:** Delete each export (keep file structure otherwise).
 - **Files:** `lib/transcode-progress.ts`, `lib/playback-bus.ts`, `store/playheadSlice.ts`, `lib/transcode-jobs.ts`, `store/exportQueueSlice.ts`, `lib/subtitles/googleFonts.ts`, `lib/api-client.ts`, `lib/mobile-layout.ts`, `hooks/useSharedMobileLayout.ts`
+- **Result:** All 9 sites grep-verified zero callers before deletion. Nuances: `HeaderGetter` was used once internally (`throwTranscodeHttpError` takes a real fetch `Response`) → inlined the structural type at the signature; `fetchPromise` static orphaned by `fetchGoogleFontFamilies` → deleted with it (`cachedFamilies` kept — `commitCatalog` still fills it); `useSharedMobileLayout` keeps internal `refresh` wiring (storage/focus re-sync stays live) but returns only `{ layout }`; `playheadSlice` doc comment + `sourceStore` import trimmed. `README.md` (§transcode services) + `AGENTS.md` (api-client/transcode-progress method lists) updated. `tsc` + `lint` clean.
 
 ## 21. Single-use files — ⬜ open
 
@@ -192,5 +193,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–19. Open: items 20–24.
+- Done: items 1–20. Open: items 21–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

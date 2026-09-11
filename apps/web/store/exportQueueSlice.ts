@@ -59,12 +59,6 @@ export function useExportQueueStore() {
   return useSelector(exportQueueStore);
 }
 
-export function setExportQueueState(
-  updater: (prev: ExportQueueSlice) => ExportQueueSlice,
-): void {
-  exportQueueStore.setState(updater);
-}
-
 export function setDockOpen(open: boolean): void {
   exportQueueStore.setState((p) => ({ ...p, dockOpen: open }));
 }
@@ -116,10 +110,6 @@ export function activeQueueCount(items: ExportQueueItem[]): number {
     if (isQueueItemActive(item)) count += 1;
   }
   return count;
-}
-
-export function selectActiveCount(items: ExportQueueItem[]): number {
-  return activeQueueCount(items);
 }
 
 /** Count of non-terminal rows for one editor kind (hook return value). */
