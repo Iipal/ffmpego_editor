@@ -5,13 +5,14 @@ import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
 import { cropStore, setCropState } from "@/store/cropSlice";
 import { sourceStore } from "@/store/sourceSlice";
-import { CROP_STORAGE_KEY, formatPct, isValidPersistedCrop } from "./helpers";
+import { formatPct, isValidPersistedCrop } from "./helpers";
 import type {
   CropAspect,
   CropPixelReadout,
   CropRect,
   PersistedCrop,
 } from "./types";
+import { storageJSON } from "@/lib/storage-json";
 
 export interface CropControls {
   crop: CropRect;
@@ -55,19 +56,18 @@ export function useCropControls(): CropControls {
 
   const resetCrop = useCallback(() => {
     try {
-      const raw = localStorage.getItem(CROP_STORAGE_KEY);
+      const raw = storageJSON.read("ffmpego:crop");
       if (!raw) {
         toast.error("No saved crop settings found", {
           description: "Click Save to store the current crop first.",
         });
         return;
       }
-      const parsed = JSON.parse(raw) as unknown;
-      if (!isValidPersistedCrop(parsed)) {
+      if (!isValidPersistedCrop(raw)) {
         toast.error("Saved crop settings are invalid");
         return;
       }
-      const p = parsed as PersistedCrop & { isCropMode?: boolean };
+      const p = raw as PersistedCrop & { isCropMode?: boolean };
       setCropState((prev) => ({
         ...prev,
         crop: p.crop,
@@ -90,11 +90,11 @@ export function useCropControls(): CropControls {
   // Hydrate saved crop once on mount — keeps Save meaningful across reloads.
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(CROP_STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as unknown;
-      if (!isValidPersistedCrop(parsed)) return;
-      const p = parsed as PersistedCrop & { isCropMode?: boolean };
+      const raw = storageJSON.read("ffmpego:crop");
+      if (!raw || !isValidPersistedCrop(raw)) return;
+
+      const p = raw as PersistedCrop & { isCropMode?: boolean };
+
       setCropState((prev) => {
         // Don't clobber an active edit session; only restore if still at defaults.
         const isDefault =
@@ -119,7 +119,7 @@ export function useCropControls(): CropControls {
   const saveCrop = useCallback(() => {
     try {
       const payload: PersistedCrop = { crop, aspectRatio, isCropMode };
-      localStorage.setItem(CROP_STORAGE_KEY, JSON.stringify(payload));
+      storageJSON.write("ffmpego:crop", payload);
       toast.success("Crop settings saved", {
         description: `${aspectRatio} · ${formatPct(crop.width)} × ${formatPct(crop.height)} ${isCropMode ? "· enabled" : "· disabled"}`,
       });

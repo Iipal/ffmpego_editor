@@ -24,6 +24,7 @@ import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
 import { resetPlayheadTime } from "@/store/playheadSlice";
 import { toast } from "sonner";
 import { VideoFileService, videoFileService } from "@/lib/video-file";
+import { storageJSON } from "@/lib/storage-json";
 
 // Shared "upload other video" button. Deduped from crop / cut / mobile copies
 // (identical UI + validation, only the store reset differed).
@@ -82,9 +83,7 @@ export const UploadOtherButton = memo(function UploadOtherButton({
       const mediaUrl = URL.createObjectURL(file);
 
       if (clearTrimCache) {
-        try {
-          localStorage.removeItem("ffmpeg_editor_trimRange_v1");
-        } catch {}
+        storageJSON.remove("ffmpego:trim_range");
       }
 
       const previous = {

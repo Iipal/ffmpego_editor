@@ -84,10 +84,7 @@ export function SubtitleSettingsPanel({
         <div className="text-xs font-medium">
           Templates stored: {templates.length}
         </div>
-        <p className="text-[11px] text-kumo-subtle mt-1">
-          Key: {SubtitleStorage.STORAGE_KEY} · Invalid localStorage data is
-          ignored.
-        </p>
+
         {templates.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1">
             {templates.map((t) => (

@@ -15,6 +15,7 @@ import type {
   MobileLayoutMode,
 } from "@repo/types";
 import { zoneToPixels } from "@repo/ffmpeg-filters";
+import { storageJSON } from "./storage-json";
 
 export type {
   CropRole,
@@ -29,7 +30,10 @@ export type {
  * the opposite corner, plus the per-corner max scale. `se` keeps max 2,
  * the other corners 4 — preserved from the original four branches.
  */
-const RESIZE_CORNERS: Record<string, { fx: 1 | -1; fy: 1 | -1; maxScale: number }> = {
+const RESIZE_CORNERS: Record<
+  string,
+  { fx: 1 | -1; fy: 1 | -1; maxScale: number }
+> = {
   se: { fx: 1, fy: 1, maxScale: 2 },
   nw: { fx: -1, fy: -1, maxScale: 4 },
   ne: { fx: 1, fy: -1, maxScale: 4 },
@@ -55,13 +59,6 @@ export class MobileLayoutService {
 
   /** Smallest allowed zone edge (normalized units). */
   private static readonly MIN_ZONE = 0.05;
-  /** localStorage key for the most-recent layout (any mode). */
-  private static readonly STORAGE_KEY = "ffmpeg-mobile-layout-v1";
-  /** localStorage key for the most-recent stacked layout. */
-  private static readonly STORAGE_KEY_STACKED =
-    "ffmpeg-mobile-layout-v1:stacked";
-  /** localStorage key for the most-recent full layout. */
-  private static readonly STORAGE_KEY_FULL = "ffmpeg-mobile-layout-v1:full";
   // js-set-map-lookups: O(1) mode validation instead of Array.includes per call
   private static readonly VALID_MODES = new Set<MobileLayoutMode>([
     "full",
@@ -198,8 +195,16 @@ export class MobileLayoutService {
     );
     let w = sw * scale;
     let h = w / R;
-    w = this.clamp(w, MobileLayoutService.MIN_ZONE, fx > 0 ? 1 - anchorX : anchorX);
-    h = this.clamp(h, MobileLayoutService.MIN_ZONE, fy > 0 ? 1 - anchorY : anchorY);
+    w = this.clamp(
+      w,
+      MobileLayoutService.MIN_ZONE,
+      fx > 0 ? 1 - anchorX : anchorX,
+    );
+    h = this.clamp(
+      h,
+      MobileLayoutService.MIN_ZONE,
+      fy > 0 ? 1 - anchorY : anchorY,
+    );
     let x = fx > 0 ? anchorX : anchorX - w;
     let y = fy > 0 ? anchorY : anchorY - h;
     if (fx > 0 ? x + w > 1 : x < 0) {
@@ -372,24 +377,18 @@ export class MobileLayoutService {
    * Best-effort — quota/private-mode failures are swallowed.
    */
   savePref(l: MobileLayout): void {
-    try {
-      localStorage.setItem(MobileLayoutService.STORAGE_KEY, JSON.stringify(l));
-      const key =
-        l.mode === "full"
-          ? MobileLayoutService.STORAGE_KEY_FULL
-          : MobileLayoutService.STORAGE_KEY_STACKED;
-      localStorage.setItem(key, JSON.stringify(l));
-    } catch {}
+    storageJSON.write("ffmpego:mobile_layout", l);
+    storageJSON.write(
+      l.mode === "full"
+        ? "ffmpego:mobile_layout:full"
+        : "ffmpego:mobile_layout:stacked",
+      l,
+    );
   }
 
   /** Most-recent layout regardless of mode, or null when none stored. */
   loadPref(): MobileLayout | null {
-    try {
-      const v = localStorage.getItem(MobileLayoutService.STORAGE_KEY);
-      return v ? (JSON.parse(v) as MobileLayout) : null;
-    } catch {
-      return null;
-    }
+    return storageJSON.read<MobileLayout>("ffmpego:mobile_layout");
   }
 
   /**
@@ -397,19 +396,15 @@ export class MobileLayoutService {
    * back to the generic pref when it already matches the mode.
    */
   loadPrefForMode(mode: MobileLayoutMode): MobileLayout | null {
-    try {
-      const key =
-        mode === "full"
-          ? MobileLayoutService.STORAGE_KEY_FULL
-          : MobileLayoutService.STORAGE_KEY_STACKED;
-      const v = localStorage.getItem(key);
-      if (v) return JSON.parse(v) as MobileLayout;
-      const generic = this.loadPref();
-      if (generic && generic.mode === mode) return generic;
-      return null;
-    } catch {
-      return null;
-    }
+    const v = storageJSON.read<MobileLayout>(
+      mode === "full"
+        ? "ffmpego:mobile_layout:full"
+        : "ffmpego:mobile_layout:stacked",
+    );
+    if (v) return v;
+    const generic = this.loadPref();
+    if (generic && generic.mode === mode) return generic;
+    return null;
   }
 
   // ----------------------------------------------------------------- private

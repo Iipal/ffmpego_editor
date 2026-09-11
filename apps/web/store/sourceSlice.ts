@@ -1,6 +1,7 @@
 import type { FFprobeReport } from "@repo/types";
 import { createStore, type Store } from "@tanstack/store";
 import { useSelector } from "@tanstack/react-store";
+import { storageJSON, type StorageKey } from "@/lib/storage-json";
 
 export interface SourceSlice {
   file: File | null;
@@ -71,26 +72,19 @@ export function setSourceState(
   sourceStore.setState(updater);
 }
 
-const TRIM_STORAGE_KEY = "ffmpeg_editor_trimRange_v1";
-
 export function loadPersistedTrim(): [number, number] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const parsed = JSON.parse(
-      localStorage.getItem(TRIM_STORAGE_KEY) ?? "null",
-    ) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      parsed.length === 2 &&
-      typeof parsed[0] === "number" &&
-      typeof parsed[1] === "number" &&
-      Number.isFinite(parsed[0]) &&
-      Number.isFinite(parsed[1]) &&
-      parsed[0] >= 0 &&
-      parsed[1] > parsed[0]
-    )
-      return [parsed[0], parsed[1]];
-  } catch {}
+  const parsed = storageJSON.read<unknown>("ffmpego:trim_range");
+  if (
+    Array.isArray(parsed) &&
+    parsed.length === 2 &&
+    typeof parsed[0] === "number" &&
+    typeof parsed[1] === "number" &&
+    Number.isFinite(parsed[0]) &&
+    Number.isFinite(parsed[1]) &&
+    parsed[0] >= 0 &&
+    parsed[1] > parsed[0]
+  )
+    return [parsed[0], parsed[1]];
   return null;
 }
 
@@ -101,10 +95,7 @@ export function hydrateSourceStore() {
 }
 
 export function persistTrim(trim: [number, number]) {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(TRIM_STORAGE_KEY, JSON.stringify(trim));
-  } catch {}
+  storageJSON.write("ffmpego:trim_range", trim);
 }
 
 export function subscribeToTrimPersistence() {
@@ -122,7 +113,9 @@ export function subscribeToTrimPersistence() {
     persistTrim(trim);
   });
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== TRIM_STORAGE_KEY || !event.newValue) return;
+    if ((event.key as StorageKey) !== "ffmpego:trim_range" || !event.newValue)
+      return;
+
     const trim = loadPersistedTrim();
     if (trim)
       sourceStore.setState((previous) => ({ ...previous, trimRange: trim }));

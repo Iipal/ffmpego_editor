@@ -181,6 +181,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `videoFileService.isAcceptedVideoFile/formatFileSize/...`,
   `VideoFileService.MAX_UPLOAD_BYTES`
 - `format-time.ts` — `formatTime` display helper
+- `storage-json.ts` — `StorageJSON` service: `storageJSON.read/write/remove`
+  (never-throw localStorage JSON round-trips; all services persist via this)
 - `subtitles/` — PNG render, `GoogleFonts` + `SubtitleStorage` services
 
 #### Playback & UI infra

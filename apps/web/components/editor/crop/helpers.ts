@@ -4,8 +4,6 @@ export function formatPct(n: number) {
   return `${n.toFixed(1)}%`;
 }
 
-export const CROP_STORAGE_KEY = "ffmpeg_editor_crop_v1";
-
 export function isValidPersistedCrop(v: unknown): v is PersistedCrop {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;

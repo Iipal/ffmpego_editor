@@ -11,19 +11,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-const STORAGE_KEY = "ffmpego-sidebar-collapsed:v1";
-const LEGACY_STORAGE_KEY = "ffmpego-sidebar-collapsed";
+import { storageJSON } from "@/lib/storage-json";
 
 function readCollapsedInitial(): boolean {
   try {
-    const stored =
-      localStorage.getItem(STORAGE_KEY) ??
-      localStorage.getItem(LEGACY_STORAGE_KEY);
+    const stored = storageJSON.read("ffmpego:sidebar_collapsed");
     if (stored !== null) {
-      if (localStorage.getItem(STORAGE_KEY) === null) {
-        localStorage.setItem(STORAGE_KEY, stored);
-      }
       return stored === "1";
     }
     return window.innerWidth < 768;
@@ -42,11 +35,7 @@ export function AppSidebar() {
 
   const toggle = () => {
     setCollapsed((prev) => {
-      try {
-        localStorage.setItem(STORAGE_KEY, prev ? "0" : "1");
-      } catch {
-        // ignore
-      }
+      storageJSON.write("ffmpego:sidebar_collapsed", prev ? "0" : "1");
       return !prev;
     });
   };

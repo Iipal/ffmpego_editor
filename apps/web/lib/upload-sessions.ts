@@ -17,6 +17,7 @@
 // `components/admin/UploadSessions.tsx`.
 import { apiClient } from "./api-client";
 import { fetchJson } from "./fetch-json";
+import { storageJSON } from "./storage-json";
 
 /** One open upload session from `GET /api/upload/sessions`. */
 export interface UploadSession {
@@ -61,7 +62,6 @@ interface RememberedSession {
 class UploadSessions {
   /** Default timeout for session calls (fail fast, don't hang). */
   private static readonly DEFAULT_TIMEOUT_MS = 8000;
-  private static readonly MEMORY_KEY = "ffmpeg-editor.upload-resume";
   /** Remembered sessions older than this are dropped (server sweeps at 6h). */
   private static readonly MEMORY_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -128,10 +128,7 @@ class UploadSessions {
       };
       const rest = all.filter((r) => !this.sameFile(r, file));
       rest.push(entry);
-      localStorage.setItem(
-        UploadSessions.MEMORY_KEY,
-        JSON.stringify(rest.slice(-10)),
-      );
+      storageJSON.write("ffmpego:upload_resume", rest.slice(-10));
     } catch (e) {
       console.warn("[upload-sessions] remember failed:", e);
     }
@@ -157,7 +154,7 @@ class UploadSessions {
   forget(uploadId: string): void {
     try {
       const rest = this.readMemory().filter((r) => r.uploadId !== uploadId);
-      localStorage.setItem(UploadSessions.MEMORY_KEY, JSON.stringify(rest));
+      storageJSON.write("ffmpego:upload_resume", rest);
     } catch (e) {
       console.warn("[upload-sessions] forget failed:", e);
     }
@@ -172,14 +169,8 @@ class UploadSessions {
   }
 
   private readMemory(): RememberedSession[] {
-    try {
-      const raw = localStorage.getItem(UploadSessions.MEMORY_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw) as unknown;
-      return Array.isArray(parsed) ? (parsed as RememberedSession[]) : [];
-    } catch {
-      return [];
-    }
+    const parsed = storageJSON.read<unknown>("ffmpego:upload_resume");
+    return Array.isArray(parsed) ? (parsed as RememberedSession[]) : [];
   }
 }
 

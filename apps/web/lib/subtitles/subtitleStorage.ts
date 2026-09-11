@@ -8,6 +8,7 @@
 // of touching localStorage or the defaults directly.
 export type { Subtitle, SubtitleStyle, SubtitleTemplate } from "@repo/types";
 import type { SubtitleStyle, SubtitleTemplate } from "@repo/types";
+import { storageJSON } from "@/lib/storage-json";
 
 /**
  * Singleton service owning subtitle data: defaults, the localStorage-backed
@@ -50,12 +51,6 @@ export class SubtitleStorage {
     "Verdana, sans-serif",
   ];
 
-  /** Versioned storage key so future schema changes can migrate. */
-  public static readonly STORAGE_KEY = "video-editor:subtitle-templates:v1";
-
-  /** Unversioned v0 key, migrated into `STORAGE_KEY` once on first load. */
-  private static readonly LEGACY_KEY = "video-editor:subtitle-templates";
-
   // ------------------------------------------------------------------ public
 
   /**
@@ -63,26 +58,11 @@ export class SubtitleStorage {
    * are dropped; storage failures yield an empty list — never throw.
    */
   public load(): SubtitleTemplate[] {
-    try {
-      let raw = localStorage.getItem(SubtitleStorage.STORAGE_KEY);
-      // migrate v0 (unversioned) -> v1 once
-      if (!raw) {
-        const legacy = localStorage.getItem(SubtitleStorage.LEGACY_KEY);
-        if (legacy) {
-          raw = legacy;
-          try {
-            localStorage.setItem(SubtitleStorage.STORAGE_KEY, legacy);
-            localStorage.removeItem(SubtitleStorage.LEGACY_KEY);
-          } catch {}
-        }
-      }
-      if (!raw) return [];
-      const parsed: unknown = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter(SubtitleStorage.isValidTemplate);
-    } catch {
-      return [];
-    }
+    const parsed = storageJSON.read<unknown>("ffmpego:subtitle_templates");
+
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(SubtitleStorage.isValidTemplate);
   }
 
   /**
@@ -90,12 +70,7 @@ export class SubtitleStorage {
    * swallowed — templates simply don't survive reloads.
    */
   public save(templates: SubtitleTemplate[]): void {
-    try {
-      localStorage.setItem(
-        SubtitleStorage.STORAGE_KEY,
-        JSON.stringify(templates),
-      );
-    } catch {}
+    storageJSON.write("ffmpego:subtitle_templates", templates);
   }
 
   // ----------------------------------------------------------------- private

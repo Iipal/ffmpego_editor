@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api-client";
+import { storageJSON, type StorageKey } from "@/lib/storage-json";
 import type { JobEntry, JobsResponse } from "./types";
 import { GlobalListenerBus } from "@/lib/global-listener-bus";
 
@@ -42,47 +43,34 @@ export function ensureGlobalListeners() {
   touchBus.ensureAttached();
 }
 
-// js-cache-storage: versioned localStorage with Map cache + try-catch (client-localstorage-schema)
-export const FILTER_STORAGE_KEY = "admin-filter:v1";
-export const filterStorageCache = new Map<string, string | null>();
+// js-cache-storage: Map cache + try-catch (client-localstorage-schema)
+export const filterStorageCache = new Map<StorageKey, string | null>();
 export function getCachedFilter(): string | null {
-  if (filterStorageCache.has(FILTER_STORAGE_KEY))
-    return filterStorageCache.get(FILTER_STORAGE_KEY)!;
-  try {
-    const v =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(FILTER_STORAGE_KEY)
-        : null;
-    filterStorageCache.set(FILTER_STORAGE_KEY, v);
-    return v;
-  } catch {
-    filterStorageCache.set(FILTER_STORAGE_KEY, null);
-    return null;
-  }
+  if (filterStorageCache.has("ffmpego:admin_filters"))
+    return filterStorageCache.get("ffmpego:admin_filters")!;
+
+  const v = storageJSON.read<string>("ffmpego:admin_filters");
+  filterStorageCache.set("ffmpego:admin_filters", v);
+
+  return v;
 }
 export function setCachedFilter(v: string) {
-  filterStorageCache.set(FILTER_STORAGE_KEY, v);
-  try {
-    const schedule =
-      typeof window !== "undefined" && "requestIdleCallback" in window
-        ? (cb: () => void) =>
-            (
-              window as unknown as {
-                requestIdleCallback: (cb: () => void) => number;
-              }
-            ).requestIdleCallback(cb)
-        : (cb: () => void) => setTimeout(cb, 0);
-    // js-request-idle-callback: defer non-critical persistence to idle
-    schedule(() => {
-      try {
-        window.localStorage.setItem(FILTER_STORAGE_KEY, v);
-      } catch {}
-    });
-  } catch {
-    try {
-      window.localStorage.setItem(FILTER_STORAGE_KEY, v);
-    } catch {}
-  }
+  filterStorageCache.set("ffmpego:admin_filters", v);
+
+  const schedule =
+    typeof window !== "undefined" && "requestIdleCallback" in window
+      ? (cb: () => void) =>
+          (
+            window as unknown as {
+              requestIdleCallback: (cb: () => void) => number;
+            }
+          ).requestIdleCallback(cb)
+      : (cb: () => void) => setTimeout(cb, 0);
+
+  // js-request-idle-callback: defer non-critical persistence to idle
+  schedule(() => {
+    storageJSON.write("ffmpego:admin_filters", v);
+  });
 }
 
 // async-cheap-condition-before-await: cheap sync guard before async fetch

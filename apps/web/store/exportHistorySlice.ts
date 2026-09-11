@@ -1,5 +1,6 @@
 import { createStore } from "@tanstack/store";
 import { useSelector } from "@tanstack/react-store";
+import { storageJSON } from "@/lib/storage-json";
 
 /**
  * Editor-side export history: lightweight pointers to server jobs.
@@ -23,33 +24,21 @@ interface HistorySlice {
   entries: HistoryEntry[];
 }
 
-const STORAGE_KEY = "ffmpeg_editor_export_history_v1";
 const MAX_ENTRIES = 100;
 
 function readStored(): HistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (e): e is HistoryEntry =>
-        !!e &&
-        typeof e === "object" &&
-        typeof (e as HistoryEntry).jobId === "string",
-    );
-  } catch {
-    return [];
-  }
+  const parsed = storageJSON.read<unknown>("ffmpego:export_history");
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(
+    (e): e is HistoryEntry =>
+      !!e &&
+      typeof e === "object" &&
+      typeof (e as HistoryEntry).jobId === "string",
+  );
 }
 
 function persist(entries: HistoryEntry[]): void {
-  try {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(entries.slice(0, MAX_ENTRIES)),
-    );
-  } catch {}
+  storageJSON.write("ffmpego:export_history", entries.slice(0, MAX_ENTRIES));
 }
 
 export const historyStore = createStore<HistorySlice>({ entries: [] });

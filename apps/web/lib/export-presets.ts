@@ -8,6 +8,7 @@ import {
 } from "@repo/contracts";
 import type { CutSlice } from "@/store/cutSlice";
 import type { VisualFilters } from "@/store/filterSlice";
+import { storageJSON } from "./storage-json";
 
 export type { ExportPreset };
 export { BUILTIN_PRESETS };
@@ -37,9 +38,6 @@ export type PresetPatch = Partial<
  * per-export edits win.
  */
 class ExportPresets {
-  /** localStorage key for the user-custom preset list. */
-  private static readonly STORAGE_KEY = "ffmpeg_editor_presets_v1";
-
   // ------------------------------------------------------------------ public
 
   /** Builtins followed by stored customs. */
@@ -125,21 +123,13 @@ class ExportPresets {
 
   /** Raw stored JSON array (empty when missing, corrupt, or non-array). */
   private readStored(): unknown[] {
-    try {
-      const raw = localStorage.getItem(ExportPresets.STORAGE_KEY);
-      if (!raw) return [];
-      const parsed: unknown = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    const parsed = storageJSON.read<unknown>("ffmpego:presets");
+    return Array.isArray(parsed) ? parsed : [];
   }
 
   /** Persist the custom preset list (quota failures are swallowed). */
   private writeStored(presets: ExportPreset[]): void {
-    try {
-      localStorage.setItem(ExportPresets.STORAGE_KEY, JSON.stringify(presets));
-    } catch {}
+    storageJSON.write("ffmpego:presets", presets);
   }
 }
 
