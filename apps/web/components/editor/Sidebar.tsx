@@ -42,6 +42,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatTime } from "@/lib/format-time";
+import { readSliderValue } from "@/lib/utils";
 import {
   useExtendedVideoMetadataMutation,
   useVideoMetadataMutation,
@@ -699,9 +700,7 @@ export function Sidebar() {
                 step={1}
                 onValueChange={(value) =>
                   update({
-                    canvasZoom: Array.isArray(value)
-                      ? Number(value[0] ?? 100) / 100
-                      : Number(value) / 100,
+                    canvasZoom: readSliderValue(value) / 100,
                   })
                 }
                 aria-label="Canvas zoom"
@@ -770,9 +769,7 @@ export function Sidebar() {
                   step={0.1}
                   onValueChange={(value) =>
                     update({
-                      playbackSpeed: Array.isArray(value)
-                        ? Number(value[0] ?? 1)
-                        : Number(value),
+                      playbackSpeed: readSliderValue(value),
                     })
                   }
                   aria-label="Playback speed"
@@ -933,9 +930,7 @@ export function Sidebar() {
                   step={1}
                   onValueChange={(value) =>
                     update({
-                      exportQuality: Array.isArray(value)
-                        ? Number(value[0] ?? 5)
-                        : Number(value),
+                      exportQuality: readSliderValue(value),
                     })
                   }
                   aria-label="Export quality crf"

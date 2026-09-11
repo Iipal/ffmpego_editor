@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Lock, LockOpen } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, readSliderValue } from "@/lib/utils";
 import type { ZoneCardProps } from "./types";
 
 const ROLE_OPTIONS = ["camera", "gameplay", "content"] as const;
@@ -20,8 +20,7 @@ export const ZoneCard = memo(function ZoneCard({
 }: ZoneCardProps) {
   const handleZoom = useCallback(
     (v: number | readonly number[]) => {
-      const val = Array.isArray(v) ? (v[0] as number) : (v as number);
-      onZoom(zone.id, val);
+      onZoom(zone.id, readSliderValue(v));
     },
     [onZoom, zone.id],
   );

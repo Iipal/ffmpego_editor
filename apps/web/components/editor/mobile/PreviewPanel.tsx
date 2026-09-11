@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { formatTime } from "@/lib/format-time";
+import { readSliderValue } from "@/lib/utils";
 import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { PortraitPreview } from "./PortraitPreview";
@@ -89,9 +90,7 @@ export function PreviewPanel({
               min={MobileLayoutService.MIN_SPLIT}
               max={MobileLayoutService.MAX_SPLIT}
               step={0.01}
-              onValueChange={(v) =>
-                onSplit(Array.isArray(v) ? (v[0] as number) : (v as number))
-              }
+              onValueChange={(v) => onSplit(readSliderValue(v))}
               disabled={layout.mode === "full"}
             />
           </div>

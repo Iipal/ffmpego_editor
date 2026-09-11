@@ -11,7 +11,7 @@ import { formatTime } from "@/lib/format-time";
 import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
-import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
+import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
 import {
   getAudioRenderSettings,
@@ -332,7 +332,7 @@ export function BulkExpandedView({
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [gridW, setGridW] = useState<number | null>(null);
   const [isMd, setIsMd] = useState(false);
-  const player = useVideoPlayer(videoRef, { throttleMs: 100 });
+  const player = usePlaybackEngine(videoRef, { throttleMs: 100 });
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");

@@ -22,6 +22,7 @@ import {
 import { sourceStore } from "@/store/sourceSlice";
 import { usePlayheadTime } from "@/store/playheadSlice";
 import { formatTime } from "@/lib/format-time";
+import { readSliderValue } from "@/lib/utils";
 import { audioUpload } from "@/lib/audio-upload";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
 import { AudioWaveform } from "./AudioWaveform";
@@ -129,9 +130,7 @@ function TrackControls({
               value={[track.gainDb]}
               onValueChange={(value) =>
                 updateTrack(track.trackIndex, {
-                  gainDb: Array.isArray(value)
-                    ? Number(value[0] ?? 0)
-                    : Number(value),
+                  gainDb: readSliderValue(value),
                 })
               }
             />

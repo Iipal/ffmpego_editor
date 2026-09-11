@@ -12,10 +12,8 @@ import { CutList } from "@/components/editor/cut/CutList";
 import { CutSettingsSidebar } from "@/components/editor/cut/CutSettingsSidebar";
 import { useCutList } from "@/components/editor/cut/useCutList";
 import { useCutLayouts } from "@/components/editor/cut/useCutLayouts";
-import {
-  useCutPlayback,
-  useSeekTo,
-} from "@/components/editor/cut/useCutPlayback";
+import { useCutPlayback } from "@/components/editor/cut/useCutPlayback";
+import { useSeekTo } from "@/components/editor/shared/usePlaybackEngine";
 import {
   useCutExport,
   useExportName,

@@ -16,8 +16,8 @@ import {
   ensureGlobalPointerListeners,
   globalPointerMoveHandlers,
   globalPointerUpHandlers,
-} from "./pointer-bus";
-import type { PointerHandler } from "./pointer-bus";
+} from "@/lib/global-listener-bus";
+import type { PointerHandler } from "@/lib/global-listener-bus";
 import { OverlaySubtitle } from "./OverlaySubtitle";
 import { TimelineSection } from "./TimelineSection";
 

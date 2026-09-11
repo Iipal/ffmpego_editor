@@ -96,6 +96,25 @@ export function seekVideoElement(
 }
 
 /**
+ * Stable seek callback for a page-owned video ref: clamps to `[0, duration]`
+ * and commits to the playhead clock. Single copy; was `useSeekTo` in
+ * `cut/useCutPlayback`.
+ */
+export function useSeekTo(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  duration: number,
+) {
+  return useCallback(
+    (t: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      seekVideoElement(v, t, duration);
+    },
+    [duration, videoRef],
+  );
+}
+
+/**
  * Single playback engine for every editor page.
  *
  * Owns the video-element transport state: play/pause/timeupdate/seeked/
@@ -107,8 +126,7 @@ export function seekVideoElement(
  *
  * Pages keep their own domain logic (cut play-all jumping, canvas sync,
  * subtitle cue filtering) and drive shared controls from this result.
- * `useVideoPlayer` (shared), `subtitles/useVideoPlayback` and
- * `cut/useCutPlayback` are all thin wrappers over this hook.
+ * `cut/useCutPlayback` is a thin wrapper over this hook.
  */
 export function usePlaybackEngine(
   videoRef: RefObject<HTMLVideoElement | null>,

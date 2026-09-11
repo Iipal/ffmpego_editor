@@ -99,12 +99,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `lib/upload-chunked.ts` (`SubmitWithUploadOptions` + `submitWithUpload`: chunked `uploadFile` → header-only/settings-only `fetch` with `x-upload-id`, else XHR `uploadForm`; default transcode error shaping incl. 429 Retry-After, overridable via `shapeError`; resume notice via `onResumed`); `lib/export-queue.ts` (`submitJob` now a builder closure — file part only in direct bodies), `lib/export-history.ts` (`submitWithCurrentFile` one-liner, `transcodeJobs` import gone), `hooks/useVideoMetadata.ts` (bodiless chunked probe via `buildForm(false) → null`, custom metadata error shaper, type-only `api-client` import)
 - **Result:** ~60 lines removed, fork single-source. Behavior notes: export-queue's chunked body no longer double-sends the file bytes (server resolves input from the session header first and ignores the body — verified in `apps/api/src/routes/video.ts:resolveInputFile` + `metadata.ts`); resume toast, 429 retry shaping, metadata error text, and XHR progress callbacks all preserved verbatim.
 
-## 13. Playback indirection — ⬜ open
+## 13. Playback indirection — ✅ done
 
 - **Tag:** shrink
 - **Problem:** `useVideoPlayer` passthrough file, `pointer-bus` compat shim, and `seekPlayerElement`/`useSeekTo` clones all funnel into `seekVideoElement`; slider `Array.isArray` reads copied 6×.
 - **Do:** Delete the passthrough + shim, merge the seek clones, standardize the slider read.
-- **Files:** `components/shared/useVideoPlayer.ts`, `components/subtitles/pointer-bus.ts`, `components/TrimControls.tsx`, `components/cut/useCutPlayback.ts`, `components/shared/VideoPlayerControls.tsx`
+- **Files:** deleted `components/editor/shared/useVideoPlayer.ts` (callers `bulk/BulkExpandedView`, `mobile/useMobilePageState` now use `usePlaybackEngine` directly — identical options/result), deleted `components/editor/subtitles/pointer-bus.ts` (`PreviewPane`, `useTimelineDrag` import from `@/lib/global-listener-bus`); `seekPlayerElement` (zero external importers) replaced by `seekVideoElement` inside `TrimControls` (store `duration` as clamp fallback); `useSeekTo` moved from `cut/useCutPlayback` to `shared/usePlaybackEngine` (`pageEditorCut` repointed); new `readSliderValue` in `lib/utils.ts` standardizing 10 single-value reads (`VideoPlayerControls` ×2, `VisualFiltersPanel` ×3, `Sidebar` ×3, `ZoneSliders`, `AudioControls`, `PreviewPanel`, `ZoneCard`, `CutSettingsSidebar`); stale `useVideoPlayer` mentions fixed in `playback-bus.ts`/`SourceStage.tsx`/`VideoPlayerControls.tsx` comments
+- **Result:** 2 files deleted, ~60 lines removed. Deliberately kept: `TrimSlider` dual-thumb read (range + minGap logic, not a single read), `ui/slider` thumb-count read (primitive wrapper), `subtitles/useVideoPlayback` (real hook, not a shim — audit's file list named the wrong layer). `tsc` + `lint` clean.
 
 ## 14. Memo-cache ceremony — ⬜ open
 
@@ -185,5 +186,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–12. Open: items 13–24.
+- Done: items 1–13. Open: items 14–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

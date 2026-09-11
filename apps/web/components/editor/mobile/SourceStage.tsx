@@ -32,7 +32,7 @@ export const SourceStage = memo(function SourceStage({
   } | null>(null);
 
   // Element transport sync (volume/muted/rate/loop/time) is owned solely by
-  // the shared playback engine (useVideoPlayer) so every slider reads the
+  // the shared playback engine (usePlaybackEngine) so every slider reads the
   // same live playhead. (volume / isMuted remain on SourceStageProps for
   // API stability but are applied centrally,
   // including the mute-while-audio-preview rule.)

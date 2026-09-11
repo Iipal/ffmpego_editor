@@ -10,7 +10,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatTime } from "@/lib/format-time";
-import { cn } from "@/lib/utils";
+import { cn, readSliderValue } from "@/lib/utils";
 
 export type VideoPlayerControlsProps = {
   isPlaying: boolean;
@@ -41,14 +41,10 @@ export type VideoPlayerControlsProps = {
   timeLabel?: string;
 };
 
-function readSlider(v: number | number[]): number {
-  return Array.isArray(v) ? (v[0] ?? 0) : v;
-}
-
 /**
  * Shared transport bar for every <video> player: Play/Pause, Loop,
  * Volume slider, Length (seek) slider, CurrentTime/TotalTime indicator.
- * Fully controlled — pair with useVideoPlayer or any page-owned state.
+ * Fully controlled — pair with usePlaybackEngine or any page-owned state.
  */
 export function VideoPlayerControls({
   isPlaying,
@@ -83,7 +79,7 @@ export function VideoPlayerControls({
           min={0}
           max={Math.max(duration, 0.01)}
           step={0.01}
-          onValueChange={(v) => onSeek(readSlider(v as number | number[]))}
+          onValueChange={(v) => onSeek(readSliderValue(v))}
           aria-label="Seek video"
         />
       ) : null}
@@ -169,9 +165,7 @@ export function VideoPlayerControls({
             min={0}
             max={1}
             step={0.001}
-            onValueChange={(v) =>
-              onVolumeChange(readSlider(v as number | number[]))
-            }
+            onValueChange={(v) => onVolumeChange(readSliderValue(v))}
             aria-label="Volume"
           />
         ) : null}

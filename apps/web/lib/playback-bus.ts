@@ -1,8 +1,7 @@
 // Global playback bus: single-key shortcuts drive transport through here
 // instead of reaching into page-local player hooks.
 // All pages play through the shared engine (`shared/usePlaybackEngine` —
-// `shared/useVideoPlayer` is a compat alias, `subtitles/useVideoPlayback`
-// and `cut/useCutPlayback` are thin wrappers, crop `VideoPlayer` uses it
+// `cut/useCutPlayback` is a thin wrapper, crop `VideoPlayer` uses it
 // directly) and mirror state into `sourceStore`, so operating on the
 // active element + the store works uniformly across crop/mobile/subtitles/
 // bulk/cut.

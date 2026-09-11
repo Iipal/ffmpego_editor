@@ -19,6 +19,7 @@ import { useSelector } from "@tanstack/react-store";
 import { cutStore, setCutState } from "@/store/cutSlice";
 import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
 import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
+import { readSliderValue } from "@/lib/utils";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { ZoneSliders } from "./ZoneSliders";
 import type { CutMode } from "./types";
@@ -123,9 +124,7 @@ export function CutSettingsSidebar({
                 max={MobileLayoutService.MAX_SPLIT}
                 step={0.01}
                 onValueChange={(v) => {
-                  const val = Array.isArray(v)
-                    ? (v[0] as number)
-                    : (v as number);
+                  const val = readSliderValue(v);
                   setStackedLayout((p) => ({
                     ...p,
                     splitRatio: mobileLayoutService.clamp(

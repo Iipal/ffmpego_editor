@@ -4,10 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { toast } from "sonner";
 import { setSourceState } from "@/store/sourceSlice";
-import {
-  seekVideoElement,
-  usePlaybackEngine,
-} from "@/components/editor/shared/usePlaybackEngine";
+import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 import type { Cut } from "./types";
 
 export function useCutPlayback({
@@ -110,19 +107,4 @@ export function useCutPlayback({
     playCut,
     playAllCuts,
   };
-}
-
-export function useSeekTo(
-  videoRef: RefObject<HTMLVideoElement | null>,
-  duration: number,
-) {
-  const seekTo = useCallback(
-    (t: number) => {
-      const v = videoRef.current;
-      if (!v) return;
-      seekVideoElement(v, t, duration);
-    },
-    [duration, videoRef],
-  );
-  return seekTo;
 }

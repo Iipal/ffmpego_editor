@@ -8,7 +8,7 @@ import {
   ensureGlobalPointerListeners,
   globalPointerMoveHandlers,
   globalPointerUpHandlers,
-} from "./pointer-bus";
+} from "@/lib/global-listener-bus";
 
 export type TimelineDragMode = "move" | "left" | "right";
 

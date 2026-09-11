@@ -13,9 +13,10 @@ import {
 } from "@/components/ui/collapsible";
 import { SkipBack, SkipForward } from "lucide-react";
 import { sourceStore } from "@/store/sourceSlice";
-import { commitPlayheadTime, usePlayheadTime } from "@/store/playheadSlice";
+import { usePlayheadTime } from "@/store/playheadSlice";
 import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format-time";
+import { seekVideoElement } from "@/components/editor/shared/usePlaybackEngine";
 import {
   TRIM_MIN_GAP_DEFAULT,
   useTrimRange,
@@ -40,19 +41,6 @@ export type TrimControlsProps = {
   /** Element the "Set Player to Start/End" buttons seek. */
   playerRef: RefObject<HTMLVideoElement | null>;
 };
-
-// Seeks a player element and commits the seek to the playhead clock
-// (transient + source snapshot). Module-level so handlers can take
-// prop-owned refs without tripping the react-hooks/immutability rule
-// (reads are fine, direct writes are not).
-export function seekPlayerElement(
-  player: HTMLVideoElement | null,
-  time: number,
-) {
-  if (!player) return;
-  player.currentTime = time;
-  commitPlayheadTime(time);
-}
 
 // Self-owned trim card: owns the source-store trimRange tuple via
 // useTrimRange and renders the fixed trim editor inside a Card with a
@@ -96,8 +84,8 @@ export function TrimControls({
     const ns = setStartToCurrentTime(t);
     // Nudge the player only when clamping moved the start behind the
     // playhead (t already equals player time, so equal values are no-ops).
-    if (ns !== t) seekPlayerElement(playerRef?.current ?? null, ns);
-  }, [playerRef, boundedCurrentTime, setStartToCurrentTime]);
+    if (ns !== t) seekVideoElement(playerRef?.current ?? null, ns, duration);
+  }, [playerRef, boundedCurrentTime, setStartToCurrentTime, duration]);
 
   const setEndToCurrent = useCallback(() => {
     const t = playerRef?.current?.currentTime ?? boundedCurrentTime;
@@ -105,11 +93,11 @@ export function TrimControls({
   }, [playerRef, boundedCurrentTime, setEndToCurrentTime]);
 
   const setPlayerToStart = useCallback(() => {
-    seekPlayerElement(playerRef?.current, Math.max(trimStart, 0));
-  }, [playerRef, trimStart]);
+    seekVideoElement(playerRef?.current, Math.max(trimStart, 0), duration);
+  }, [playerRef, trimStart, duration]);
 
   const setPlayerToEnd = useCallback(() => {
-    seekPlayerElement(playerRef?.current, Math.min(trimEnd, duration));
+    seekVideoElement(playerRef?.current, Math.min(trimEnd, duration), duration);
   }, [playerRef, trimEnd, duration]);
 
   if (!file) return null;

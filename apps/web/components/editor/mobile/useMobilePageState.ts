@@ -14,7 +14,7 @@ import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { formatTime } from "@/lib/format-time";
 import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
-import { useVideoPlayer } from "@/components/editor/shared/useVideoPlayer";
+import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
 import { cachedBuildMobileFilter, NOOP } from "./mobile-helpers";
 import { initAppOnce } from "@/lib/heavy";
@@ -50,7 +50,7 @@ export function useMobilePageState() {
     muted,
     setMuted,
     currentTime,
-  } = useVideoPlayer(videoRef, {
+  } = usePlaybackEngine(videoRef, {
     mediaUrl,
     loopRange: isLoopTrim ? trimRange : null,
     throttleMs: 50,

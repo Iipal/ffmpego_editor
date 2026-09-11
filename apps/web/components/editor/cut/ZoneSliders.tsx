@@ -2,6 +2,7 @@
 
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
+import { readSliderValue } from "@/lib/utils";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone } from "@/lib/mobile-layout";
 
@@ -34,7 +35,7 @@ export function ZoneSliders({
             max={max}
             step={0.01}
             onValueChange={(v) => {
-              const val = Array.isArray(v) ? (v[0] as number) : (v as number);
+              const val = readSliderValue(v);
               onChange({ ...zone, [key]: num(val, min, max) });
             }}
           />

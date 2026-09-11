@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { readSliderValue } from "@/lib/utils";
 import { cutStore, setCutState } from "@/store/cutSlice";
 import { filterStore, resetFilters, setFilterState } from "@/store/filterSlice";
 import {
@@ -21,10 +22,6 @@ import {
   isVisualFiltersDefault,
   visualPreviewNotes,
 } from "@repo/ffmpeg-filters";
-
-function sliderValue(value: number | readonly number[]): number {
-  return Array.isArray(value) ? Number(value[0] ?? 0) : Number(value);
-}
 
 // Small per-slider reset button. Shown next to the value readout, disabled
 // when the control is already at its default.
@@ -124,7 +121,7 @@ export function VisualFiltersPanel() {
                 onValueChange={(value) =>
                   setFilterState((previous) => ({
                     ...previous,
-                    eq: { ...previous.eq, [row.key]: sliderValue(value) },
+                    eq: { ...previous.eq, [row.key]: readSliderValue(value) },
                   }))
                 }
                 aria-label={row.label}
@@ -186,7 +183,7 @@ export function VisualFiltersPanel() {
                   ...previous,
                   denoise: {
                     ...previous.denoise,
-                    strength: sliderValue(value),
+                    strength: readSliderValue(value),
                   },
                 }))
               }
@@ -296,7 +293,7 @@ export function VisualFiltersPanel() {
           onValueChange={(value) =>
             setCutState((previous) => ({
               ...previous,
-              exportSpeed: sliderValue(value) || 1,
+              exportSpeed: readSliderValue(value) || 1,
             }))
           }
           aria-label="Export speed"
