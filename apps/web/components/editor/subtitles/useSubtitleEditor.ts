@@ -9,7 +9,7 @@ import { useSharedMobileLayout } from "@/hooks/useSharedMobileLayout";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
 import { googleFonts } from "@/lib/subtitles/googleFonts";
-import { NOOP } from "./heavy-modules";
+import { NOOP } from "@/lib/utils";
 import { initAppOnce } from "@/lib/heavy";
 import { getSubtitleTrack } from "./subtitle-helpers";
 import { useSubtitleExport } from "./useSubtitleExport";

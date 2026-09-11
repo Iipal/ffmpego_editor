@@ -5,9 +5,6 @@ import type { JobEntry, JobsResponse } from "./types";
 // JOB_ID_RE validates jobId cheaply.
 export const JOB_ID_RE = /^[a-z0-9-]{4,}$/i;
 
-// rerender-memo-with-default-value: stable default for optional callbacks
-export { NOOP } from "@/lib/utils";
-
 // js-cache-function-results: deleted — formatAge/statusBadge are trivial
 // string ops; the per-row Maps cost more than recompute at this volume.
 const statusBadgeRaw: Record<string, string> = {

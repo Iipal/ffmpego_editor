@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { mobileLayoutService } from "@/lib/mobile-layout";
-import { cutsOverlap, newId, sortCuts, totalDuration } from "./helpers";
+import { cutsOverlap, sortCuts, totalDuration } from "./helpers";
 import type { Cut } from "./types";
 
 export function useCutList({ duration }: { duration: number }) {
@@ -41,7 +41,7 @@ export function useCutList({ duration }: { duration: number }) {
         return;
       }
       const cut: Cut = {
-        id: newId(),
+        id: crypto.randomUUID(),
         start: Math.round(t * 100) / 100,
         end: Math.round(end * 100) / 100,
       };

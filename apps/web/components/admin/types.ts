@@ -48,8 +48,6 @@ export const FILTER_OPTIONS = [
 export type Filter = (typeof FILTER_OPTIONS)[number];
 export const FILTER_SET = new Set<string>(FILTER_OPTIONS); // js-set-map-lookups
 
-export type GlobalHandler = (e: Event) => void;
-
 export type JobRowProps = {
   job: JobEntry;
   /** Local history linkage (stored settingsJson enables Retry). */

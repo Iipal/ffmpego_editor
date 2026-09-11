@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { DynamicGoogleFontPicker } from "./heavy-modules";
 import { googleFonts } from "@/lib/subtitles/googleFonts";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
-import { NOOP } from "./heavy-modules";
+import { NOOP } from "@/lib/utils";
 import { isValidHexColor, normalizeHex } from "./subtitle-helpers";
 import { NumberField } from "./StyleFields";
 

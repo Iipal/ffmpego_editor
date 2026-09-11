@@ -1,4 +1,3 @@
-export { NOOP } from "@/lib/utils";
 export const DEFAULT_SPLIT = 0.5;
 
 export const HEAVY_MODULES = {

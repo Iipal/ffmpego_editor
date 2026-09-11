@@ -1,9 +1,5 @@
 import type { PersistedCrop } from "./types";
 
-export function formatPct(n: number) {
-  return `${n.toFixed(1)}%`;
-}
-
 export function isValidPersistedCrop(v: unknown): v is PersistedCrop {
   if (!v || typeof v !== "object") return false;
   const o = v as Record<string, unknown>;

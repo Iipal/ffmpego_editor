@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
 import { cropStore, setCropState } from "@/store/cropSlice";
 import { sourceStore } from "@/store/sourceSlice";
-import { formatPct, isValidPersistedCrop } from "./helpers";
+import { isValidPersistedCrop } from "./helpers";
 import type {
   CropAspect,
   CropPixelReadout,
@@ -49,7 +49,7 @@ export function useCropControls(): CropControls {
   const cropLabel =
     hasSource && px
       ? `${px.w} × ${px.h} px`
-      : `${formatPct(crop.width)} × ${formatPct(crop.height)}`;
+      : `${crop.width.toFixed(1)}% × ${crop.height.toFixed(1)}%`;
   const sourceLabel = hasSource ? `${sourceWidth} × ${sourceHeight} px` : "—";
   const isFullFrame =
     crop.x === 0 && crop.y === 0 && crop.width === 100 && crop.height === 100;
@@ -76,7 +76,7 @@ export function useCropControls(): CropControls {
           typeof p.isCropMode === "boolean" ? p.isCropMode : prev.isCropMode,
       }));
       toast.success("Crop restored from saved settings", {
-        description: `${p.aspectRatio} · ${formatPct(p.crop.width)} × ${formatPct(p.crop.height)}${typeof p.isCropMode === "boolean" && p.isCropMode ? " · enabled" : ""}`,
+        description: `${p.aspectRatio} · ${p.crop.width.toFixed(1)}% × ${p.crop.height.toFixed(1)}%${typeof p.isCropMode === "boolean" && p.isCropMode ? " · enabled" : ""}`,
       });
     } catch {
       toast.error("Failed to restore crop settings");
@@ -121,7 +121,7 @@ export function useCropControls(): CropControls {
       const payload: PersistedCrop = { crop, aspectRatio, isCropMode };
       storageJSON.write("ffmpego:crop", payload);
       toast.success("Crop settings saved", {
-        description: `${aspectRatio} · ${formatPct(crop.width)} × ${formatPct(crop.height)} ${isCropMode ? "· enabled" : "· disabled"}`,
+        description: `${aspectRatio} · ${crop.width.toFixed(1)}% × ${crop.height.toFixed(1)}% ${isCropMode ? "· enabled" : "· disabled"}`,
       });
     } catch {
       toast.error("Failed to save crop settings");

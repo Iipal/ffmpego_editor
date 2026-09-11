@@ -1,9 +1,5 @@
 import type { Cut } from "./types";
 
-export function newId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
-}
-
 export function sortCuts(cuts: Cut[]): Cut[] {
   return cuts.toSorted((a, b) => a.start - b.start);
 }

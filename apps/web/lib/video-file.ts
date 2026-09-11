@@ -84,8 +84,6 @@ export class VideoFileService {
 
   /** Human size (`1.5 MB`, `2.00 GB`) for limit toasts and progress rows. */
   public formatFileSize(bytes: number): string {
-    if (bytes >= VideoFileService.MAX_UPLOAD_BYTES)
-      return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
     if (bytes >= 1024 * 1024 * 1024)
       return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
     if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;

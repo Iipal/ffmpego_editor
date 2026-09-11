@@ -10,9 +10,6 @@ export const HEAVY_MODULES = {
   googleFontPicker: () => import("@/components/editor/GoogleFontPicker"),
 } as const;
 
-// rerender-memo-with-default-value: stable default for optional callbacks
-export { NOOP } from "@/lib/utils";
-
 // bundle-defer-third-party + rendering-resource-hints: origin preconnect +
 // mascot preload live in lib/heavy (initAppOnce), shared with admin/mobile.
 

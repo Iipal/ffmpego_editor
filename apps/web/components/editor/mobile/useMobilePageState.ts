@@ -16,7 +16,7 @@ import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
-import { NOOP } from "./mobile-helpers";
+import { NOOP } from "@/lib/utils";
 import { initAppOnce } from "@/lib/heavy";
 import { apiClient } from "@/lib/api-client";
 

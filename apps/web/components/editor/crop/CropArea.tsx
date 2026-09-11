@@ -5,7 +5,6 @@ import { SidebarToggle } from "@/components/editor/Sidebar";
 import { AreaShell } from "@/components/shared/AreaShell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatPct } from "./helpers";
 import { useCropControls } from "./hooks";
 
 // Design goals (replaces all previous crop boilerplate):
@@ -110,7 +109,7 @@ export function CropArea() {
           value: (
             <>
               <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {formatPct(crop.x)} · {formatPct(crop.y)}
+                {crop.x.toFixed(1)}% · {crop.y.toFixed(1)}%
               </div>
               {px && (
                 <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
@@ -125,7 +124,7 @@ export function CropArea() {
           value: (
             <>
               <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {formatPct(crop.width)} × {formatPct(crop.height)}
+                {crop.width.toFixed(1)}% × {crop.height.toFixed(1)}%
               </div>
               {px && (
                 <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
@@ -140,8 +139,8 @@ export function CropArea() {
           value: (
             <>
               <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {formatPct(crop.x + crop.width)} ·{" "}
-                {formatPct(crop.y + crop.height)}
+                {(crop.x + crop.width).toFixed(1)}% ·{" "}
+                {(crop.y + crop.height).toFixed(1)}%
               </div>
               {px && (
                 <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">

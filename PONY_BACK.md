@@ -179,12 +179,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `components/editor/shared/VideoPlayerControls.tsx`, `components/editor/shared/TrimSlider.tsx`, `components/editor/TrimControls.tsx`, `components/editor/shared/EmptyState.tsx`, `components/editor/mobile/mobile-helpers.ts`, `components/admin/helpers.ts` (audit listed `components/shared/…` / `components/TrimControls.tsx` without the `editor/` prefix)
 - **Result:** All six sites grep-verified zero live passes before deletion. `VideoPlayerControls`: `showSeek` (never false) + `extraContent` (never given) gone — seek slider always renders. `TrimSlider`: `playheadVariant` gone — `TrimControls` (its only caller) never passed it, so the `"line"` full-height bar was dead; marker condition unwrapped to `currentTime !== undefined && duration > 0`. `TrimControls`: `disabled` gone — all 3 callers (mobile/subtitles/VideoPlayer) omitted it, so the "Full length" readout + dim/`aria-disabled` branch was dead; `cn` import dropped (single static class left). `EmptyState`: `UploaderCard formatNote` (3 bare `<UploaderCard />` callers) + `DashedPreviewHint hint` (single caller passes no hint) inlined as literals; `label` kept (passed, required). `mobile-helpers`: `TRIM_TIME_RE` + its `void` stub gone (zero importers). Admin: `scrollBus`/`touchBus` + `globalScrollHandlers`/`globalTouchHandlers`/`ensureGlobalListeners` + `GlobalListenerBus` import gone (zero importers — nothing ever attached them). `tsc` + `lint` clean. No AGENTS.md/README changes — neither documents these props.
 
-## 23. Native one-liners — ⬜ open
+## 23. Native one-liners — ✅ done
 
 - **Tag:** native/stdlib
 - **Problem:** `formatPct`, `newId` (vs `crypto.randomUUID`), `clamp` service method, triple `NOOP` re-exports, duplicated `GlobalHandler`, `roundRect` polyfill (ships natively), dead GB branch.
 - **Do:** Inline or replace with the platform primitive in each case.
-- **Files:** `components/crop/helpers.ts`, `components/cut/helpers.ts`, `lib/mobile-layout.ts`, `lib/utils.ts`, `components/admin/types.ts`, `lib/subtitles/renderSubtitlePng.ts`, `lib/video-file.ts`
+- **Files:** `components/editor/crop/helpers.ts` (+`hooks.ts`, `CropArea.tsx`), `components/editor/cut/helpers.ts` (+`useCutList.ts`), `lib/mobile-layout.ts`, `lib/utils.ts`, `components/admin/types.ts` (+`helpers.ts`), `lib/subtitles/renderSubtitlePng.ts`, `lib/video-file.ts` (audit listed `components/crop|cut/helpers.ts` without the `editor/` prefix)
+- **Result:** `formatPct` deleted, 12 call sites inline `${n.toFixed(1)}%`; `newId` deleted, single caller uses `crypto.randomUUID()` (ids are opaque Set keys / React keys — no format dependency); all three `NOOP` re-exports deleted (`admin/helpers`, `mobile-helpers`, `subtitles/heavy-modules` — admin's had zero importers) with the 3 live use sites (`useMobilePageState`, `SubtitleFontPanel`, `useSubtitleEditor`) importing `@/lib/utils` directly; admin `GlobalHandler` deleted (zero importers — the bus's generic stays canonical); `roundRect` manual fallback deleted (~15 lines, native since Chrome 99/Safari 16/FF 112); dead first GB branch in `formatFileSize` deleted (identical body to the second — `MAX_UPLOAD_BYTES` ≥ 1 GB made it unreachable as a distinct case). Deliberately kept: `clamp` service method — JS has no `Math.clamp`, and 20+ call sites already share this single copy; inlining `Math.max/min` everywhere would add lines, the opposite of the item's goal. `tsc` + `lint` clean. No AGENTS.md/README changes — `utils.ts` (`cn`/`NOOP`) and `mobileLayoutService.clamp` doc lines stay accurate.
 
 ## 24. Unlinked `docs/DESIGN.md` — ⬜ open
 
@@ -195,5 +196,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–22. Open: items 23–24.
+- Done: items 1–23. Open: item 24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).
