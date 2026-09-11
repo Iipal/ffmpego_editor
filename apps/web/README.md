@@ -133,7 +133,8 @@ flowchart LR
   from the Advanced card in `SubtitleSettingsPanel`.
 - Panels: `SubtitleBasicsPanel`, `SubtitleFontPanel` (+ `GoogleFontPicker`),
   `SubtitleOutlinePanel`, `SubtitleShadowPanel`, `SubtitleBackgroundPanel`;
-  placeholders in `placeholders.tsx`, lazy chunks in `heavy-modules.tsx`.
+  placeholders in `placeholders.tsx`; heavy chunks (`MobilePreviewShared`,
+  `GoogleFontPicker`, subtitle-PNG render) dynamic-imported at point of use.
 
 **`/editor/mobile/bulk` — `MobileBulkEditorPage`** (folder batch):
 

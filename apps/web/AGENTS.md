@@ -63,7 +63,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 - `components/editor/subtitles/useSubtitleEditor.ts`, `PreviewPane.tsx`,
   `SubtitleListPanel.tsx`/`SubtitleRow.tsx`, `SubtitleSettingsPanel.tsx`
   (+Basics/Font/Outline/Shadow/Background), `TimelineSection.tsx`,
-  `heavy-modules.tsx`, `useSubtitleExport.ts` (forwards `audioTracks[]` from
+  `useSubtitleExport.ts` (forwards `audioTracks[]` from
   `audioStore`, v1 `mobile-subtitles` envelope)
 
 ### Bulk

@@ -1,8 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DynamicGoogleFontPicker } from "./heavy-modules";
 import { googleFonts } from "@/lib/subtitles/googleFonts";
 import type { Subtitle, SubtitleStyle } from "@/lib/subtitles/subtitleStorage";
 import { NOOP } from "@/lib/utils";
@@ -13,6 +13,21 @@ export type SubtitleFontPanelProps = {
   selected: Subtitle;
   onUpdateStyle: (patch: Partial<SubtitleStyle>) => void;
 };
+
+// GoogleFontPicker pulls Popover+Command+font catalog — dynamic-imported here
+// where it renders (only needed when a subtitle is selected).
+const DynamicGoogleFontPicker = dynamic(
+  () =>
+    import("@/components/editor/GoogleFontPicker").then((m) => ({
+      default: m.GoogleFontPicker,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-9 w-full rounded-md border border-kumo-line bg-kumo-recessed animate-pulse" />
+    ),
+  },
+);
 
 export function SubtitleFontPanel({
   selected,

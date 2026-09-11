@@ -2,16 +2,13 @@
 
 import { Activity, useCallback, useRef } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { formatTime } from "@/lib/format-time";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
-import {
-  DynamicMobilePreviewShared,
-  preloadMobilePreview,
-} from "./heavy-modules";
 import {
   ensureGlobalPointerListeners,
   globalPointerMoveHandlers,
@@ -20,6 +17,21 @@ import {
 import type { PointerHandler } from "@/lib/global-listener-bus";
 import { OverlaySubtitle } from "./OverlaySubtitle";
 import { TimelineSection } from "./TimelineSection";
+
+// Heavy 9:16 canvas preview stays out of the page bundle — dynamic-imported
+// here where it renders.
+const DynamicMobilePreviewShared = dynamic(
+  () =>
+    import("@/components/editor/MobilePreviewShared").then((m) => ({
+      default: m.MobilePreviewShared,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="mx-auto aspect-9/16 w-full max-w-70 rounded-xl border border-kumo-line bg-kumo-recessed animate-pulse" />
+    ),
+  },
+);
 
 // rendering-hoist-jsx: static layout constants outside the component
 const PREVIEW_HANDLE_H = 20;
@@ -172,8 +184,6 @@ export function PreviewPane({
             maxWidth: "100%",
             resize: "vertical" as const,
           }}
-          onMouseEnter={preloadMobilePreview}
-          onFocus={preloadMobilePreview}
         >
           <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden bg-black rounded-t-lg h-full">
             {/* rendering-activity: preserve canvas DOM/state when toggling visibility */}

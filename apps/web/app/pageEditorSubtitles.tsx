@@ -3,10 +3,6 @@
 import { Button } from "@/components/ui/button";
 import { formatTime } from "@/lib/format-time";
 import { videoFileService } from "@/lib/video-file";
-import {
-  preloadExportChunks,
-  preloadMobilePreview,
-} from "@/components/editor/subtitles/heavy-modules";
 import { NoVideoPlaceholderCard } from "@/components/editor/subtitles/placeholders";
 import { PreviewPane } from "@/components/editor/subtitles/PreviewPane";
 import { SubtitleArea } from "@/components/editor/subtitles/SubtitleArea";
@@ -53,18 +49,10 @@ export default function PageEditorSubtitles() {
             size="sm"
             variant="outline"
             onClick={() => window.dispatchEvent(new Event("focus"))}
-            onMouseEnter={preloadMobilePreview}
-            onFocus={preloadMobilePreview}
           >
             Refresh layout
           </Button>
-          <Button
-            size="sm"
-            onClick={e.handleExport}
-            disabled={e.isPreparing}
-            onMouseEnter={preloadExportChunks}
-            onFocus={preloadExportChunks}
-          >
+          <Button size="sm" onClick={e.handleExport} disabled={e.isPreparing}>
             {e.isPreparing
               ? "Preparing…"
               : e.activeExports > 0

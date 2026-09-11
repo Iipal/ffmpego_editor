@@ -6,7 +6,6 @@ import { useSelector } from "@tanstack/react-store";
 import { PLAN_VERSION } from "@repo/contracts";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
-import { HEAVY_MODULES } from "./heavy-modules";
 import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
 import { videoFileService } from "@/lib/video-file";
@@ -98,7 +97,7 @@ export function useSubtitleExport({
       const rendered =
         subtitles.length === 0
           ? []
-          : await HEAVY_MODULES.subtitlePng().then((m) =>
+          : await import("@/lib/subtitles/renderSubtitlePng").then((m) =>
               m.renderAllSubtitlesToPngs(subtitles),
             );
       toast.dismiss("subtitles-export");

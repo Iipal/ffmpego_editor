@@ -110,7 +110,7 @@ cutting. Nothing below is applied; this is the work list.
       `components/editor/PlayerControls.tsx:23`.
       Steps: use `shared/VideoPlayerControls` directly at call sites.
       Verify: player controls on all editor pages.
-- [ ] **2.2 Drop intent-preload heavy module maps (~55).**
+- [x] **2.2 Drop intent-preload heavy module maps (~55).**
       `components/editor/subtitles/heavy-modules.tsx:6`.
       Steps: dynamic-import at point of use.
       Verify: subtitles page loads, no waterfall regression noticed.
