@@ -145,12 +145,24 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
   issues-aware); `awaitCompletion` leak (now `subscribe`; `:68` dispose
   correct — fold fixed `[2000,2000,2000]` backoff `:54` + bare `catch{}` `:96`
   into bare-catch item).
-- [ ] **2.13** Chunked parallelism/integrity only (sequential `for :176`,
-      `arrayBuffer() :188`, no workers/checksum/`Content-Range`; resume+retry
-      since added `:114,188`).
-- [ ] **2.14** `staleTime` override (`useAdminJobs.ts:110-113`).
-- [ ] **2.15** `createObjectURL` spot-check only — ❌ overstated (~11 sites, not 23;
-      revokes widespread).
+- [x] **2.13** Chunked parallelism — DONE 2026-09-11. `uploadFile` sends
+      missing chunks via 4-worker pool (`concurrency` opt, clamped 1..8);
+      fail-fast shared cursor, per-chunk retries kept.
+      Server `POST /upload/chunk/:uploadId` re-reads the row after the write
+      (sync = atomic) so concurrent PUTs can't lost-update `received`/`chunks`.
+      Skipped: per-chunk checksum + `Content-Range` — server has no verify
+      path and `complete()` already gates exact size; add when corruption is
+      observed. Verified via stubbed-fetch pool check (4 in flight, each
+      index once, failure rejects).
+- [x] **2.14** `staleTime` override — DONE 2026-09-11.
+      Deleted `staleTime: 0, gcTime: 0, refetchOnWindowFocus: true` from `useAdminJobs` (3 lines);
+      inherits global `staleTime: 5s` + no-refocus so SSE `setQueryData`
+      stays the no-flash path.
+- [x] **2.15** `createObjectURL` spot-check — DONE 2026-09-11. Audited all
+      ~11 sites: blob URLs flow into `compareSlice` (revoke on replace/close),
+      bulk revokes on replace + unmount, uploader revokes previous, anchor
+      revoke delayed, audio preview revokes on cleanup. No unrevoked path;
+      no code change.
 
 ## PART 2F — hygiene
 

@@ -50,10 +50,7 @@ export function useAdminJobs() {
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["admin-jobs"],
     queryFn: fetchJobs,
-    refetchOnWindowFocus: true,
     retry: 1,
-    staleTime: 0,
-    gcTime: 0,
   });
 
   const handleSnapshot = useCallback(

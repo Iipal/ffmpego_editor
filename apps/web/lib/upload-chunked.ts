@@ -17,6 +17,8 @@ import { uploadSessions } from "./upload-sessions";
 export interface ChunkedUploadOptions {
   chunkSize?: number; // default 8MB — tuned for LAN/localhost throughput vs memory
   maxRetries?: number;
+  /** Concurrent chunk PUTs (default 4, clamped 1..8). */
+  concurrency?: number;
   onProgress?: (sent: number, total: number) => void;
   signal?: AbortSignal;
 }
@@ -89,9 +91,9 @@ export class UploadChunked {
 
   /**
    * Upload a file via the chunked pipeline: POST /api/upload/init, send
-   * chunks sequentially (flat memory, resumable on failure with per-chunk
-   * retries), then POST /api/upload/complete. Reports `(sent, total)` per
-   * chunk; aborts promptly on `opts.signal`.
+   * chunks with a bounded worker pool (flat memory, resumable on failure
+   * with per-chunk retries), then POST /api/upload/complete. Reports
+   * `(sent, total)` per chunk; aborts promptly on `opts.signal`.
    *
    * Transparent resume: when this exact file (name + size + lastModified)
    * has a remembered session with bytes still on the server, the uploader
@@ -175,12 +177,19 @@ export class UploadChunked {
     }
     const totalChunks = Math.ceil(file.size / effectiveChunk);
 
-    // 2) send chunks sequentially (keeps memory flat; enables resume on failure)
+    // 2) send missing chunks with a bounded worker pool (default 4×8MB in
+    // flight — the server writes each chunk at its explicit offset and
+    // dedupes indices idempotently, so concurrent PUTs are safe). A shared
+    // cursor hands out indices; the first failure stops the pool (straggler
+    // writes are harmless idempotent re-sends).
+    const missing: number[] = [];
     for (let i = 0; i < totalChunks; i++) {
-      if (opts.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       // Already on the server from the interrupted session — skip the bytes
       // (the server also dedupes re-sent indices idempotently).
-      if (skip.has(i)) continue;
+      if (!skip.has(i)) missing.push(i);
+    }
+    const sendChunk = async (i: number): Promise<void> => {
+      if (opts.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const offset = i * effectiveChunk;
       const end = Math.min(offset + effectiveChunk, file.size);
       const blob = file.slice(offset, end);
@@ -223,7 +232,29 @@ export class UploadChunked {
           );
         }
       }
-    }
+    };
+    const concurrency = Math.min(8, Math.max(1, opts.concurrency ?? 4));
+    let cursor = 0;
+    let failed = false;
+    const worker = async (): Promise<void> => {
+      while (true) {
+        if (failed) return;
+        const i = missing[cursor++];
+        if (i === undefined) return;
+        try {
+          await sendChunk(i);
+        } catch (e) {
+          failed = true;
+          throw e;
+        }
+      }
+    };
+    await Promise.all(
+      Array.from(
+        { length: Math.min(concurrency, Math.max(missing.length, 1)) },
+        worker,
+      ),
+    );
 
     // 3) complete
     const completeRes = await fetch(

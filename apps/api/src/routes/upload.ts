@@ -160,13 +160,31 @@ app.post("/upload/chunk/:uploadId", async (c) => {
     fs.closeSync(fd);
   }
 
-  const chunks = [...s.chunks, index];
-  let received = s.received + buf.byteLength;
+  // Re-read the row AFTER the write: concurrent chunk PUTs interleave at the
+  // `await arrayBuffer()` above, so the `s` snapshot is stale for `received`
+  // / `chunks` accounting. Everything below is synchronous (atomic under
+  // Bun), and a racing same-index retry lands on the dedupe branch instead
+  // of double-counting bytes.
+  const cur = getUpload(uploadId);
+  if (!cur) return err(c, "UPLOAD_NOT_FOUND", { message: "Upload aborted" });
+  if (cur.chunks.includes(index)) {
+    return c.json({
+      ok: true,
+      uploadId,
+      index,
+      offset,
+      received: cur.received,
+      totalSize: cur.totalSize,
+      deduplicated: true,
+    });
+  }
+  const chunks = [...cur.chunks, index];
+  let received = cur.received + buf.byteLength;
   // Clamp in case of overlapping retries
-  if (received > s.totalSize) received = s.totalSize;
+  if (received > cur.totalSize) received = cur.totalSize;
   updateUpload(uploadId, { received, chunks });
   // Keep the asset row fresh so slow-but-live sessions aren't reaped as stale.
-  if (s.fileId) store.touch(s.fileId);
+  if (cur.fileId) store.touch(cur.fileId);
 
   return c.json({
     ok: true,
