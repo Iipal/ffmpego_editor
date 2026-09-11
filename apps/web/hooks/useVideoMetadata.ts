@@ -18,6 +18,19 @@ function setUploadProgress(sent: number, total: number) {
   }));
 }
 
+// Shared probe-start reset: both metadata mutations put the source slice
+// back into the uploading stage before ffprobe runs.
+function resetUploadStage(totalBytes: number) {
+  setSourceState((p) => ({
+    ...p,
+    uploadStage: "metadata",
+    uploadStatus: "uploading",
+    uploadProgress: 0,
+    uploadBytesSent: 0,
+    uploadBytesTotal: totalBytes,
+  }));
+}
+
 export interface ProbeDepth {
   includeFrames?: boolean;
   includePackets?: boolean;
@@ -47,12 +60,8 @@ async function fetchVideoMetadata(
         form.append("file", file);
         return form;
       },
-      shapeError: (res, payload) => {
-        throw new Error(
-          transcodeJobs.serverErrorMessage(payload) ??
-            `Metadata failed: ${res.status}`,
-        );
-      },
+      shapeError: (res, payload) =>
+        transcodeJobs.throwTranscodeHttpError(res, payload),
     },
   );
 }
@@ -78,14 +87,7 @@ export function useVideoMetadataMutation() {
         exportFormat: cutStore.state.exportFormat,
         exportFps: cutStore.state.exportFps,
       };
-      setSourceState((p) => ({
-        ...p,
-        uploadStage: "metadata",
-        uploadStatus: "uploading",
-        uploadProgress: 0,
-        uploadBytesSent: 0,
-        uploadBytesTotal: file.size,
-      }));
+      resetUploadStage(file.size);
     },
     mutationFn: async (file: File) => fetchVideoMetadata(file),
     onSuccess: (metadata, file) => {
@@ -135,8 +137,6 @@ export function useVideoMetadataMutation() {
             : null),
         };
       });
-
-      toast.info(`Updated the store ${metadata.bitrateKbps}`);
     },
     onError: (error) => {
       setSourceState((p) => ({ ...p, uploadStatus: "error" }));
@@ -157,14 +157,7 @@ export interface ExtendedMetadataVariables extends ProbeDepth {
 export function useExtendedVideoMetadataMutation() {
   return useMutation({
     onMutate: (vars: ExtendedMetadataVariables) => {
-      setSourceState((p) => ({
-        ...p,
-        uploadStage: "metadata",
-        uploadStatus: "uploading",
-        uploadProgress: 0,
-        uploadBytesSent: 0,
-        uploadBytesTotal: vars.file.size,
-      }));
+      resetUploadStage(vars.file.size);
     },
     mutationFn: async (vars: ExtendedMetadataVariables) =>
       fetchVideoMetadata(vars.file, vars),

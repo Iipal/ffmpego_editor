@@ -103,10 +103,24 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
 - ❌ DROP sub-claims: `heavy-modules:NOOP` (no NOOP there; canonical
   `lib/utils.ts:4`); `useLatest` dead ref (ALIVE — `admin/hooks.ts:6`, used
   `useAdminJobs.ts:96`, `useJobsLiveSync.ts:5`).
-- [ ] **2.02** `PlayerControls` vs `VideoPlayerControls` merge (`:11,23` vs `:45`).
-- [ ] **2.03** Metadata factory — soften (both share `fetchVideoMetadata:31`,
-      refs `:72,159`, not "80% dup").
-- [ ] **2.04** Slider unification (3 sliders; `clamp` at 30+ sites).
+- [x] **2.02** `PlayerControls` vs `VideoPlayerControls` merge — DONE,
+      verified no-change: no `PlayerControls` file exists — the single
+      `shared/VideoPlayerControls.tsx` already serves all 5 consumers
+      (VideoPlayer, PreviewPane, CutPreview, BulkExpandedView,
+      SourcePanel). Nothing to merge.
+- [x] **2.03** Metadata factory — DONE, softened as scoped: both
+      mutations already share `fetchVideoMetadata`; extracted the
+      duplicated probe-start reset into `resetUploadStage()` and routed
+      `shapeError` through `throwTranscodeHttpError` (2.17 pattern —
+      metadata probe now gets 429/507 shaping too). The remaining
+      onSuccess/onError bodies differ legitimately (pref prefill vs
+      ffprobe-only patch) — no factory, it would add indirection.
+- [x] **2.04** Slider unification — DONE, verified no-change: all 11
+      slider usages already route through the single `ui/slider`
+      primitive with the shared `readSliderValue` payload helper; the
+      `Math.max/min` sites are one-off floors/caps/index guards where
+      the stdlib call IS the shortest correct form (`clamp(x,0,Infinity)`
+      would be longer). Unifying would add imports for zero benefit.
 
 ## PART 2C — state (close 3, keep 1.5)
 
@@ -233,7 +247,10 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
       toast already gone; `kumo-*` tokens live (not dead); `max-w-[calc…]`
       / `h-[36vh]` are viewport one-offs with no token equivalent and
       the conditional `opacity` is state-driven — tokenizing adds files,
-      not clarity.
+      not clarity. CORRECTION 2026-09-11: the toast was NOT gone — the
+      2.24 grep used the wrong string (`Updated store` vs actual
+      `Updated the store ${bitrateKbps}` in `useVideoMetadata.ts`);
+      removed during 2.03.
 
 ## Ponytail audit — do-not-build list (scoped to TODO)
 
