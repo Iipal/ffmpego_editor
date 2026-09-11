@@ -2,7 +2,6 @@
 
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
-import { DynamicCardProbe } from "./placeholders";
 import { preloadHeavyCard, preloadUploadChunked } from "./heavy";
 import type { AdminHealthProps } from "./types";
 import { cn } from "@/lib/utils";
@@ -85,8 +84,6 @@ export const AdminHeader = memo(function AdminHeader({
             </span>
           ) : null}
         </p>
-        {/* keep probe for analyzable path coverage */}
-        {DynamicCardProbe}
       </div>
       <div className="flex items-center gap-2">
         <Button

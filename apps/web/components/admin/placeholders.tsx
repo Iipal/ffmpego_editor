@@ -1,7 +1,6 @@
 "use client";
 
 import { Card, CardContent } from "@/components/ui/card";
-import { DynamicCard } from "./heavy";
 
 // rendering-hoist-jsx: static elements created once (avoid per-render recreation)
 export const LoadingPlaceholder = (
@@ -30,14 +29,4 @@ export const TipsHoisted = (
       </p>
     </CardContent>
   </Card>
-);
-// Demonstrates DynamicCard bundle-conditionally loaded (kept hidden; ensures analyzable path is exercised)
-export const DynamicCardProbe = (
-  <span className="hidden">
-    {false ? (
-      <DynamicCard>
-        <CardContent>probe</CardContent>
-      </DynamicCard>
-    ) : null}
-  </span>
 );

@@ -295,7 +295,7 @@ export const JobRow = memo(function JobRow({
       </div>
       {status === "processing" || status === "queued" ? (
         <div className="flex items-center gap-2">
-          {/* Prefer static Progress for LCP; DynamicProgress available for code-split path via preload */}
+          {/* Prefer static Progress for LCP; chunk preloaded on hover via preloadHeavyProgress */}
           <Progress value={prog} className="h-1.5 flex-1" />
           {/* js-batch-dom-css: group progress style via className, not inline per-prop thrash */}
           <span

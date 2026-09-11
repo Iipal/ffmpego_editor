@@ -147,12 +147,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `lib/export-queue.ts`, `lib/export-history.ts`, `lib/video-file.ts`, `hooks/useVideoMetadata.ts`
 - **Result:** `VideoFileService` (already the filename-helper owner) now exposes public `getFileExtension` (was private) + new `outputKindForName` (gif→image, mp3/wav→audio, else video). Export-queue's private `extOf` deleted (both its uses — kind mapping + `pickerTypesForExt` — go through the service; the `audio-extract` task-kind pre-check stays, it's task state not filename); export-history's private `outputKindFor` deleted, call site uses the service; `useVideoMetadata` uses `getFileExtension`. Edge-case equivalence verified by execution (`noext`/`.hidden`/`a.`/multi-dot/uppercase): the old no-dot `split().pop()` returned the whole name where the service returns `""`, but every downstream mapping lands identically (video kind, mp4 default). Deliberately untouched: `Sidebar` + `useAdminJobs` one-off `split().pop()` reads (display-only/format-guess, outside the audit's file list). `tsc` + `lint` clean.
 
-## 19. `DynamicCardProbe` + `DynamicProgress` — ⬜ open
+## 19. `DynamicCardProbe` + `DynamicProgress` — ✅ done
 
 - **Tag:** delete
 - **Problem:** A hidden probe renders a dynamically-imported card into `null` (ships a chunk for nothing); `DynamicProgress` is only mentioned in a comment.
 - **Do:** Delete both + the probe import in `AdminHeader`.
 - **Files:** `components/admin/placeholders.tsx`, `components/admin/heavy.tsx`, `components/admin/AdminHeader.tsx`
+- **Result:** `DynamicCard`/`DynamicProgress` `dynamic()` wrappers deleted (grep-verified zero renders — probe's `{false ? … : null}` was the only `DynamicCard` render, `DynamicProgress` only a `JobRow` comment); `HEAVY_MODULES` preload map + `preloadHeavy*` fns kept (real hover/intent path used by `AdminHeader`/`pageAdmin`/`JobRow`/`useAdminJobs`). Stale comments fixed in `heavy.tsx`/`JobRow.tsx`. ~45 lines removed. `tsc` + `lint` clean. No AGENTS.md/README changes — neither documents the preload internals.
 
 ## 20. Dead exports batch — ⬜ open
 
@@ -191,5 +192,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–18. Open: items 19–24.
+- Done: items 1–19. Open: items 20–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).
