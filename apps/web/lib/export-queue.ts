@@ -243,11 +243,6 @@ class ExportQueue {
       queuePosition: null,
     });
 
-    const form = new FormData();
-    if (task.file) form.append("file", task.file);
-    if (task.settingsJson) form.append("settings", task.settingsJson);
-    task.formExtras?.(form);
-
     let response: TranscodeResponse | null = null;
     for (
       let attempt = 1;
@@ -255,7 +250,7 @@ class ExportQueue {
       attempt++
     ) {
       try {
-        response = await this.submitJob(task, form, signal);
+        response = await this.submitJob(task, signal);
         break;
       } catch (e) {
         if (signal.aborted) throw new TranscodeCancelledError();
@@ -330,45 +325,34 @@ class ExportQueue {
   }
 
   /**
-   * POST the prepared multipart form to the transcode endpoint: chunked
-   * (>256 MB, reusing the sparse temp file via x-upload-id) or direct XHR
-   * with upload progress. Non-2xx responses are shaped into
-   * `TranscodeHttpError` (429 carries Retry-After for the retry loop).
+   * POST the job multipart form: chunked (>256 MB, reusing the sparse temp
+   * file via x-upload-id) or direct XHR with upload progress. Non-2xx
+   * responses are shaped into `TranscodeHttpError` (429 carries Retry-After
+   * for the retry loop). The chunked body omits the file part — the server
+   * resolves the input from the session header and ignores the body.
    */
   private async submitJob(
     task: ExportQueueTask,
-    form: FormData,
     signal: AbortSignal,
   ): Promise<TranscodeResponse> {
-    if (
-      task.file &&
-      !task.forceDirect &&
-      uploadChunked.shouldUseChunked(task.file)
-    ) {
-      const result = await uploadChunked.uploadFile(task.file, {
-        onProgress: task.onUploadProgress,
-        signal,
-      });
-      const { uploadId } = result;
-      if (result.resumed && task.file.size > 0) {
-        const pct = Math.round((result.resumedBytes / task.file.size) * 100);
-        toast.info(`Resumed upload from ${pct}% — skipped sent chunks`);
-      }
-      const res = await fetch(apiClient.url(task.endpoint), {
-        method: "POST",
-        headers: { "x-upload-id": uploadId },
-        body: form,
-        signal,
-      });
-      if (!res.ok) {
-        const payload = (await res.json().catch(() => null)) as unknown;
-        transcodeJobs.throwTranscodeHttpError(res, payload);
-      }
-      return (await res.json()) as TranscodeResponse;
-    }
-    return uploadChunked.uploadForm<TranscodeResponse>(task.endpoint, form, {
-      onUploadProgress: task.onUploadProgress,
+    return uploadChunked.submitWithUpload<TranscodeResponse>(task.endpoint, {
+      file: task.file,
+      forceDirect: task.forceDirect,
+      onProgress: task.onUploadProgress,
       signal,
+      onResumed: (resumedBytes, total) => {
+        if (total > 0) {
+          const pct = Math.round((resumedBytes / total) * 100);
+          toast.info(`Resumed upload from ${pct}% — skipped sent chunks`);
+        }
+      },
+      buildForm: (includeFile) => {
+        const form = new FormData();
+        if (includeFile && task.file) form.append("file", task.file);
+        if (task.settingsJson) form.append("settings", task.settingsJson);
+        task.formExtras?.(form);
+        return form;
+      },
     });
   }
 

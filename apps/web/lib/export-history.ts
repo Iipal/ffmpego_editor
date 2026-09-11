@@ -9,7 +9,6 @@
 import { apiClient, type TranscodeResponse } from "./api-client";
 import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
-import { transcodeJobs } from "./transcode-jobs";
 import { audioUpload } from "./audio-upload";
 import { uploadChunked } from "./upload-chunked";
 import { sourceStore } from "@/store/sourceSlice";
@@ -162,27 +161,17 @@ class ExportHistory {
     extra?: Record<string, string>,
   ): Promise<TranscodeResponse> {
     const file = this.currentFile();
-    if (uploadChunked.shouldUseChunked(file)) {
-      const { uploadId } = await uploadChunked.uploadFile(file);
-      const form = new FormData();
-      form.append("settings", settingsJson);
-      if (extra) for (const [k, v] of Object.entries(extra)) form.append(k, v);
-      const res = await fetch(apiClient.url(endpoint), {
-        method: "POST",
-        headers: { "x-upload-id": uploadId },
-        body: form,
-      });
-      if (!res.ok) {
-        const err = (await res.json().catch(() => null)) as unknown;
-        transcodeJobs.throwTranscodeHttpError(res, err);
-      }
-      return (await res.json()) as TranscodeResponse;
-    }
-    const form = new FormData();
-    form.append("file", file);
-    form.append("settings", settingsJson);
-    if (extra) for (const [k, v] of Object.entries(extra)) form.append(k, v);
-    return uploadChunked.uploadForm<TranscodeResponse>(endpoint, form, {});
+    return uploadChunked.submitWithUpload<TranscodeResponse>(endpoint, {
+      file,
+      buildForm: (includeFile) => {
+        const form = new FormData();
+        if (includeFile) form.append("file", file);
+        form.append("settings", settingsJson);
+        if (extra)
+          for (const [k, v] of Object.entries(extra)) form.append(k, v);
+        return form;
+      },
+    });
   }
 
   /**

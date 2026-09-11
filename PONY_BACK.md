@@ -91,12 +91,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `lib/storage-json.ts` (`StorageJSON` singleton service: `storageJSON.read/write/remove`, JSDoc per method — matches the repo's service convention; `key` is a `StorageKey` union of all localStorage literals app-wide, so unknown keys fail typecheck); `lib/export-presets.ts`, `lib/subtitles/subtitleStorage.ts`, `lib/upload-sessions.ts`, `store/sourceSlice.ts`, `lib/mobile-layout.ts`, `store/exportHistorySlice.ts` (bonus: identical ceremony, free), `components/admin/helpers.ts` (filter cache I/O via `storageJSON`, Map cache + idle writes kept), `apps/web/AGENTS.md` (lib list)
 - **Result:** ~75 lines removed. Covered beyond the audit's 5: `exportHistorySlice` (same shape) + `UploadOtherButton` trim-cache clear (now `removeStored`). Deliberately untouched: `crop/hooks.ts` (distinguishes missing-vs-corrupt with different toasts — load-bearing UX), `admin/helpers.ts` filter cache (string values + idle-scheduled writes, item 14 territory), `AppSidebar` (plain string flags, not JSON). `tsc` clean.
 
-## 12. Chunked-vs-direct upload branch ×3 — ⬜ open
+## 12. Chunked-vs-direct upload branch ×3 — ✅ done
 
 - **Tag:** shrink
 - **Problem:** export-queue/export-history/useVideoMetadata each repeat the `shouldUseChunked ? uploadFile+x-upload-id : uploadForm` fork (~35–50 lines); `audio-upload` already solved this shape once.
 - **Do:** One `submitWithUpload()` helper modeled on it.
-- **Files:** `lib/export-queue.ts`, `lib/export-history.ts`, `hooks/useVideoMetadata.ts`
+- **Files:** `lib/upload-chunked.ts` (`SubmitWithUploadOptions` + `submitWithUpload`: chunked `uploadFile` → header-only/settings-only `fetch` with `x-upload-id`, else XHR `uploadForm`; default transcode error shaping incl. 429 Retry-After, overridable via `shapeError`; resume notice via `onResumed`); `lib/export-queue.ts` (`submitJob` now a builder closure — file part only in direct bodies), `lib/export-history.ts` (`submitWithCurrentFile` one-liner, `transcodeJobs` import gone), `hooks/useVideoMetadata.ts` (bodiless chunked probe via `buildForm(false) → null`, custom metadata error shaper, type-only `api-client` import)
+- **Result:** ~60 lines removed, fork single-source. Behavior notes: export-queue's chunked body no longer double-sends the file bytes (server resolves input from the session header first and ignores the body — verified in `apps/api/src/routes/video.ts:resolveInputFile` + `metadata.ts`); resume toast, 429 retry shaping, metadata error text, and XHR progress callbacks all preserved verbatim.
 
 ## 13. Playback indirection — ⬜ open
 
@@ -184,5 +185,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–11. Open: items 12–24.
+- Done: items 1–12. Open: items 13–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

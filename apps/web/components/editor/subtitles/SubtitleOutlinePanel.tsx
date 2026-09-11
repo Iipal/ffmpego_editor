@@ -36,33 +36,33 @@ export function SubtitleOutlinePanel({
         disabled={!selected.style.outlineEnabled}
         ariaLabel="Outline Thickness"
       />
-        <div className="space-y-1">
-          <Label htmlFor="outline-color" className="text-[11px]">
-            Color
-          </Label>
-          <div className="flex gap-1">
-            <Input
-              id="outline-color"
-              type="color"
-              value={
-                isValidHexColor(selected.style.outlineColor)
-                  ? selected.style.outlineColor
-                  : "#000000"
-              }
-              onChange={(e) => onUpdateStyle({ outlineColor: e.target.value })}
-              className="size-8 p-1"
-              aria-label="Outline Color"
-              disabled={!selected.style.outlineEnabled}
-            />
-            <Input
-              value={selected.style.outlineColor}
-              onChange={(e) => onUpdateStyle({ outlineColor: e.target.value })}
-              className="flex-1 text-xs"
-              aria-label="Outline Color HEX"
-              disabled={!selected.style.outlineEnabled}
-            />
-          </div>
+      <div className="space-y-1">
+        <Label htmlFor="outline-color" className="text-[11px]">
+          Color
+        </Label>
+        <div className="flex gap-1">
+          <Input
+            id="outline-color"
+            type="color"
+            value={
+              isValidHexColor(selected.style.outlineColor)
+                ? selected.style.outlineColor
+                : "#000000"
+            }
+            onChange={(e) => onUpdateStyle({ outlineColor: e.target.value })}
+            className="size-8 p-1"
+            aria-label="Outline Color"
+            disabled={!selected.style.outlineEnabled}
+          />
+          <Input
+            value={selected.style.outlineColor}
+            onChange={(e) => onUpdateStyle({ outlineColor: e.target.value })}
+            className="flex-1 text-xs"
+            aria-label="Outline Color HEX"
+            disabled={!selected.style.outlineEnabled}
+          />
         </div>
+      </div>
     </ToggleSection>
   );
 }

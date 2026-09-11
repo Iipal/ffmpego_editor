@@ -35,34 +35,34 @@ export function SubtitleShadowPanel({
         disabled={!selected.style.shadowEnabled}
         ariaLabel="Shadow Size"
       />
-        <div className="space-y-1">
-          <Label htmlFor="shadow-color" className="text-[11px]">
-            Color
-          </Label>
-          <div className="flex gap-1">
-            <Input
-              id="shadow-color"
-              type="color"
-              value={
-                isValidHexColor(selected.style.shadowColor) &&
-                selected.style.shadowColor.length === 7
-                  ? selected.style.shadowColor
-                  : "#000000"
-              }
-              onChange={(e) => onUpdateStyle({ shadowColor: e.target.value })}
-              className="size-8 p-1"
-              aria-label="Shadow Color"
-              disabled={!selected.style.shadowEnabled}
-            />
-            <Input
-              value={selected.style.shadowColor}
-              onChange={(e) => onUpdateStyle({ shadowColor: e.target.value })}
-              className="flex-1 text-xs"
-              aria-label="Shadow Color HEX"
-              disabled={!selected.style.shadowEnabled}
-            />
-          </div>
+      <div className="space-y-1">
+        <Label htmlFor="shadow-color" className="text-[11px]">
+          Color
+        </Label>
+        <div className="flex gap-1">
+          <Input
+            id="shadow-color"
+            type="color"
+            value={
+              isValidHexColor(selected.style.shadowColor) &&
+              selected.style.shadowColor.length === 7
+                ? selected.style.shadowColor
+                : "#000000"
+            }
+            onChange={(e) => onUpdateStyle({ shadowColor: e.target.value })}
+            className="size-8 p-1"
+            aria-label="Shadow Color"
+            disabled={!selected.style.shadowEnabled}
+          />
+          <Input
+            value={selected.style.shadowColor}
+            onChange={(e) => onUpdateStyle({ shadowColor: e.target.value })}
+            className="flex-1 text-xs"
+            aria-label="Shadow Color HEX"
+            disabled={!selected.style.shadowEnabled}
+          />
         </div>
+      </div>
       <NumberField
         id="shadow-x"
         label="Offset X"

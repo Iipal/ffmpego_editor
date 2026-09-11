@@ -40,6 +40,29 @@ export interface UploadFormOptions {
 }
 
 /**
+ * Knobs for `UploadChunked.submitWithUpload`: the chunked-vs-direct fork
+ * shared by every multipart POST (export queue, history retry, metadata
+ * probe). `buildForm` receives whether the file part belongs in the body —
+ * chunked POSTs reference the session via `x-upload-id` (the server ignores
+ * the form body there), direct POSTs carry the file in `FormData`.
+ */
+export interface SubmitWithUploadOptions {
+  file: File | null;
+  /** Always send the file in the FormData (never the chunked path). */
+  forceDirect?: boolean;
+  buildForm: (includeFile: boolean) => FormData | null;
+  onProgress?: (sent: number, total: number) => void;
+  signal?: AbortSignal;
+  /** Fired when the chunked upload resumed a previous session. */
+  onResumed?: (resumedBytes: number, total: number) => void;
+  /**
+   * Throw the shaped error for a non-2xx chunked-path POST (default: the
+   * shared transcode envelope including the 429 Retry-After shape).
+   */
+  shapeError?: (res: Response, payload: unknown) => never;
+}
+
+/**
  * Singleton service owning every upload transport: the chunked
  * init→chunks→complete pipeline, the XHR progress upload, and the size
  * heuristic between them. Stateless — all mutable progress flows out through
@@ -273,6 +296,44 @@ export class UploadChunked {
       xhr.onerror = () => reject(new Error("Network error during upload"));
       xhr.onabort = () => reject(new DOMException("Aborted", "AbortError"));
       xhr.send(form);
+    });
+  }
+
+  /**
+   * One chunked-vs-direct fork for every multipart POST: large files upload
+   * once via `uploadFile` and the job POST references the session through
+   * `x-upload-id` (header-only or settings-only body per `buildForm(false)`);
+   * small files (or `forceDirect`) go through XHR `uploadForm` with the file
+   * in the body per `buildForm(true)`.
+   */
+  public async submitWithUpload<T>(
+    endpoint: string,
+    opts: SubmitWithUploadOptions,
+  ): Promise<T> {
+    const { file } = opts;
+    if (file && !opts.forceDirect && this.shouldUseChunked(file)) {
+      const result = await this.uploadFile(file, {
+        onProgress: opts.onProgress,
+        signal: opts.signal,
+      });
+      if (result.resumed) opts.onResumed?.(result.resumedBytes, file.size);
+      const res = await fetch(apiClient.url(endpoint), {
+        method: "POST",
+        headers: { "x-upload-id": result.uploadId },
+        body: opts.buildForm(false) ?? undefined,
+        signal: opts.signal,
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as unknown;
+        if (opts.shapeError) opts.shapeError(res, payload);
+        transcodeJobs.throwTranscodeHttpError(res, payload);
+      }
+      return (await res.json()) as T;
+    }
+    const form = opts.buildForm(true) ?? new FormData();
+    return this.uploadForm<T>(endpoint, form, {
+      onUploadProgress: opts.onProgress,
+      signal: opts.signal,
     });
   }
 

@@ -2,7 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiClient, type VideoMetadata } from "@/lib/api-client";
+import type { VideoMetadata } from "@/lib/api-client";
 import { setSourceState } from "@/store/sourceSlice";
 import { cutStore, setCutState } from "@/store/cutSlice";
 import { uploadChunked } from "@/lib/upload-chunked";
@@ -35,30 +35,25 @@ async function fetchVideoMetadata(
   if (depth.includeFrames) params.set("includeFrames", "true");
   if (depth.includePackets) params.set("includePackets", "true");
   const query = params.size ? `?${params}` : "";
-  if (uploadChunked.shouldUseChunked(file)) {
-    const { uploadId } = await uploadChunked.uploadFile(file, {
-      onProgress: (sent, total) => setUploadProgress(sent, total),
-    });
-    const res = await fetch(apiClient.url(`/api/metadata${query}`), {
-      method: "POST",
-      headers: { "x-upload-id": uploadId },
-    });
-    if (!res.ok) {
-      const err = (await res.json().catch(() => null)) as unknown;
-      throw new Error(
-        transcodeJobs.serverErrorMessage(err) ??
-          `Metadata failed: ${res.status}`,
-      );
-    }
-    return (await res.json()) as VideoMetadata;
-  }
-  const form = new FormData();
-  form.append("file", file);
-  return uploadChunked.uploadForm<VideoMetadata>(
+  return uploadChunked.submitWithUpload<VideoMetadata>(
     `/api/metadata${query}`,
-    form,
     {
-      onUploadProgress: (sent, total) => setUploadProgress(sent, total),
+      file,
+      onProgress: (sent, total) => setUploadProgress(sent, total),
+      // Chunked probe is bodiless (the server resolves the session header);
+      // direct probe carries the file in the FormData.
+      buildForm: (includeFile) => {
+        if (!includeFile) return null;
+        const form = new FormData();
+        form.append("file", file);
+        return form;
+      },
+      shapeError: (res, payload) => {
+        throw new Error(
+          transcodeJobs.serverErrorMessage(payload) ??
+            `Metadata failed: ${res.status}`,
+        );
+      },
     },
   );
 }

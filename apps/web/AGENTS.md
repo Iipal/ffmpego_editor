@@ -148,9 +148,10 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 #### Upload
 
 - `upload-chunked.ts` — `UploadChunked` service:
-  `uploadChunked.shouldUseChunked/uploadFile/uploadForm` (+ transparent
+  `uploadChunked.shouldUseChunked/uploadFile/uploadForm/submitWithUpload` (+ transparent
   resume via `upload-sessions` memory: status-verified `chunks[]` skip-set,
-  `resumed/resumedBytes` result)
+  `resumed/resumedBytes` result; `submitWithUpload` is the shared
+  chunked-vs-direct fork for export-queue/history-retry/metadata-probe)
 - `upload-sessions.ts` — session list/status/abort client + `localStorage`
   resume memory (name+size+lastModified key, 6 h TTL)
 - `audio-upload.ts` — `AudioUpload` service:
