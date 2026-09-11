@@ -214,6 +214,9 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ## Rules
 
+- Design language: `docs/DESIGN.md` (Kumo tokens, typography, component
+  patterns) — follow it for UI work; the Shadcn hard rule still applies
+  for primitives.
 - Query for async/server state, Store for sync UI — never inverted.
 - Pre-validate via contracts before every `POST`; surface `issues[]` on 422;
   `429` → respect `Retry-After`; `507` → disk-full message, no blind retry.
