@@ -211,3 +211,23 @@ Verdicts: ✅ accurate · 🔄 stale (code moved on, TODO needs edit) · ❌ wro
   (B×5, C×2.5, E×3, F-`useLatest`/dead-tokens), rewrite the 3
   premise-deleted items (palette ×2, undo), fix the 4 factually-wrong
   details (Crop eq-contrast, folder-append, logTail-UI, objectURL-23).
+
+## Ponytail audit (2026-09-11) — over-engineering only, scoped to TODO.md
+
+- delete Global undo/redo for crop/cuts/subtitles/filters. Mobile undoOp/redoOp already covers need. [TODO.md P1§2, useMobileEditor.ts:52]
+- yagni Unified ExportSettingsSidebar + useExportBase(kind). Keep 4 per-route panels/hooks. [Sidebar.tsx:114-1127, CutSettingsSidebar, BulkSettingsPanel, PreviewPanel]
+- yagni Unified VideoStage. Keep 5 separate previews with own overlays. [VideoPlayer, SourceStage, PortraitPreview, CutPreview, CellPreview]
+- delete Cut ripple/snap-to-playhead/zoomable-ruler/transitions-fades. Current cut list ships. [pageEditorCut.tsx]
+- delete Admin pagination/sorting/search + queue graphs + bulk retry from server settingsJson + logTail modal. Deferred filter + details block scale to local load. [pageAdmin.tsx, useAdminJobs.ts]
+- delete Subtitles SRT/VTT import-export + template gallery search-share + snap-to-scene/spellcheck. PNG burn-in covers need. [subtitles/, subtitleStorage.ts]
+- delete Bulk per-item trim/crop override + per-item args picker + retry-selected + CSV manifest + folder sync diff. Hardcoded trimRange + per-video audio picker ship. [useBulkExport.ts:75-76, bulk/hooks.ts:96]
+- delete Command-palette extensions + shortcuts cheatsheet + Notification/sound + recent-files/global-drop. Palette deleted; saveBlob + compare toast suffice. [useGlobalShortcuts.ts:76, VideoUploader.tsx:104]
+- delete URL-synced state (?filter=&mode=&t=) + lib/export-filename.ts + live uniqueness check. Unneeded local-only. [app/, video-file.ts:98, cut/useCutExport.ts:126]
+- delete Crop aspect/rotation/flip expansion + custom watermark upload + safe-area persist. Free-drag + Switch ship. [CropOverlay.tsx:1, PreviewPanel.tsx:97]
+- native cmdk + @base-ui/react overlap. Pick one; platform dialog suffices. [apps/web/package.json:13,23]
+- delete shadcn@4.21 from runtime dependencies + @radix-ui/react-icons optimize entry. DevDeps/drop. [apps/web/package.json:28, next.config.ts:9]
+- shrink PlayerControls vs VideoPlayerControls + cut/subtitle playback wrappers. Collapse to engine + options. [editor/PlayerControls.tsx, shared/VideoPlayerControls.tsx]
+- shrink createMetadataMutation({extended}) + slider unification + lib/query-keys.ts central file. Share fetchVideoMetadata/clamp inline; skip new files. [hooks/useVideoMetadata.ts:72,159]
+- yagni playhead-duality doc + same-tab broadcast bus + mobile-layout-into-store move. getPlayheadTime/commit pair is enough. [store/playheadSlice.ts, useSharedMobileLayout.ts:20]
+
+net: -0 lines (speculative work not built), ~2500+ proposed lines avoided, -2 deps possible.
