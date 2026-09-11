@@ -18,7 +18,9 @@ export function useSharedMobileLayout() {
     try {
       const loaded = mobileLayoutService.loadPref();
       if (loaded) setLayout(mobileLayoutService.normalizeLayout(loaded));
-    } catch {}
+    } catch {
+      console.warn("[useSharedMobileLayout] failed to reload layout pref");
+    }
   }, []);
 
   useEffect(() => {

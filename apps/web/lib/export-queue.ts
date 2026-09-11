@@ -43,6 +43,7 @@ import {
 import { transcodeProgress } from "./transcode-progress";
 import { videoFileService } from "./video-file";
 import { uploadChunked } from "./upload-chunked";
+import { MULTIPART_FIELDS } from "@repo/contracts";
 import { toast } from "sonner";
 
 export type ExportQueueProgressStatus =
@@ -463,8 +464,10 @@ class ExportQueue {
       },
       buildForm: (includeFile) => {
         const form = new FormData();
-        if (includeFile && task.file) form.append("file", task.file);
-        if (task.settingsJson) form.append("settings", task.settingsJson);
+        if (includeFile && task.file)
+          form.append(MULTIPART_FIELDS.file, task.file);
+        if (task.settingsJson)
+          form.append(MULTIPART_FIELDS.settings, task.settingsJson);
         task.formExtras?.(form);
         return form;
       },

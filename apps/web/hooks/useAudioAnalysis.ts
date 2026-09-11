@@ -2,17 +2,12 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { AudioAnalysis } from "@/lib/api-client";
+import { queryKeys } from "@/lib/query-keys";
 import { uploadChunked } from "@/lib/upload-chunked";
 
 export function useAudioAnalysis(file: File | null, trackIndex: number) {
   return useQuery({
-    queryKey: [
-      "audio-analysis",
-      file?.name,
-      file?.size,
-      file?.lastModified,
-      trackIndex,
-    ],
+    queryKey: queryKeys.audioAnalysis(file, trackIndex),
     enabled: !!file,
     queryFn: async ({ signal }) => {
       if (!file) throw new Error("Audio source is required");

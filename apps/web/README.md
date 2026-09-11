@@ -305,6 +305,7 @@ bun install
 bun run dev        # next dev -p 3050 (Turbopack)
 bun run typecheck  # tsc --noEmit
 bun run lint       # prettier --write .
+bun run test       # bun test (test/query-keys, mobile-layout, validate-settings)
 ```
 
 Needs the API on `:3100` (`NEXT_PUBLIC_API_URL` override); `/admin`

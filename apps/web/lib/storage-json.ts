@@ -33,6 +33,7 @@ class StorageJSON {
       const raw = localStorage.getItem(key);
       return raw ? (JSON.parse(raw) as T) : null;
     } catch {
+      console.warn(`[storage-json] corrupt value for "${key}" — ignoring`);
       return null;
     }
   }
@@ -45,7 +46,9 @@ class StorageJSON {
     if (typeof window === "undefined") return;
     try {
       localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
+    } catch {
+      console.warn(`[storage-json] failed to persist "${key}"`);
+    }
   }
 
   /**

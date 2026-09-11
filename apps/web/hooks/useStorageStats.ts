@@ -1,5 +1,6 @@
 "use client";
 
+import { queryKeys } from "@/lib/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   storage,
@@ -17,7 +18,7 @@ export type { StorageStats, StorageSweepResult };
  */
 export function useStorageStatsQuery() {
   return useQuery({
-    queryKey: ["storage-stats"],
+    queryKey: queryKeys.storageStats,
     queryFn: () => storage.fetchStats(),
     // Poll lightly — single aggregate query, no per-job fan-out.
     refetchInterval: 30_000,
@@ -38,7 +39,7 @@ export function useStorageSweepMutation() {
   return useMutation({
     mutationFn: () => storage.runSweep(),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["storage-stats"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.storageStats });
     },
   });
 }

@@ -26,7 +26,9 @@ function removeSessionFiles(uploadId: string) {
   else if (s) {
     try {
       fs.unlinkSync(s.temporaryPath);
-    } catch {}
+    } catch {
+      uploadLog(uploadId, `abort left temp file: ${s.temporaryPath}`);
+    }
   }
   deleteUpload(uploadId);
 }

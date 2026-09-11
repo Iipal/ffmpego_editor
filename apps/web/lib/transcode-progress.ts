@@ -93,7 +93,9 @@ export class TranscodeProgress {
             dispose();
             handlers.onCancelled?.(p.error ?? "Export cancelled.");
           }
-        } catch {}
+        } catch {
+          console.warn("[transcode-progress] ignoring malformed SSE payload");
+        }
       };
       source.onerror = () => {
         source?.close();

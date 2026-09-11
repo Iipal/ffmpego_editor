@@ -288,7 +288,6 @@ function BulkAudioPicker({
             checked={isEnabled(t.trackIndex)}
             onCheckedChange={(v) => toggle(t.trackIndex, v === true)}
             disabled={disabled}
-            aria-label={`Include audio track ${t.trackIndex + 1} in export`}
           />
           <span className="min-w-0 truncate">
             Track {t.trackIndex + 1}

@@ -188,8 +188,8 @@ describe("buildFFmpegArgs gif preview", () => {
           gainDb: 0,
           loudnormEnabled: false,
           loudnormTargetLufs: -14,
-          fadeIn: 0,
-          fadeOut: 0,
+          fadeInSeconds: 0,
+          fadeOutSeconds: 0,
           muteSegments: [],
         },
       ],
@@ -279,7 +279,7 @@ describe("buildFFmpegArgs mobile layout", () => {
   test("full mode scales to 1080x1920", () => {
     const args = buildFFmpegArgs({
       ...BASE,
-      mobileLayout: { mode: "full", splitRatio: 0.5, zones: [zones[0]] },
+      mobileLayout: { mode: "full", splitRatio: 0.5, zones: [zones[0]!] },
     });
     expect(vf(args)).toContain("scale=1080:1920");
   });

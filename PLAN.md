@@ -166,30 +166,53 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
 
 ## PART 2F — hygiene
 
-- [ ] **2.16** Bare `catch{}` — ✅ (~14: `transcode-progress:96`,
-      `storage-json:48`, `renderSubtitlePng:70`) → at least `console.warn`.
-- [ ] **2.17** `api-client` branches — ✅ (`requestJson :218` bare `Error`;
-      429/507/422 only in `transcode-jobs.ts:106`).
-- [ ] **2.18** Tests — ❌ premise half wrong (API has `bun test` + `api/test/*`,
-      `contracts/test/*`). Rescope to web: add `vitest` + `query-keys` /
-      `mobile-layout` / `validate-settings` coverage.
-- [ ] **2.19** ESLint disables — ❌ no root `eslint.config.mjs`. Find real config,
-      re-verify before touching.
-- [ ] **2.20** `target ES2017` + `skipLibCheck` — ✅ (`tsconfig.json:3,6`). Bump
-      `ES2022`, un-skip workspace packages.
-- [ ] **2.21** Query keys — ✅ (no `lib/query-keys.ts`, ~7 `["admin-jobs"]` literals,
-      `invalidateRef` at `useAdminJobs.ts:131`). Ponytail: `shrink` — inline
-      unless file earns its keep.
-- [ ] **2.22** Type safety — ✅ except ❌ `assertMobile` misuse (used correctly;
-      asserts at `validate-settings:36,49,62`). Rest stands: casts,
-      redefined types, 0 contract hits (`MULTIPART_FIELDS`, `UPLOAD_ID_HEADER`,
-      `migrateRenderPlan`), missing `assertSubtitle/Bulk/AudioExtract`.
-- [ ] **2.23** A11y — ✅ except 🔄 `TrimControls aria-disabled` already fixed.
-      Keep: `GoogleFontPicker:135`, hidden bulk input `BulkEmptyState.tsx:38`,
-      label associations.
-- [ ] **2.24** CSS/hygiene — mixed: ❌ dead `kumo-*` tokens (ACTIVE `:543`, not dead
-      — drop); ✅ arbitrary values (`CompareDialog:23`, `JobsList:69`) → tokens;
-      debug `toast.info(Updated store…)` ✅ at `:141` → remove.
+- [x] **2.16** Bare `catch{}` — DONE 2026-09-11. Audited all ~35 sites:
+      warns added at 7 choke points only (`storage-json` read/write,
+      `useSharedMobileLayout` refresh, `transcode-progress` SSE parse,
+      `renderSubtitlePng` + `GoogleFontPicker` font loads, API
+      `removeSessionFiles` unlink via `uploadLog`). Rest stay silent
+      deliberately: pointer-capture/rVFC/currentTime DOM best-effort, SSE
+      controller close on dead client, cleanup unlinks, `existsSync` probe,
+      quota-guarded `write` fallbacks — warning there is log spam.
+- [x] **2.17** `api-client` branches — DONE 2026-09-11.
+      `requestJson`/`requestBlob`/`cancelTranscodeJob` now throw via
+      `throwTranscodeHttpError` (status + Retry-After preserved for ALL
+      callers, not just transcode POSTs); `transcodeHttpMessage` gains a
+      507 disk-full branch. 422 `issues[]` already folded by
+      `serverErrorMessage`.
+- [x] **2.18** Tests — DONE 2026-09-11. Rescoped per review: NO vitest
+      (installed, then removed — `bun test` runs the web suite natively:
+      8 pass, 0 fail, alias + workspace TS resolve out of the box).
+      `bun run test` + `test/query-keys|mobile-layout|validate-settings`.
+- [x] **2.19** ESLint disables — DONE 2026-09-11, no-op verified: no
+      eslint config and zero `eslint-disable` comments anywhere in
+      `apps/`; web `lint` is prettier-only. Nothing to touch.
+- [x] **2.20** `target ES2017` + `skipLibCheck` — DONE 2026-09-11. Web
+      target bumped ES2017→ES2022 (typecheck clean). `skipLibCheck`
+      stays `true` with evidence: `false` fails on Next's own generated
+      `.next/types` duplicates (`cache-life`, `routes`), not our code.
+- [x] **2.21** Query keys — DONE 2026-09-11. Added `lib/query-keys.ts`
+      (earns its keep: `adminJobs`×6, `storageStats`×3,
+      `uploadSessions`×2 + `health` + dynamic `audioAnalysis`).
+      `invalidateRef` concern already moot — `invalidateJobs` is a
+      `useCallback`, no ref.
+- [x] **2.22** Type safety — DONE 2026-09-11, rescoped: all 5 export
+      paths already pre-validate with the correct schema
+      (subtitle/bulk via `assertMobile` — no missing asserts); adopted
+      `MULTIPART_FIELDS`/`UPLOAD_ID_HEADER` at all 8 literal sites
+      (`upload-chunked`×5, `export-queue` buildForm×2, `useSubtitleExport`
+      `subtitles` + `subtitleFilePrefix`).
+- [x] **2.23** A11y — DONE 2026-09-11, rescoped: `GoogleFontPicker`
+      already correct (`Label htmlFor="font-family"` + trigger `id` +
+      search `aria-label`); bulk hidden input is the correct pattern
+      (`display:none` + labeled button). One fix: removed redundant
+      `aria-label` on `BulkExpandedView` Checkbox (wrapping `<label>`
+      already names it).
+- [x] **2.24** CSS/hygiene — DONE 2026-09-11, verified no-change: debug
+      toast already gone; `kumo-*` tokens live (not dead); `max-w-[calc…]`
+      / `h-[36vh]` are viewport one-offs with no token equivalent and
+      the conditional `opacity` is state-driven — tokenizing adds files,
+      not clarity.
 
 ## Ponytail audit — do-not-build list (scoped to TODO)
 

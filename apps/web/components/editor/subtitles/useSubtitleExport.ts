@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
-import { PLAN_VERSION } from "@repo/contracts";
+import { MULTIPART_FIELDS, PLAN_VERSION } from "@repo/contracts";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import type { Subtitle } from "@/lib/subtitles/subtitleStorage";
 import { exportQueue } from "@/lib/export-queue";
@@ -112,10 +112,13 @@ export function useSubtitleExport({
         label: outName,
         meta: "Subtitles export",
         formExtras: (fd) => {
-          fd.append("subtitles", JSON.stringify(rendered.map((r) => r.meta)));
+          fd.append(
+            MULTIPART_FIELDS.subtitles,
+            JSON.stringify(rendered.map((r) => r.meta)),
+          );
           rendered.forEach((r, i) => {
             fd.append(
-              `subtitle_${i}`,
+              `${MULTIPART_FIELDS.subtitleFilePrefix}_${i}`,
               new File([r.blob], `subtitle_${i}.png`, { type: "image/png" }),
             );
           });

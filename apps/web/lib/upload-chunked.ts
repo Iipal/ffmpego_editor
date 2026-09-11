@@ -12,6 +12,7 @@
 import { apiClient } from "./api-client";
 import { transcodeJobs } from "./transcode-jobs";
 import { uploadSessions } from "./upload-sessions";
+import { MULTIPART_FIELDS, UPLOAD_ID_HEADER } from "@repo/contracts";
 
 /** Tuning knobs for `UploadChunked.uploadFile` (all optional). */
 export interface ChunkedUploadOptions {
@@ -353,7 +354,7 @@ export class UploadChunked {
       if (result.resumed) opts.onResumed?.(result.resumedBytes, file.size);
       const res = await fetch(apiClient.url(endpoint), {
         method: "POST",
-        headers: { "x-upload-id": result.uploadId },
+        headers: { [UPLOAD_ID_HEADER]: result.uploadId },
         body: opts.buildForm(false) ?? undefined,
         signal: opts.signal,
       });
@@ -502,11 +503,11 @@ export class UploadChunked {
       return apiClient.requestJson<T>(endpoint, {
         ...init,
         method: "POST",
-        headers: { "x-upload-id": uploadId },
+        headers: { [UPLOAD_ID_HEADER]: uploadId },
       });
     }
     const form = new FormData();
-    form.append("file", file);
+    form.append(MULTIPART_FIELDS.file, file);
     return apiClient.requestJson<T>(endpoint, {
       ...init,
       method: "POST",
@@ -524,11 +525,11 @@ export class UploadChunked {
     if (uploadId) {
       return apiClient.requestBlob(endpoint, {
         ...init,
-        headers: { "x-upload-id": uploadId },
+        headers: { [UPLOAD_ID_HEADER]: uploadId },
       });
     }
     const form = new FormData();
-    form.append("file", file);
+    form.append(MULTIPART_FIELDS.file, file);
     return apiClient.requestBlob(endpoint, { ...init, body: form });
   }
 

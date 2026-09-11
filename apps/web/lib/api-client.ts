@@ -112,14 +112,14 @@ class APIClient {
    * through the shared envelope reader, and parse the success body as `T`.
    * Callers pass `method`/`headers`/`body` explicitly (JSON PATCH/DELETE,
    * multipart forms, `x-upload-id` reuse) instead of per-verb wrappers.
+   * Failures throw `TranscodeHttpError` (status + Retry-After preserved)
+   * so every caller — not just the transcode path — gets 429/507 shaping.
    */
   async requestJson<T>(endpoint: string, init?: RequestInit): Promise<T> {
     const res = await fetch(this.url(endpoint), init);
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
-      throw new Error(
-        transcodeJobs.serverErrorMessage(payload) ?? `API error: ${res.status}`,
-      );
+      transcodeJobs.throwTranscodeHttpError(res, payload);
     }
     return res.json() as Promise<T>;
   }
@@ -127,7 +127,8 @@ class APIClient {
   /**
    * Core fetch→Blob funnel: POST a body and return the raw output `Blob`
    * (audio-extract pulls). A null/omitted body sends a bodiless POST (used
-   * with `x-upload-id` reuse). Failures throw with the envelope message.
+   * with `x-upload-id` reuse). Failures throw `TranscodeHttpError` like
+   * `requestJson` above.
    */
   async requestBlob(endpoint: string, init?: RequestInit): Promise<Blob> {
     const res = await fetch(this.url(endpoint), {
@@ -136,9 +137,7 @@ class APIClient {
     });
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
-      throw new Error(
-        transcodeJobs.serverErrorMessage(payload) ?? `API error: ${res.status}`,
-      );
+      transcodeJobs.throwTranscodeHttpError(res, payload);
     }
     return res.blob();
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { queryKeys } from "@/lib/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -63,7 +64,9 @@ export function useAdminMutations(onMutated: () => void) {
           `Cleared ${r.cleared} jobs${r.killed ? ` (${r.killed} killed)` : ""}`,
         ),
       );
-      const p2 = queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+      const p2 = queryClient.invalidateQueries({
+        queryKey: queryKeys.adminJobs,
+      });
       void Promise.all([p1, p2]);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -83,7 +86,7 @@ export function useAdminMutations(onMutated: () => void) {
     onSuccess: (r) => {
       if (r.cleared === 0) toast.info("No pending jobs to clear");
       else toast.success(`Cleared ${r.cleared} pending jobs`);
-      void queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminJobs });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -101,7 +104,7 @@ export function useAdminMutations(onMutated: () => void) {
           ? "Cancellation requested — job kept for inspection"
           : `Job already ${status}`,
       );
-      void queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminJobs });
     },
     onError: (e: Error) => toast.error(e.message),
   });

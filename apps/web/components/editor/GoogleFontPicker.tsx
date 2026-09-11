@@ -204,7 +204,11 @@ export function GoogleFontPicker({
                           await googleFonts.ensureGoogleFontLoaded(
                             currentValue,
                           );
-                        } catch {}
+                        } catch {
+                          console.warn(
+                            `[GoogleFontPicker] font load failed: ${currentValue}`,
+                          );
+                        }
                         onValueChange(currentValue);
                         setOpen(false);
                       }}

@@ -1,5 +1,6 @@
 "use client";
 
+import { queryKeys } from "@/lib/query-keys";
 import {
   useCallback,
   useDeferredValue,
@@ -48,14 +49,14 @@ export function useAdminJobs() {
   // sync without isFetching churn or an "updating" flash. The useQuery below
   // is the initial paint + manual-refresh path only.
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["admin-jobs"],
+    queryKey: queryKeys.adminJobs,
     queryFn: fetchJobs,
     retry: 1,
   });
 
   const handleSnapshot = useCallback(
     (payload: JobsResponse) => {
-      queryClient.setQueryData(["admin-jobs"], payload);
+      queryClient.setQueryData(queryKeys.adminJobs, payload);
     },
     [queryClient],
   );
@@ -66,7 +67,7 @@ export function useAdminJobs() {
   }, [data]);
 
   const invalidateJobs = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["admin-jobs"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.adminJobs });
   }, [queryClient]);
 
   const {

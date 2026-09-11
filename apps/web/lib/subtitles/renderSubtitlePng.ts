@@ -67,7 +67,9 @@ export async function renderSubtitlePng(
   const fontFamily = style.fontFamily || "Inter, sans-serif";
   try {
     await googleFonts.ensureGoogleFontLoaded(fontFamily);
-  } catch {}
+  } catch {
+    console.warn(`[renderSubtitlePng] font load failed: ${fontFamily}`);
+  }
   // Ensure fonts are loaded if possible (best effort)
   try {
     if (document.fonts && document.fonts.ready) await document.fonts.ready;

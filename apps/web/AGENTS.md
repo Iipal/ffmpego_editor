@@ -144,6 +144,10 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `transcodeProgress.subscribe`
 - `transcode-jobs.ts` — `TranscodeJobs` service:
   `transcodeJobs.cancelTranscodeJob/renameJob/serverErrorMessage`
+  (failures throw `TranscodeHttpError`: status + Retry-After preserved;
+  429 queue-full / 507 disk-full shaped, 422 issues[] folded in)
+- `query-keys.ts` — shared TanStack Query keys (`queryKeys.adminJobs`,
+  `storageStats`, `uploadSessions`, `health`, `audioAnalysis(file, track)`)
 - `preflight.ts` — `Preflight` service: `preflight.check` (fail-fast gate),
   `probeApiConnectivity` via lightweight `GET /health`
 - `save-blob-file.ts` — `SaveBlobFile` service:
@@ -222,4 +226,4 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 - Downloads by opaque ID only (`/files/:id/download`,
   `/transcode/download/:jobId`, Range OK); never expect server paths.
 - Keep `README.md` §2 page→component map in sync when pages change;
-  `bun run typecheck` + `bun run lint` before finishing.
+  `bun run typecheck` + `bun run lint` + `bun run test` before finishing.

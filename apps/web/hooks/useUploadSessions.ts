@@ -1,5 +1,6 @@
 "use client";
 
+import { queryKeys } from "@/lib/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { uploadSessions, type UploadSession } from "@/lib/upload-sessions";
 
@@ -12,7 +13,7 @@ export type { UploadSession };
  */
 export function useUploadSessionsQuery() {
   return useQuery({
-    queryKey: ["upload-sessions"],
+    queryKey: queryKeys.uploadSessions,
     queryFn: () => uploadSessions.listSessions(),
     refetchInterval: 10_000,
     refetchOnWindowFocus: true,
@@ -33,8 +34,10 @@ export function useAbortUploadSessionMutation() {
   return useMutation({
     mutationFn: (uploadId: string) => uploadSessions.abortSession(uploadId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["upload-sessions"] });
-      void queryClient.invalidateQueries({ queryKey: ["storage-stats"] });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.uploadSessions,
+      });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.storageStats });
     },
   });
 }

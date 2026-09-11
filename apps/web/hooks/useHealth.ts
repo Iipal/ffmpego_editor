@@ -1,5 +1,6 @@
 "use client";
 
+import { queryKeys } from "@/lib/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { health, type HealthSnapshot } from "@/lib/health";
 
@@ -13,7 +14,7 @@ export type { HealthSnapshot };
  */
 export function useHealthQuery() {
   return useQuery({
-    queryKey: ["health"],
+    queryKey: queryKeys.health,
     queryFn: () => health.fetchHealth(),
     // Poll lightly — this endpoint never touches SQLite, unlike jobs/SSE.
     refetchInterval: 15_000,

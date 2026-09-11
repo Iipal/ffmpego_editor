@@ -113,6 +113,12 @@ export class TranscodeJobs {
         `Transcode queue is full — retry in ~${secs}s. Your upload is safe; just re-export.`
       );
     }
+    if (status === 507) {
+      return (
+        serverError ??
+        "Server disk is full — free space in Admin → Storage and re-export."
+      );
+    }
     return serverError ?? `Export failed: ${status}`;
   }
 
@@ -157,9 +163,7 @@ export class TranscodeJobs {
     );
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
-      throw new Error(
-        this.serverErrorMessage(payload) ?? `Cancel failed: ${res.status}`,
-      );
+      this.throwTranscodeHttpError(res, payload);
     }
     const body = (await res.json()) as { status?: string };
     return body.status ?? "cancelled";

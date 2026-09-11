@@ -251,7 +251,7 @@ describe("descriptors never leak paths", () => {
       ext: "webm",
       mime: "video/webm",
     });
-    expect("path" in (desc as Record<string, unknown>)).toBe(false);
+    expect("path" in (desc as unknown as Record<string, unknown>)).toBe(false);
     expect(JSON.stringify(desc)).not.toContain(os.tmpdir());
   });
 });
