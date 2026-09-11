@@ -1,13 +1,12 @@
 "use client";
 
-import type { RefObject } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { transcodeJobs } from "@/lib/transcode-jobs";
 import { JOB_ID_RE } from "./helpers";
 
-export function useAdminMutations(invalidateRef: RefObject<() => void>) {
+export function useAdminMutations(onMutated: () => void) {
   const queryClient = useQueryClient();
 
   // async-parallel: independent invalidations could be Promise.all; here single but pattern shown
@@ -39,8 +38,8 @@ export function useAdminMutations(invalidateRef: RefObject<() => void>) {
               ).requestIdleCallback(cb)
           : (cb: () => void) => setTimeout(cb, 0);
       run(() => toast.success("Job deleted"));
-      // Defer read: invalidate only when needed, via ref (rerender-defer-reads)
-      void invalidateRef.current();
+      // Defer read: invalidate only when needed (rerender-defer-reads)
+      void onMutated();
     },
     onError: (e: Error) => toast.error(e.message),
   });

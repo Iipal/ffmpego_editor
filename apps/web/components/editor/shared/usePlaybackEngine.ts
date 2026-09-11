@@ -9,6 +9,7 @@ import { sourceStore } from "@/store/sourceSlice";
 import { setSourceState } from "@/store/sourceSlice";
 import {
   commitPlayheadTime,
+  getPlayheadTime,
   setPlayheadTime,
   usePlayheadTime,
 } from "@/store/playheadSlice";
@@ -111,6 +112,119 @@ export function useSeekTo(
     },
     [duration, videoRef],
   );
+}
+
+/**
+ * Global transport actions for keyboard shortcuts (`useGlobalShortcuts`).
+ * Plain functions operating on the on-screen `<video>` under `<main>` plus
+ * `sourceStore` — no hook/ref needed. Page players keep using the
+ * `usePlaybackEngine` result bound to their own video ref; these exist only
+ * for ref-less global control. (Formerly `lib/playback-bus.ts`.)
+ */
+
+/** Min trim length (s) preserved by the I/O playhead actions. */
+const TRIM_MIN_GAP = 0.2;
+
+/**
+ * The video element currently on screen (first `<video>` under `<main>`,
+ * falling back to any `<video>`). Null on the server or with no player.
+ */
+function getActiveVideo(): HTMLVideoElement | null {
+  if (typeof document === "undefined") return null;
+  const scoped = document.querySelector("main video");
+  if (scoped instanceof HTMLVideoElement) return scoped;
+  const any = document.querySelector("video");
+  return any instanceof HTMLVideoElement ? any : null;
+}
+
+/** Playhead of the active video, or the transient playhead as fallback. */
+function readActiveTime(video: HTMLVideoElement | null): number {
+  if (video) return video.currentTime;
+  return getPlayheadTime();
+}
+
+/**
+ * Clamp a seek target to the media duration and apply it to both the
+ * active element and the committed playhead (transient + source snapshot).
+ */
+function commitActiveSeek(video: HTMLVideoElement | null, time: number): void {
+  if (video) {
+    seekVideoElement(video, time, sourceStore.state.duration || 0);
+    return;
+  }
+  const d = sourceStore.state.duration || 0;
+  commitPlayheadTime(
+    d > 0 ? mobileLayoutService.clamp(time, 0, Math.max(0.01, d)) : time,
+  );
+}
+
+/** Space — toggle the active video, no-op when none is on screen. */
+export function togglePlay(): void {
+  const video = getActiveVideo();
+  if (!video) return;
+  if (video.paused) video.play().catch(NOOP);
+  else video.pause();
+}
+
+/** Relative seek (J/L, arrows). Positive = forward. */
+export function seekBy(deltaSeconds: number): void {
+  const video = getActiveVideo();
+  commitActiveSeek(video, readActiveTime(video) + deltaSeconds);
+}
+
+/** Single-frame step (`,`/`.` or Shift+arrows). Pauses first, NLE-style. */
+export function stepFrame(direction: 1 | -1): void {
+  const video = getActiveVideo();
+  if (video && !video.paused) video.pause();
+  const fps = sourceStore.state.sourceFrameRate;
+  const step = fps > 0 && Number.isFinite(fps) ? 1 / fps : 1 / 30;
+  // Reuse the queried element — a second querySelector cannot return a
+  // different node within the same synchronous handler.
+  commitActiveSeek(video, readActiveTime(video) + direction * step);
+}
+
+/**
+ * I — set trim start to the playhead (min gap preserved). Returns false
+ * when the playhead is already past the clamp bound (nothing to set).
+ */
+export function setTrimInToPlayhead(): boolean {
+  const t = readActiveTime(getActiveVideo());
+  const cur = sourceStore.state.trimRange;
+  const next = mobileLayoutService.clamp(t, 0, cur[1] - TRIM_MIN_GAP);
+  if (next >= cur[1] - TRIM_MIN_GAP && t > next) return false;
+  setSourceState((previous) => ({ ...previous, trimRange: [next, cur[1]] }));
+  return true;
+}
+
+/**
+ * O — set trim end to the playhead (min gap preserved). Returns false
+ * when the playhead is already before the clamp bound (nothing to set).
+ */
+export function setTrimOutToPlayhead(): boolean {
+  const video = getActiveVideo();
+  const t = readActiveTime(video);
+  const cur = sourceStore.state.trimRange;
+  const duration =
+    (video && Number.isFinite(video.duration) ? video.duration : 0) ||
+    sourceStore.state.duration ||
+    0;
+  const next = mobileLayoutService.clamp(t, cur[0] + TRIM_MIN_GAP, duration);
+  if (next <= cur[0] + TRIM_MIN_GAP && t < next) return false;
+  setSourceState((previous) => ({ ...previous, trimRange: [cur[0], next] }));
+  return true;
+}
+
+/** Reset trim to the full media length. No-op when duration is unknown. */
+export function clearTrim(): void {
+  const duration =
+    sourceStore.state.duration || getActiveVideo()?.duration || 0;
+  if (!(duration > 0)) return;
+  setSourceState((previous) => ({ ...previous, trimRange: [0, duration] }));
+}
+
+/** Flip the global muted flag in `sourceStore`. */
+export function toggleGlobalMute(): void {
+  setSourceState((previous) => ({ ...previous, isMuted: !previous.isMuted }));
 }
 
 /**

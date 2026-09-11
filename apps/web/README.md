@@ -188,7 +188,9 @@ flowchart LR
 ```
 
 - State: `useAdminJobs` (`components/admin/useAdminJobs.ts`) — jobs query +
-  SSE live sync + download/retry/rename/delete/cancel/clear actions.
+  SSE live sync + delete/cancel/clear actions (derived list in
+  `useAdminDerived`, downloads in `useAdminDownloads`, compare/retry/rename
+  in `useAdminHistory`).
 - Readiness: `useHealthQuery` (`hooks/useHealth.ts` over `lib/health.ts`,
   `GET /health` polled every 15 s) — ffmpeg version, tmpdir disk headroom,
   queue depth. `AdminHeader` shows the status dot + summary line.
@@ -233,11 +235,10 @@ flowchart LR
 ```
 
 - `lib/upload-chunked.ts` (`UploadChunked` service:
-  `uploadChunked.shouldUseChunked/uploadFile/uploadForm`).
-- `lib/audio-upload.ts` (`AudioUpload` service:
-  `audioUpload.ensureTransport/postJson/postBlob`): audio analysis, preview
-  pulls and extracts share one chunked upload (>256 MB) via `x-upload-id`
-  instead of re-sending the file per call; small files keep direct FormData.
+  `uploadChunked.shouldUseChunked/uploadFile/uploadForm/submitWithUpload/postJson/postBlob`).
+  Audio analysis, preview pulls and extracts share one chunked upload
+  (>256 MB) via `x-upload-id` instead of re-sending the file per call;
+  small files keep direct FormData.
 - `lib/export-queue.ts`: `ExportQueue` class service (`exportQueue` singleton)
   — `enqueue` (fire-and-forget upload → job POST → SSE → download/save;
   429 retry, in-flight gate, orphan guard), `cancel`, `dismiss`.
@@ -285,7 +286,7 @@ flowchart LR
 - `providers.tsx`: `QueryClientProvider` (`staleTime` 5 s, no refocus),
   `hydrateSourceStore` + `subscribeToTrimPersistence` on mount, global
   `CompareDialog` + `QueueDock` + `useGlobalShortcuts` (single-key transport
-  via `lib/playback-bus.ts`), `next-themes` `ThemeProvider`
+  via `shared/usePlaybackEngine` global actions), `next-themes` `ThemeProvider`
   (`attribute="class"`, system default).
 - Shared UI: `components/ui/*` (Shadcn: button, dialog, slider, select,
   sonner `Toaster`, tooltip…), `providers/ThemeProvider.tsx`,

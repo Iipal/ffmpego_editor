@@ -23,7 +23,7 @@ import { sourceStore } from "@/store/sourceSlice";
 import { usePlayheadTime } from "@/store/playheadSlice";
 import { formatTime } from "@/lib/format-time";
 import { readSliderValue } from "@/lib/utils";
-import { audioUpload } from "@/lib/audio-upload";
+import { uploadChunked } from "@/lib/upload-chunked";
 import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
 import { AudioWaveform } from "./AudioWaveform";
 
@@ -62,7 +62,7 @@ function TrackControls({
     // analysis/preview); small files keep the direct FormData path.
     let blob: Blob;
     try {
-      blob = await audioUpload.postBlob(
+      blob = await uploadChunked.postBlob(
         `/api/audio/extract?format=${format}&track=${track.trackIndex}`,
         file,
       );

@@ -18,8 +18,6 @@ import {
 import { cn } from "@/lib/utils";
 import { googleFonts } from "@/lib/subtitles/googleFonts";
 import { SubtitleStorage } from "@/lib/subtitles/subtitleStorage";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 
 interface GoogleFontPickerProps {
   value: string;
@@ -48,15 +46,13 @@ export function GoogleFontPicker({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [cyrillicOnly, setCyrillicOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     googleFonts
-      .fetchGoogleFontsMeta()
-      .then((metas) => {
+      .fetchGoogleFontFamilies()
+      .then((families) => {
         if (cancelled) return;
-        const families = metas.map((m) => m.family);
         const systemDisplay = new Set(
           SubtitleStorage.FONT_FAMILY_OPTIONS.map((f) =>
             displayName(f).toLowerCase(),
@@ -108,22 +104,12 @@ export function GoogleFontPicker({
     const q = query.trim().toLowerCase();
     const out: string[] = [];
     for (const f of fonts) {
-      if (cyrillicOnly && !googleFonts.isCyrillicSupported(f)) continue;
       if (q && !f.toLowerCase().includes(q)) continue;
       out.push(f);
       if (out.length >= 25) break;
     }
     return out;
-  }, [fonts, query, loading, cyrillicOnly]);
-
-  // js-cache-function-results: cyrillic count memoized (was O(n) filter per render)
-  const cyrillicCount = useMemo(() => {
-    let n = 0;
-    for (const f of fonts) {
-      if (googleFonts.isCyrillicSupported(f)) n++;
-    }
-    return n;
-  }, [fonts]);
+  }, [fonts, query, loading]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -170,24 +156,6 @@ export function GoogleFontPicker({
                 </button>
               )}
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <Label
-                htmlFor="cyrillic-toggle"
-                className="text-xs font-normal flex items-center gap-1.5 cursor-pointer"
-              >
-                Cyrillic only
-                <span className="text-[11px] text-kumo-subtle">
-                  ({cyrillicOnly ? filteredFonts.length : cyrillicCount} з
-                  підтримкою)
-                </span>
-              </Label>
-              <Switch
-                id="cyrillic-toggle"
-                checked={cyrillicOnly}
-                onCheckedChange={setCyrillicOnly}
-                aria-label="Filter Cyrillic-supported fonts"
-              />
-            </div>
             {previewTrimmed && (
               <p
                 className="text-[11px] text-kumo-subtle truncate"
@@ -199,7 +167,7 @@ export function GoogleFontPicker({
             <p className="text-[11px] text-kumo-subtle">
               {loading
                 ? "Fetching…"
-                : query || cyrillicOnly
+                : query
                   ? `Showing ${filteredFonts.length} / ${fonts.length}`
                   : `Showing 25 / ${fonts.length} • type to search`}
             </p>
@@ -227,7 +195,6 @@ export function GoogleFontPicker({
                 filteredFonts.map((f) => {
                   const name = displayName(f);
                   const isSelected = value === f || displayName(value) === name;
-                  const supportsCy = googleFonts.isCyrillicSupported(f);
                   return (
                     <CommandItem
                       key={f}
@@ -268,22 +235,12 @@ export function GoogleFontPicker({
                             <span className="hidden sm:inline">
                               • {f.includes(",") ? "System" : "Google"}
                             </span>
-                            {supportsCy ? (
-                              <span className="text-[10px] px-1 rounded bg-emerald-500/10 text-emerald-600 border">
-                                Кир
-                              </span>
-                            ) : null}
                           </span>
                         ) : null}
                       </div>
                       {!previewTrimmed && (
                         <span className="text-[11px] text-kumo-subtle sm:inline flex items-center gap-1">
                           {f.includes(",") ? "System" : "Google"}
-                          {supportsCy && (
-                            <span className="text-[10px] px-1 rounded bg-emerald-500/10 text-emerald-600 border">
-                              Кир
-                            </span>
-                          )}
                         </span>
                       )}
                       <Check

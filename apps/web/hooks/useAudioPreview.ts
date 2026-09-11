@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { audioUpload } from "@/lib/audio-upload";
+import { uploadChunked } from "@/lib/upload-chunked";
 import type { AudioTrackState } from "@/store/audioSlice";
 
 type AudioEntry = {
@@ -164,21 +164,17 @@ export function useAudioPreview({
     video.addEventListener("timeupdate", onTimeUpdate);
     video.addEventListener("ended", onEnded);
 
-    // One shared transport for every enabled track: large files upload once
-    // via a reused chunked session instead of once per track pull.
+    // One shared session for every enabled track: large files upload once
+    // via a reused chunked session (concurrent postBlob calls share one
+    // in-flight upload) instead of once per track pull.
     void (async () => {
-      const transport = await audioUpload
-        .ensureTransport(file)
-        .catch(() => null);
-      if (!transport || disposed) return;
       await Promise.all(
         activeTracks.map(async (track) => {
           let blob: Blob;
           try {
-            blob = await audioUpload.postBlobWith(
+            blob = await uploadChunked.postBlob(
               `/api/audio/extract?format=wav&track=${track.trackIndex}`,
               file,
-              transport,
             );
           } catch {
             return;

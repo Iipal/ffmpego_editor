@@ -81,7 +81,9 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ### Admin
 
-- Jobs: `components/admin/useAdminJobs.ts`, `JobsArea` | JobsList | JobRow
+- Jobs: `components/admin/useAdminJobs.ts` (composer: query + SSE live sync;
+  derived list in `useAdminDerived`, downloads in `useAdminDownloads`,
+  history compare/retry/rename in `useAdminHistory`), `JobsArea` | JobsList | JobRow
   (incl. alternate output Alt download via `GET /api/files/:id/download` +
   Alt compare via `exportHistory.openFileComparison`) | FilterBar
 - Readiness: AdminHeader (`GET /health` via `useHealthQuery`) — status dot +
@@ -112,7 +114,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 - `useVideoMetadata.ts` (initial + extended probe; extended takes
   `{file,includeFrames,includePackets}`), `useAudioAnalysis.ts`,
-  `useAudioPreview.ts` (both via `audio-upload` session reuse, not raw
+  `useAudioPreview.ts` (both via `upload-chunked` session reuse, not raw
   FormData), `useSharedMobileLayout.ts`
 - `useHealth.ts` (`GET /health` readiness poll)
 - `useStorageStats.ts` (`GET /storage/stats` 30 s poll + sweep mutation)
@@ -152,15 +154,12 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `uploadChunked.shouldUseChunked/uploadFile/uploadForm/submitWithUpload` (+ transparent
   resume via `upload-sessions` memory: status-verified `chunks[]` skip-set,
   `resumed/resumedBytes` result; `submitWithUpload` is the shared
-  chunked-vs-direct fork for export-queue/history-retry/metadata-probe)
+  chunked-vs-direct fork for export-queue/history-retry/metadata-probe;
+  `postJson/postBlob` one-shot audio POSTs reuse one completed chunked
+  session per file via `x-upload-id`, status-validated, evict + retry once
+  on FILE_REQUIRED; small files keep direct FormData)
 - `upload-sessions.ts` — session list/status/abort client + `localStorage`
   resume memory (name+size+lastModified key, 6 h TTL)
-- `audio-upload.ts` — `AudioUpload` service:
-  `audioUpload.ensureTransport/postJson/postBlob` (+ `postJsonWith`/
-  `postBlobWith` fan-out variants): one chunked upload (>256 MB) cached per
-  file serves analysis + preview pulls + extracts via `x-upload-id`
-  (status-validated, evict + retry once on FILE_REQUIRED); small files keep
-  direct FormData
 
 #### Readiness & storage snapshots
 
@@ -189,8 +188,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 #### Playback & UI infra
 
-- `playback-bus.ts` — `PlaybackBus` service:
-  `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`
+- `shared/usePlaybackEngine.ts` — playback engine hook + global transport
+  actions (`togglePlay/seekBy/stepFrame/trim-loop`) for shortcuts
 - `global-listener-bus.ts` — `GlobalListenerBus` service: pointer move/up +
   admin scroll/touch buses
 - `heavy.ts` — `initAppOnce` origin/mascot warming + `preloadUploadChunked` hover/focus intent preload

@@ -9,7 +9,6 @@
 import { apiClient, type TranscodeResponse } from "./api-client";
 import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
-import { audioUpload } from "./audio-upload";
 import { uploadChunked } from "./upload-chunked";
 import { sourceStore } from "@/store/sourceSlice";
 import { videoFileService } from "./video-file";
@@ -116,7 +115,7 @@ class ExportHistory {
     const file = this.currentFile();
     // Large files reuse the shared chunked session (uploaded once for
     // analysis/preview); small files keep the direct FormData path.
-    const blob = await audioUpload.postBlob(
+    const blob = await uploadChunked.postBlob(
       `/api/audio/extract?format=${audioFormat}`,
       file,
     );

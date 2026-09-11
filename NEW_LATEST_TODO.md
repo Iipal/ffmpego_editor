@@ -33,24 +33,24 @@ cutting. Nothing below is applied; this is the work list.
 
 ## Phase 1 — apps/web lib/hooks (async infra + services, biggest first)
 
-- [ ] **1.1 Merge playback engine + bus + trim hooks (~280).**
+- [x] **1.1 Merge playback engine + bus + trim hooks (~280).**
       `components/editor/shared/usePlaybackEngine.ts:130`.
       Why: three layers (engine, `playback-bus.ts`, trim-loop hooks) drive one transport.
       Steps: fold `playbackBus.togglePlay/seekBy/stepFrame/trim-loop` into the engine hook
       as plain functions; update crop/mobile/subtitles/bulk/cut callers to the single hook.
       Verify: typecheck + play/pause/step/trim-loop on crop and cut pages. Done when `playback-bus.ts` is deleted.
-- [ ] **1.2 Collapse upload triple layer (~160).**
+- [x] **1.2 Collapse upload triple layer (~160).**
       `lib/audio-upload.ts:44`. Why: chunked/session/audio-upload overlap
       (`uploadChunked` + `upload-sessions` memory + `audioUpload` fan-out).
       Steps: one upload module exposing `submitWithUpload`-style fork; keep the
       status-verified resume behavior, delete the fan-out variants.
       Verify: >256 MB upload resumes, audio analysis + preview still work.
-- [ ] **1.3 Fold SSE live-sync + progress + queue retry (~150).**
+- [x] **1.3 Fold SSE live-sync + progress + queue retry (~150).**
       `components/admin/useAdminJobs.ts:78`. Why: 444-line hook (TODO Part 2A item 2) mixes SSE subscribe,
       progress shaping, retry. Steps: extract one SSE helper (`subscribeProgress(url, onEvent)`),
       split derived state(`useAdminDerived`) from history actions per TODO.
       Verify: admin page live progress + retry works.
-- [ ] **1.4 Drop dual font catalog + cyrillic gate (~140).**
+- [x] **1.4 Drop dual font catalog + cyrillic gate (~140).**
       `lib/subtitles/googleFonts.ts:138`. Why: two catalog paths + a script gate for one picker.
       Steps: single fetch + system-font fallback.
       Verify: font picker lists + applies fonts, offline shows fallback.

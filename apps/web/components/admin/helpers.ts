@@ -75,3 +75,43 @@ export function statusBadge(status: JobEntry["status"]): string {
     "bg-kumo-recessed text-kumo-subtle border-kumo-line"
   );
 }
+
+/**
+ * Save-picker plan for a server-side output file: the stored job filename
+ * is a bare export name (or the source file name) while the real output
+ * extension lives on the server descriptor (outputFile.name, e.g.
+ * export.webm). Re-attach it so webm/mov jobs don't save with a wrong .mp4
+ * extension, and offer the matching picker filter instead of the MP4-only
+ * default. `nameSuffix` (e.g. "-alt") keeps alternate downloads from
+ * colliding with the primary file.
+ */
+export function downloadPlan(
+  label: string | undefined,
+  serverName: string,
+  nameSuffix = "",
+): {
+  filename: string;
+  types: [{ description: string; accept: Record<string, string[]> }];
+} {
+  const serverExt = serverName.split(".").pop()?.toLowerCase() || "mp4";
+  const rawBase = (label || serverName).split("/").pop() || serverName;
+  const base = rawBase.replace(/\.(mp4|webm|mov|mkv|m4v|avi)$/i, "");
+  const filename = `${base}${nameSuffix}.${serverExt}`;
+  const mimeType =
+    serverExt === "mp4"
+      ? "video/mp4"
+      : serverExt === "webm"
+        ? "video/webm"
+        : serverExt === "mov"
+          ? "video/quicktime"
+          : "application/octet-stream";
+  return {
+    filename,
+    types: [
+      {
+        description: `${serverExt.toUpperCase()} video`,
+        accept: { [mimeType]: [`.${serverExt}`] },
+      },
+    ],
+  };
+}

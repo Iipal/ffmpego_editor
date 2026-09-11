@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { AudioAnalysis } from "@/lib/api-client";
-import { audioUpload } from "@/lib/audio-upload";
+import { uploadChunked } from "@/lib/upload-chunked";
 
 export function useAudioAnalysis(file: File | null, trackIndex: number) {
   return useQuery({
@@ -18,7 +18,7 @@ export function useAudioAnalysis(file: File | null, trackIndex: number) {
       if (!file) throw new Error("Audio source is required");
       // Large files upload once via a reused chunked session; small files
       // keep the direct FormData path.
-      return audioUpload.postJson<AudioAnalysis>(
+      return uploadChunked.postJson<AudioAnalysis>(
         `/api/audio/analysis?track=${trackIndex}`,
         file,
         { signal },

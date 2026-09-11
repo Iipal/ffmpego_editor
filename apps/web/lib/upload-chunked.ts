@@ -64,9 +64,12 @@ export interface SubmitWithUploadOptions {
 
 /**
  * Singleton service owning every upload transport: the chunked
- * init→chunks→complete pipeline, the XHR progress upload, and the size
- * heuristic between them. Stateless — all mutable progress flows out through
- * the per-call `onProgress` callbacks, never stored here.
+ * init→chunks→complete pipeline, the XHR progress upload, the size
+ * heuristic between them, and the audio one-shot POSTs (analysis/extract/
+ * preview pulls reuse one completed chunked session per file instead of
+ * re-sending the same bytes per call). Mutable state is only the per-file
+ * completed/in-flight uploadId caches below; per-call progress flows out
+ * through the `onProgress` callbacks, never stored here.
  */
 export class UploadChunked {
   /** Default chunk size — tuned for LAN/localhost throughput vs memory. */
@@ -343,6 +346,161 @@ export class UploadChunked {
    */
   public shouldUseChunked(file: File): boolean {
     return file.size > UploadChunked.THRESHOLD_BYTES;
+  }
+
+  /**
+   * One-shot JSON POST (audio analysis): header-only `x-upload-id` when the
+   * file is large (uploaded once per file, session reused across analysis +
+   * preview + extract calls), direct FormData otherwise. Evicts a dead
+   * cached id and retries once when the server reports FILE_REQUIRED (the
+   * freak case where the DB row outlived the tmp bytes).
+   */
+  public async postJson<T>(
+    endpoint: string,
+    file: File,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<T> {
+    const uploadId = await this.ensureUploadId(file, opts);
+    try {
+      return await this.sendJson<T>(endpoint, file, uploadId, opts);
+    } catch (e) {
+      if (uploadId && UploadChunked.isFileRequiredError(e)) {
+        this.forgetUpload(file);
+        return this.sendJson<T>(
+          endpoint,
+          file,
+          await this.ensureUploadId(file, opts),
+          opts,
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * One-shot Blob POST (audio extract / preview pull): header-only when a
+   * session exists, direct FormData otherwise. Same evict-retry as postJson.
+   * Concurrent calls for the same file share one in-flight upload, so
+   * per-track preview fan-outs upload once without a pre-resolved transport.
+   */
+  public async postBlob(
+    endpoint: string,
+    file: File,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<Blob> {
+    const uploadId = await this.ensureUploadId(file, opts);
+    try {
+      return await this.sendBlob(endpoint, file, uploadId, opts);
+    } catch (e) {
+      if (uploadId && UploadChunked.isFileRequiredError(e)) {
+        this.forgetUpload(file);
+        return this.sendBlob(
+          endpoint,
+          file,
+          await this.ensureUploadId(file, opts),
+          opts,
+        );
+      }
+      throw e;
+    }
+  }
+
+  // ----------------------------------------------------------------- private
+
+  /** Completed uploadIds by file identity (name|size|lastModified). */
+  private readonly completedByFile = new Map<string, string>();
+  /** In-flight ensures by file identity so parallel calls share one upload. */
+  private readonly pendingByFile = new Map<string, Promise<string>>();
+
+  /**
+   * UploadId for `file`: a status-validated cached session, a fresh chunked
+   * upload (cached for later calls), or null for small files that keep the
+   * direct FormData path. Never rejects on stale cache — falls back to a
+   * fresh upload.
+   */
+  private async ensureUploadId(
+    file: File,
+    opts: { signal?: AbortSignal } = {},
+  ): Promise<string | null> {
+    if (!this.shouldUseChunked(file)) return null;
+    const key = UploadChunked.fileKey(file);
+    const cached = this.completedByFile.get(key);
+    if (cached) {
+      const status = await uploadSessions.fetchStatus(cached).catch(() => null);
+      if (
+        status &&
+        status.totalSize === file.size &&
+        status.received >= status.totalSize
+      ) {
+        return cached;
+      }
+      this.completedByFile.delete(key);
+    }
+    let pending = this.pendingByFile.get(key);
+    if (!pending) {
+      pending = this.uploadFile(file, { signal: opts.signal })
+        .then((result) => {
+          this.completedByFile.set(key, result.uploadId);
+          return result.uploadId;
+        })
+        .finally(() => {
+          this.pendingByFile.delete(key);
+        });
+      this.pendingByFile.set(key, pending);
+    }
+    return pending;
+  }
+
+  /** Drop cached + in-flight state for a file (stale bytes, evict-retry). */
+  private forgetUpload(file: File): void {
+    const key = UploadChunked.fileKey(file);
+    this.completedByFile.delete(key);
+    this.pendingByFile.delete(key);
+  }
+
+  private async sendJson<T>(
+    endpoint: string,
+    file: File,
+    uploadId: string | null,
+    opts: { signal?: AbortSignal },
+  ): Promise<T> {
+    const init = opts.signal ? { signal: opts.signal } : undefined;
+    if (uploadId) {
+      return apiClient.postWithUploadId<T>(endpoint, uploadId, null, init);
+    }
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.formPost<T>(endpoint, form, init);
+  }
+
+  private async sendBlob(
+    endpoint: string,
+    file: File,
+    uploadId: string | null,
+    opts: { signal?: AbortSignal },
+  ): Promise<Blob> {
+    const init = opts.signal ? { signal: opts.signal } : undefined;
+    if (uploadId) {
+      return apiClient.postBlobWithUploadId(endpoint, uploadId, init);
+    }
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.postBlob(endpoint, form, init);
+  }
+
+  /** File identity key — a different file never reuses another's bytes. */
+  private static fileKey(file: File): string {
+    return `${file.name}|${file.size}|${file.lastModified}`;
+  }
+
+  /**
+   * True when the server answered FILE_REQUIRED — `requestJson`/`postBlob`
+   * keep only the envelope message, so match its text (coupled to
+   * `resolveInput` in `apps/api/src/routes/audio.ts`: "Audio file is
+   * required"). Degrades to no-retry if the text ever changes.
+   */
+  private static isFileRequiredError(e: unknown): boolean {
+    return e instanceof Error && e.message.includes("Audio file is required");
   }
 }
 

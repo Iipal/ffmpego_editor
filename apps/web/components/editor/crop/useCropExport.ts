@@ -13,7 +13,7 @@ import { exportQueueStore, isQueueItemActive } from "@/store/exportQueueSlice";
 import { exportPresets, type ExportPreset } from "@/lib/export-presets";
 import { preflight } from "@/lib/preflight";
 import { validateSettings } from "@/lib/validate-settings";
-import { audioUpload } from "@/lib/audio-upload";
+import { uploadChunked } from "@/lib/upload-chunked";
 import { saveBlobFile } from "@/lib/save-blob-file";
 import { trackHistoryEntry } from "@/store/exportHistorySlice";
 import { openComparison } from "@/store/compareSlice";
@@ -174,7 +174,7 @@ export function useCropExport() {
         report({ status: "processing", progress: 50 });
         // Large files reuse the shared chunked session (uploaded once for
         // analysis/preview); small files keep the direct FormData path.
-        return audioUpload.postBlob(
+        return uploadChunked.postBlob(
           `/api/audio/extract?format=${audioFormat}`,
           file,
         );
