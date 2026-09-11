@@ -12,6 +12,7 @@ import { openComparison } from "@/store/compareSlice";
 import { audioUpload } from "./audio-upload";
 import { uploadChunked } from "./upload-chunked";
 import { sourceStore } from "@/store/sourceSlice";
+import { videoFileService } from "./video-file";
 import {
   trackHistoryEntry,
   type HistoryEntry,
@@ -145,7 +146,7 @@ class ExportHistory {
       title,
       sourceUrl: sourceStore.state.mediaUrl,
       outputUrl: URL.createObjectURL(blob),
-      outputKind: ExportHistory.outputKindFor(title),
+      outputKind: videoFileService.outputKindForName(title),
       meta,
     });
   }
@@ -183,17 +184,6 @@ class ExportHistory {
     if (!file)
       throw new Error("Load the source file again to retry this export.");
     return file;
-  }
-
-  /**
-   * Compare-dialog output kind derived from the export title: image for gif,
-   * audio for mp3/wav, video otherwise.
-   */
-  private static outputKindFor(title: string): "video" | "audio" | "image" {
-    const ext = (title.split(".").pop() ?? "").toLowerCase();
-    if (ext === "gif") return "image";
-    if (ext === "mp3" || ext === "wav") return "audio";
-    return "video";
   }
 }
 

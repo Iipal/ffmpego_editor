@@ -106,12 +106,22 @@ export class VideoFileService {
     return name.replace(VideoFileService.FILENAME_SANITIZE_RE, "_");
   }
 
-  // ----------------------------------------------------------------- private
-
   /** Lowercased extension of a filename ("" when none). */
-  private getFileExtension(name: string): string {
+  public getFileExtension(name: string): string {
     const parts = name.split(".");
     return parts.length > 1 ? parts.pop()!.toLowerCase() : "";
+  }
+
+  /**
+   * Compare-dialog output kind from a filename: image for gif, audio for
+   * mp3/wav, video otherwise. (Single canonical copy; was duplicated in
+   * export-queue + export-history.)
+   */
+  public outputKindForName(name: string): "video" | "audio" | "image" {
+    const ext = this.getFileExtension(name);
+    if (ext === "gif") return "image";
+    if (ext === "mp3" || ext === "wav") return "audio";
+    return "video";
   }
 }
 

@@ -6,6 +6,7 @@ import type { VideoMetadata } from "@/lib/api-client";
 import { setSourceState } from "@/store/sourceSlice";
 import { cutStore, setCutState } from "@/store/cutSlice";
 import { uploadChunked } from "@/lib/upload-chunked";
+import { videoFileService } from "@/lib/video-file";
 import { transcodeJobs } from "@/lib/transcode-jobs";
 
 function setUploadProgress(sent: number, total: number) {
@@ -94,7 +95,7 @@ export function useVideoMetadataMutation() {
         Number.isFinite(metadata.frameRate) && metadata.frameRate > 0
           ? metadata.frameRate
           : 30;
-      const extension = file.name.split(".").pop()?.toLowerCase();
+      const extension = videoFileService.getFileExtension(file.name);
       // mkv is valid input but export stays mp4 by default; map mkv -> mp4
       const exportFormat =
         extension === "mp4" || extension === "webm" || extension === "mov"

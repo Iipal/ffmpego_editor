@@ -38,6 +38,7 @@ import {
   transcodeJobs,
 } from "./transcode-jobs";
 import { transcodeProgress } from "./transcode-progress";
+import { videoFileService } from "./video-file";
 import { uploadChunked } from "./upload-chunked";
 import { toast } from "sonner";
 
@@ -375,7 +376,9 @@ class ExportQueue {
         const saved = await saveBlobFile.save(
           blob,
           task.label,
-          saveBlobFile.pickerTypesForExt(ExportQueue.extOf(task.label)),
+          saveBlobFile.pickerTypesForExt(
+            videoFileService.getFileExtension(task.label),
+          ),
         );
         openComparison({
           title: saved,
@@ -448,22 +451,14 @@ class ExportQueue {
     return exportQueueStore.state.items.find((i) => i.id === id);
   }
 
-  /** Lowercased file extension of a task label ("" when none). */
-  private static extOf(label: string): string {
-    const idx = label.lastIndexOf(".");
-    return idx >= 0 ? label.slice(idx + 1).toLowerCase() : "";
-  }
-
   /**
    * Compare-dialog output kind for the default finisher: audio for
-   * audio-extract and mp3/wav, image for gif, video otherwise.
+   * audio-extract tasks, otherwise by output filename
+   * (`videoFileService.outputKindForName`).
    */
   private outputKindFor(task: ExportQueueTask): "video" | "audio" | "image" {
     if (task.kind === "audio-extract") return "audio";
-    const ext = ExportQueue.extOf(task.label);
-    if (ext === "gif") return "image";
-    if (ext === "mp3" || ext === "wav") return "audio";
-    return "video";
+    return videoFileService.outputKindForName(task.label);
   }
 
   /** Stable toast id so repeated events for one row update in place. */

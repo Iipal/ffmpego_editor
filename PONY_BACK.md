@@ -139,12 +139,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `lib/mobile-layout.ts`
 - **Result:** ~15 lines removed (dead `fullAspect`/`fullH`/`fullW` → `w`/`h` chain in the full branch, dead `h1`/`w1`/`h2`/`w2` in the stacked branch, both `void`s, plus three stale thinking-out-loud comments). `a1`/`a2` stay — they feed the live `z1h`/`z2h`. Verified identical, not eyeballed: default layouts for full/stacked/stacked-custom-split+AR dumped before (git HEAD) vs after — byte-identical. `tsc` + `lint` clean.
 
-## 18. `outputKindFor` + extension parsers — ⬜ open
+## 18. `outputKindFor` + extension parsers — ✅ done
 
 - **Tag:** shrink
 - **Problem:** Kind mapping duplicated in 2 files; extension parsed 4 different ways.
 - **Do:** One shared `extOf` + one kind helper.
 - **Files:** `lib/export-queue.ts`, `lib/export-history.ts`, `lib/video-file.ts`, `hooks/useVideoMetadata.ts`
+- **Result:** `VideoFileService` (already the filename-helper owner) now exposes public `getFileExtension` (was private) + new `outputKindForName` (gif→image, mp3/wav→audio, else video). Export-queue's private `extOf` deleted (both its uses — kind mapping + `pickerTypesForExt` — go through the service; the `audio-extract` task-kind pre-check stays, it's task state not filename); export-history's private `outputKindFor` deleted, call site uses the service; `useVideoMetadata` uses `getFileExtension`. Edge-case equivalence verified by execution (`noext`/`.hidden`/`a.`/multi-dot/uppercase): the old no-dot `split().pop()` returned the whole name where the service returns `""`, but every downstream mapping lands identically (video kind, mp4 default). Deliberately untouched: `Sidebar` + `useAdminJobs` one-off `split().pop()` reads (display-only/format-guess, outside the audit's file list). `tsc` + `lint` clean.
 
 ## 19. `DynamicCardProbe` + `DynamicProgress` — ⬜ open
 
@@ -190,5 +191,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–17. Open: items 18–24.
+- Done: items 1–18. Open: items 19–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).
