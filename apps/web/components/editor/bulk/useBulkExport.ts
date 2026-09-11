@@ -74,7 +74,6 @@ export function useBulkExport({
         sourceHeight: sh,
         trimRange: [0, duration > 0 ? duration : 0.001],
         ignoreTrim: true,
-        ignoreTrimSettings: true,
         exportFormat: "mp4",
         exportFps: 30,
         exportFilename: base,

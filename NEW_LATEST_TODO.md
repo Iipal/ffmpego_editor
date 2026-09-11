@@ -239,27 +239,27 @@ cutting. Nothing below is applied; this is the work list.
 
 ## Phase 4 — packages + root configs
 
-- [ ] **4.1 Move 6 hardcoded presets out of contracts (~72).**
+- [x] **4.1 Move 6 hardcoded presets out of contracts (~72).**
       `packages/contracts/src/presets.ts:113`.
       Steps: schemas stay, preset data moves to web `lib/export-presets.ts`.
       Verify: preset select unchanged, API validation unchanged.
-- [ ] **4.2 Dead RENDER_KINDS/JOB_STATES/migration types (~50).**
+- [x] **4.2 Dead RENDER_KINDS/JOB_STATES/migration types (~50).**
       `packages/contracts/src/plans.ts:18`.
       Steps: keep `RenderKind` + migrate only.
       Verify: typecheck both apps.
-- [ ] **4.3 Inline filter interfaces (~40).**
+- [x] **4.3 Inline filter interfaces (~40).**
       `packages/ffmpeg-filters/src/index.ts:1`.
       Steps: single `VisualFilters` interface.
       Verify: preview/export filter parity.
-- [ ] **4.4 Fold unexported granular builders (~38).**
+- [x] **4.4 Fold unexported granular builders (~38).**
       `packages/ffmpeg-filters/src/index.ts:190`.
       Steps: fold into `buildVisualVideoFilters`.
       Verify: same `-vf` output for a filtered export.
-- [ ] **4.5 Drop @repo/ui cn-only wrapper (~31).**
+- [x] **4.5 Drop @repo/ui cn-only wrapper (~31).**
       `packages/ui/src/index.ts:1`.
       Steps: inline 1-line `cn` in web (Shadcn _components_ rule unaffected — only the re-export package goes).
       Verify: typecheck + lint.
-- [ ] **4.6 Drop @repo/config single-tsconfig wrapper (~29).**
+- [x] **4.6 Drop @repo/config single-tsconfig wrapper (~29).**
       `packages/config/tsconfig.json:1`.
       Steps: extend root tsconfig directly.
       Verify: typecheck all workspaces.
@@ -267,31 +267,31 @@ cutting. Nothing below is applied; this is the work list.
       `packages/contracts/src/presets.ts:18`.
       Steps: validate via `exportPresetSchema` only.
       Verify: typecheck.
-- [ ] **4.8 Remove test-only message/issues helpers (~16).**
+- [x] **4.8 Remove test-only message/issues helpers (~16).**
       `packages/contracts/src/errors.ts:124`.
       Steps: assert envelope directly in tests.
       Verify: contract tests pass.
-- [ ] **4.9 Remove dead CutSegment/CutZone duplicates (~13).**
+- [x] **4.9 Remove dead CutSegment/CutZone duplicates (~13).**
       `packages/types/src/index.ts:76`.
       Steps: single source (API cutBuilder shape).
       Verify: typecheck.
-- [ ] **4.10 Remove shadowed MobileLayout interface (~12).**
+- [x] **4.10 Remove shadowed MobileLayout interface (~12).**
       `packages/types/src/index.ts:63`.
       Steps: use web mobile-layout type.
       Verify: typecheck.
-- [ ] **4.11 Cut ignoreTrimSettings alias + normalizer (~10).**
+- [x] **4.11 Cut ignoreTrimSettings alias + normalizer (~10).**
       `packages/contracts/src/settings.ts:116`.
       Steps: send `ignoreTrim` only.
       Verify: ignore-trim exports unchanged.
-- [ ] **4.12 Remove unused MultipartField export (~2).**
+- [x] **4.12 Remove unused MultipartField export (~2).**
       `packages/contracts/src/multipart.ts:29`.
       Steps: use `MULTIPART_FIELDS` directly.
       Verify: typecheck.
-- [ ] **4.13 Remove duplicate VisualFiltersInput zod type (~1).**
+- [x] **4.13 Remove duplicate VisualFiltersInput zod type (~1).**
       `packages/contracts/src/settings.ts:100`.
       Steps: use ffmpeg-filters `VisualFilters`.
       Verify: typecheck.
-- [ ] **4.14 Root dep hygiene (0 lines, correctness of graph).**
+- [x] **4.14 Root dep hygiene (0 lines, correctness of graph).**
       `package.json:20,24` + `apps/web/package.json:28`.
       Steps: drop root typescript peerDep (single root tsconfig per 4.6),
       move misplaced kumo dep to `apps/web`, move Shadcn CLI to devDependencies.

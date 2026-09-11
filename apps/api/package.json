@@ -20,7 +20,6 @@
     "zod": "^4.6.1"
   },
   "devDependencies": {
-    "@repo/config": "*",
     "@types/bun": "^1.4.2",
     "@types/shell-quote": "^1.7.5",
     "typescript": "^7.0.2"

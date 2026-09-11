@@ -1,25 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import {
-  BUILTIN_PRESETS,
-  exportPresetSchema,
-  migratePreset,
-  PRESET_VERSION,
-} from "../src/presets";
+import { migratePreset } from "../src/presets";
 
 describe("export presets", () => {
-  test("builtins are valid v1 presets with stable ids", () => {
-    expect(BUILTIN_PRESETS.length).toBe(6);
-    const ids = new Set<string>();
-    for (const p of BUILTIN_PRESETS) {
-      expect(exportPresetSchema.safeParse(p).success).toBe(true);
-      expect(p.version).toBe(PRESET_VERSION);
-      expect(ids.has(p.id)).toBe(false);
-      ids.add(p.id);
-    }
-  });
-
   test("migratePreset passes v1 through", () => {
-    const r = migratePreset(BUILTIN_PRESETS[0]);
+    const r = migratePreset({
+      version: 1,
+      id: "builtin:youtube",
+      name: "YouTube",
+      target: "transcode",
+      settings: { exportFormat: "mp4" },
+    });
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.reason).toBe("v1");
   });

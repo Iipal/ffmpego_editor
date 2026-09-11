@@ -120,23 +120,6 @@ export function resolveRequestId(header: string | null | undefined): string {
   return crypto.randomUUID();
 }
 
-/** Legacy `{ error, issues? }` shape — accepted on read, never emitted. */
-export function messageFromUnknown(payload: unknown, fallback: string): string {
-  if (!payload || typeof payload !== "object") return fallback;
-  const p = payload as Record<string, unknown>;
-  if (typeof p.message === "string" && p.message) return p.message;
-  if (typeof p.error === "string" && p.error) return p.error;
-  return fallback;
-}
-
-export function issuesFromUnknown(payload: unknown): string[] {
-  if (!payload || typeof payload !== "object") return [];
-  const issues = (payload as Record<string, unknown>).issues;
-  return Array.isArray(issues)
-    ? issues.filter((i): i is string => typeof i === "string")
-    : [];
-}
-
 // ---------------------------------------------------------------------------
 // FFmpeg exit classification. Maps process exit codes + stderr tail to an
 // error code so SSE terminal states and API errors share one vocabulary.

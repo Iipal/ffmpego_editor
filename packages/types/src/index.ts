@@ -45,48 +45,6 @@ export interface SubtitleTemplate {
   style: SubtitleStyle;
 }
 
-export type MobileLayoutMode = "full" | "stacked";
-export type CropZoneId = "zone-1" | "zone-2";
-export type CropRole = "camera" | "gameplay" | "content" | "custom";
-
-export interface CropZone {
-  id: CropZoneId;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  zoom: number;
-  role?: CropRole;
-  locked?: boolean;
-}
-
-export interface MobileLayout {
-  version: 1;
-  sourceAspectRatio: number;
-  outputAspectRatio: number;
-  mode: MobileLayoutMode;
-  zones: CropZone[];
-  splitRatio: number;
-  background:
-    | { type: "blur"; intensity: number }
-    | { type: "solid"; value: string }
-    | { type: "none" };
-}
-
-export interface CutSegment {
-  start: number;
-  end: number;
-}
-
-export interface CutZone {
-  id: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  zoom: number;
-}
-
 export interface TranscodeResponse {
   jobId: string;
   progressUrl: string;

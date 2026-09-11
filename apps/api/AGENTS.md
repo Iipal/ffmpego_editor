@@ -86,10 +86,9 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 
 ## Shared packages used
 
-- `@repo/contracts` — `settings.ts` (zod `generic/mobile/cutSettingsSchema`, `normalizeTrimAlias`, `flattenIssues`), `plans.ts` (`migrateRenderPlan`, `RenderKind`), `multipart.ts` (`MULTIPART_FIELDS`, `UPLOAD_ID_HEADER/QUERY`, `REQUEST_ID_HEADER`), `errors.ts` (`ERROR_STATUS`, `errorEnvelope`, `classifyFfmpegExit`). Single source of truth — web validates the same payloads pre-upload.
-- `@repo/types` — `FFprobeReport` and shared media types (`TranscodeProgress/Response`, subtitles, mobile layout).
+- `@repo/contracts` — `settings.ts` (zod `generic/mobile/cutSettingsSchema`, `flattenIssues`), `plans.ts` (`migrateRenderPlan`, `RenderKind`), `multipart.ts` (`MULTIPART_FIELDS`, `UPLOAD_ID_HEADER/QUERY`, `REQUEST_ID_HEADER`), `errors.ts` (`ERROR_STATUS`, `errorEnvelope`, `classifyFfmpegExit`). Single source of truth — web validates the same payloads pre-upload.
+- `@repo/types` — `FFprobeReport` and shared media types (`TranscodeProgress/Response`, subtitles).
 - `@repo/ffmpeg-filters` — `buildVisualVideoFilters`, `cropPercentToPixels`/`zoneToPixels`, `buildAtempoFilter`/`buildSetptsFilter`, `isVisualFiltersDefault`. Server and web preview must not drift.
-- `@repo/config` — ts/eslint shared config. (`@repo/ui` is web-only.)
 
 ## Rules
 

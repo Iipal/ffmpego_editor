@@ -15,7 +15,6 @@ export {
   genericSettingsSchema,
   mobileLayoutSchema,
   mobileSettingsSchema,
-  normalizeTrimAlias,
   parseSettingsJson,
   type CutSettings,
   type GenericSettings,

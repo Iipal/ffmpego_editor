@@ -97,7 +97,6 @@ export const visualFiltersSchema = z.object({
     })
     .default({ flipH: false, flipV: false, rotate: 0 }),
 });
-export type VisualFiltersInput = z.infer<typeof visualFiltersSchema>;
 
 const exportBase = z.object({
   sourceWidth: finite,
@@ -113,7 +112,6 @@ const exportBase = z.object({
   audioTrackIndex: finite.int().min(0).optional().default(0),
   audioTracks: z.array(audioTrackSchema).max(32).optional(),
   ignoreTrim: z.boolean().optional(),
-  ignoreTrimSettings: z.boolean().optional(),
   gainDb: finite.min(-60).max(24).optional().default(0),
   loudnormTargetLufs: finite.min(-70).max(-5).optional(),
   fadeInSeconds: finite.min(0).max(3600).optional().default(0),
@@ -236,16 +234,6 @@ export const cutSettingsSchema = z
 export type GenericSettings = z.infer<typeof genericSettingsSchema>;
 export type MobileSettings = z.infer<typeof mobileSettingsSchema>;
 export type CutSettings = z.infer<typeof cutSettingsSchema>;
-
-/** Normalize alias: frontend may send either ignoreTrim key. */
-export function normalizeTrimAlias<
-  T extends { ignoreTrim?: boolean; ignoreTrimSettings?: boolean },
->(s: T): T {
-  if (s.ignoreTrim === undefined && typeof s.ignoreTrimSettings === "boolean") {
-    return { ...s, ignoreTrim: s.ignoreTrimSettings };
-  }
-  return s;
-}
 
 export type SettingsParse<T> =
   { ok: true; data: T } | { ok: false; issues: string[] };

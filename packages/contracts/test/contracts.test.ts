@@ -1,13 +1,11 @@
 // Contracts tests: versioned plan migration, error envelope builders,
-// legacy read-compat, and FFmpeg exit classification.
+// request ids, and FFmpeg exit classification.
 import { describe, expect, test } from "bun:test";
 import {
   classifyFfmpegExit,
   detectLegacyKind,
   errorEnvelope,
   ERROR_STATUS,
-  issuesFromUnknown,
-  messageFromUnknown,
   migrateRenderPlan,
   parseSettingsJson,
   PLAN_VERSION,
@@ -199,7 +197,7 @@ describe("errorEnvelope", () => {
   });
 });
 
-describe("request id + legacy compat", () => {
+describe("request id + envelope shape", () => {
   test("resolveRequestId honors safe headers, mints otherwise", () => {
     expect(resolveRequestId("abc-123_X")).toBe("abc-123_X");
     const minted = resolveRequestId(null);
@@ -207,12 +205,18 @@ describe("request id + legacy compat", () => {
     expect(resolveRequestId("has spaces!!")).not.toBe("has spaces!!");
   });
 
-  test("message/issues read envelope and legacy shapes", () => {
-    expect(messageFromUnknown({ code: "X", message: "new" }, "fb")).toBe("new");
-    expect(messageFromUnknown({ error: "old" }, "fb")).toBe("old");
-    expect(messageFromUnknown(null, "fb")).toBe("fb");
-    expect(issuesFromUnknown({ issues: ["a", 1, "b"] })).toEqual(["a", "b"]);
-    expect(issuesFromUnknown({})).toEqual([]);
+  test("errorEnvelope carries code/message/issues/requestId", () => {
+    const env = errorEnvelope("VALIDATION_FAILED", {
+      message: "Invalid export settings",
+      issues: ["trimRange: bad"],
+      requestId: "abc-123",
+    });
+    expect(env).toEqual({
+      code: "VALIDATION_FAILED",
+      message: "Invalid export settings",
+      issues: ["trimRange: bad"],
+      requestId: "abc-123",
+    });
   });
 });
 

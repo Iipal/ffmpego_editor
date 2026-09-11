@@ -19,9 +19,8 @@ progress → download by opaque file ID. Full pictures: `README.md`,
   upload, video (transcode+jobs+SSE), metadata, audio, files.
   Details: `apps/api/AGENTS.md`.
 - **Shared:** `@repo/contracts` (zod schemas, plans, multipart keys, error
-  envelope — web pre-validates what API enforces), `@repo/types` (media/editor
-  types), `@repo/ffmpeg-filters` (preview and exporter share filter math),
-  `@repo/ui` (Shadcn, web-only), `@repo/config` (ts/tailwind/eslint).
+  envelope — web pre-validates what API enforces), `@repo/types` (shared
+  media types), `@repo/ffmpeg-filters` (preview and exporter share filter math).
 
 ## 1. Project Topology & Role
 
@@ -34,8 +33,6 @@ You are an expert full-stack developer managing a local-only Turborepo monorepo 
 - `packages/contracts` (`@repo/contracts`): zod schemas, render plans, multipart keys, error envelope shared by web + API.
 - `packages/types` (`@repo/types`): shared media/editor TypeScript types.
 - `packages/ffmpeg-filters` (`@repo/ffmpeg-filters`): filter math shared by web preview and API exporter.
-- `packages/ui` (`@repo/ui`): Shared Shadcn UI components (web-only).
-- `packages/config` (`@repo/config`): Shared configs (TypeScript, Tailwind, ESLint).
 
 ## 2. Core Technology Stack
 
@@ -63,7 +60,7 @@ You are strictly forbidden from writing custom UI components (like buttons, drop
 
 ## 5. Development Workflow
 
-- Always verify imports are correctly referencing the monorepo workspaces (e.g., `@repo/ui`, `@repo/eslint-config`).
+- Always verify imports are correctly referencing the monorepo workspaces (e.g., `@repo/contracts`, `@repo/types`).
 - Separate server state from client state: Use TanStack Query exclusively for asynchronous API requests/mutations. Use TanStack Store exclusively for synchronous client-side UI state (e.g., tracking which menu is open, or local form drafts).
 - When executing tasks from `PLAN.md`, complete them one by one. Do not jump ahead. Check off tasks as you verify they are working.
 - Read `apps/web/AGENTS.md` before frontend work and `apps/api/AGENTS.md` before backend work; keep the corresponding `README.md` maps in sync when routes, pages, or endpoints change.

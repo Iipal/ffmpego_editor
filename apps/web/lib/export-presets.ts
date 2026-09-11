@@ -1,17 +1,111 @@
-// Named export presets: builtins from @repo/contracts + user customs in
+// Named export presets: builtins below + user customs in
 // localStorage. Applying a preset is one-shot — it fills the export fields,
 // later per-export edits win (presets never clobber explicit overrides).
 import {
-  BUILTIN_PRESETS,
+  PRESET_VERSION,
   migratePreset,
   type ExportPreset,
+  type PresetSettings,
+  type PresetTarget,
 } from "@repo/contracts";
 import type { CutSlice } from "@/store/cutSlice";
 import type { VisualFilters } from "@/store/filterSlice";
 import { storageJSON } from "./storage-json";
 
 export type { ExportPreset };
-export { BUILTIN_PRESETS };
+
+function builtin(
+  id: string,
+  name: string,
+  description: string,
+  target: PresetTarget,
+  settings: PresetSettings,
+  audioFormat?: "mp3" | "wav",
+): ExportPreset {
+  return {
+    version: PRESET_VERSION,
+    id: `builtin:${id}`,
+    name,
+    description,
+    target,
+    settings,
+    ...(audioFormat ? { audioFormat } : {}),
+  };
+}
+
+/** Shipped defaults. Ids are stable — user edits never mutate these. */
+export const BUILTIN_PRESETS: readonly ExportPreset[] = [
+  builtin(
+    "source-archive",
+    "Source-quality archive",
+    "Near-lossless MP4, full resolution, original pacing.",
+    "transcode",
+    {
+      exportFormat: "mp4",
+      exportQuality: 16,
+      exportSpeed: 1,
+      filenameSuffix: "_archive",
+    },
+  ),
+  builtin(
+    "tg-animated-sticker",
+    "Telegram Sticker",
+    "Specific Telegram sticker preset: 30fps, width 512px, VP9, no audio, up to 3s. Trim, crop, filename and quality apply.",
+    "transcode",
+    {
+      exportFormat: "webm-tg",
+      exportQuality: 25,
+      exportSpeed: 1,
+      filenameSuffix: "_tg",
+    },
+  ),
+  builtin(
+    "youtube",
+    "YouTube",
+    "H.264 MP4, 30fps, balanced quality for uploads.",
+    "transcode",
+    {
+      exportFormat: "mp4",
+      exportFps: 30,
+      exportQuality: 20,
+      exportSpeed: 1,
+      filenameSuffix: "_youtube",
+    },
+  ),
+  builtin(
+    "shorts-reels",
+    "Shorts / Reels",
+    "Vertical-friendly MP4 at 60fps. Crop to 9:16 first.",
+    "transcode",
+    {
+      exportFormat: "mp4",
+      exportFps: 60,
+      exportQuality: 20,
+      exportSpeed: 1,
+      filenameSuffix: "_shorts",
+    },
+  ),
+  builtin(
+    "gif-preview",
+    "GIF preview",
+    "Small silent GIF for quick sharing. Audio is dropped.",
+    "transcode",
+    {
+      exportFormat: "gif",
+      exportFps: 15,
+      exportSpeed: 1,
+      filenameSuffix: "_preview",
+    },
+  ),
+  builtin(
+    "audio-only",
+    "Audio only",
+    "Extract the audio track as MP3, no video.",
+    "audio-extract",
+    {},
+    "mp3",
+  ),
+];
 
 /** One-shot preset → export-field patch (see `ExportPresets.toPatch`). */
 export type PresetPatch = Partial<
@@ -31,8 +125,8 @@ export type PresetPatch = Partial<
 > & { visualFilters?: VisualFilters };
 
 /**
- * Singleton service owning the named export presets: builtin presets from
- * `@repo/contracts` plus user customs persisted in localStorage (migrating
+ * Singleton service owning the named export presets: the builtin presets
+ * above plus user customs persisted in localStorage (migrating
  * v0 bodies on load, dropping + persisting-cleaned on failure). Applying a
  * preset is one-shot via `toPatch` — it fills the export fields, and later
  * per-export edits win.

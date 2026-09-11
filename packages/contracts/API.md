@@ -19,9 +19,7 @@ Every API error response uses exactly this shape:
 }
 ```
 
-Envelopes never carry filesystem paths. Legacy `{ error }` payloads are
-accepted on read (`messageFromUnknown` / `issuesFromUnknown`) but never
-emitted.
+Envelopes never carry filesystem paths.
 
 HTTP status comes from `ERROR_STATUS` (single source of truth). Notable
 mappings: `QUEUE_FULL → 429` (+ `Retry-After` header), `QUOTA_EXCEEDED /
@@ -74,9 +72,7 @@ if (!parsed.ok) throw new Error(parsed.issues.join("\n")); // "path: message"
 ## Versioned render plans
 
 `PLAN_VERSION = 1`. A plan is `{ version, kind, settings }` where `kind` is
-one of `generic | mobile | mobile-subtitles | cut` (`RENDER_KINDS`) and job
-states are `queued | processing | completed | failed | cancelled`
-(`JOB_STATES`).
+one of `generic | mobile | mobile-subtitles | cut` (`RenderKind`).
 
 `migrateRenderPlan(raw, defaultKind?)` accepts:
 

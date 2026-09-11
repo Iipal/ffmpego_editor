@@ -59,12 +59,11 @@ flowchart LR
     A -. uses .-> CT & TY & FF
 ```
 
-| Package                     | Single source of truth for                                                                                                                                          |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@repo/contracts`           | zod settings schemas, render plans (`migrateRenderPlan`), multipart keys (`MULTIPART_FIELDS`, `UPLOAD_ID_*`), error envelope (`ERROR_STATUS`, `classifyFfmpegExit`) |
-| `@repo/types`               | `TranscodeProgress/Response`, `FFprobeReport`, `MobileLayout/CropZone`, `Subtitle/*`, `CutSegment`                                                                  |
-| `@repo/ffmpeg-filters`      | `cropPercentToPixels`/`zoneToPixels`, visual-filter builders — canvas preview and exporter can't drift                                                              |
-| `@repo/ui` + `@repo/config` | Shadcn primitives, Tailwind/TS/ESLint configs (web-only for `ui`)                                                                                                   |
+| Package                | Single source of truth for                                                                                                                                          |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@repo/contracts`      | zod settings schemas, render plans (`migrateRenderPlan`), multipart keys (`MULTIPART_FIELDS`, `UPLOAD_ID_*`), error envelope (`ERROR_STATUS`, `classifyFfmpegExit`) |
+| `@repo/types`          | `TranscodeProgress/Response`, `FFprobeReport`, `Subtitle/*`                                                                                                         |
+| `@repo/ffmpeg-filters` | `cropPercentToPixels`/`zoneToPixels`, visual-filter builders — canvas preview and exporter can't drift                                                              |
 
 ## 3. Frontend → backend: one export, end to end
 

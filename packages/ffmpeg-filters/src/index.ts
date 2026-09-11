@@ -75,39 +75,31 @@ export function zoneToPixels(
  * - `transform` (flip/rotate): maps to `hflip`/`vflip`/`transpose` on the
  *   server and to canvas 2D transforms / CSS `scaleX(-1)/rotate()` live.
  */
-export interface EqSettings {
-  /** -1..1, default 0 */
-  brightness: number;
-  /** 0..2, default 1 */
-  contrast: number;
-  /** 0..3, default 1 */
-  saturation: number;
-  /** 0.1..10, default 1 (server-only: no CSS equivalent) */
-  gamma: number;
-}
-
-export interface DenoiseSettings {
-  enabled: boolean;
-  /** 0..10 UI strength, default 4. Maps to hqdn3d preset scaling. */
-  strength: number;
-}
-
-export interface DeshakeSettings {
-  enabled: boolean;
-}
-
-export interface TransformSettings {
-  flipH: boolean;
-  flipV: boolean;
-  /** Clockwise degrees. */
-  rotate: 0 | 90 | 180 | 270;
-}
-
 export interface VisualFilters {
-  eq: EqSettings;
-  denoise: DenoiseSettings;
-  deshake: DeshakeSettings;
-  transform: TransformSettings;
+  eq: {
+    /** -1..1, default 0 */
+    brightness: number;
+    /** 0..2, default 1 */
+    contrast: number;
+    /** 0..3, default 1 */
+    saturation: number;
+    /** 0.1..10, default 1 (server-only: no CSS equivalent) */
+    gamma: number;
+  };
+  denoise: {
+    enabled: boolean;
+    /** 0..10 UI strength, default 4. Maps to hqdn3d preset scaling. */
+    strength: number;
+  };
+  deshake: {
+    enabled: boolean;
+  };
+  transform: {
+    flipH: boolean;
+    flipV: boolean;
+    /** Clockwise degrees. */
+    rotate: 0 | 90 | 180 | 270;
+  };
 }
 
 export const DEFAULT_VISUAL_FILTERS: VisualFilters = {
@@ -127,7 +119,7 @@ function fmt(n: number, digits = 3): string {
   return fixed.includes(".") ? fixed.replace(/\.?0+$/, "") || "0" : fixed;
 }
 
-function isDefaultEq(eq: EqSettings): boolean {
+function isDefaultEq(eq: VisualFilters["eq"]): boolean {
   return (
     eq.brightness === 0 &&
     eq.contrast === 1 &&
@@ -186,38 +178,33 @@ export function normalizeVisualFilters(
   };
 }
 
-/** `eq=brightness=…:contrast=…:saturation=…:gamma=…`, or null when default. */
-export function buildEqFilter(eq: EqSettings): string | null {
-  if (isDefaultEq(eq)) return null;
-  return `eq=brightness=${fmt(eq.brightness)}:contrast=${fmt(eq.contrast)}:saturation=${fmt(eq.saturation)}:gamma=${fmt(eq.gamma)}`;
-}
-
 /**
- * `hqdn3d` from a 0..10 strength. Strength scales the classic
- * `4:3:6:4.5` preset linearly (strength 4 ≈ defaults).
+ * Full visual stack as `-vf` chain entries, in fixed order:
+ * eq → hqdn3d → deshake → transform. Empty when everything is default.
+ * Both the server builder and any client-side `-vf` preview must use this.
+ *
+ * - eq: `eq=brightness=…:contrast=…:saturation=…:gamma=…`, skipped when default.
+ * - denoise: `hqdn3d` from a 0..10 strength. Strength scales the classic
+ *   `4:3:6:4.5` preset linearly (strength 4 ≈ defaults); skipped when disabled.
+ * - deshake: `deshake`, skipped when disabled.
+ * - transform: rotate first, then flips. 90 → `transpose=1`, 270 →
+ *   `transpose=2`, 180 → `hflip,vflip`.
  */
-export function buildDenoiseFilter(denoise: DenoiseSettings): string | null {
-  if (!denoise.enabled) return null;
-  const s = clamp(denoise.strength, 0, 10) / 4;
-  const lumaSpatial = fmt(4 * s);
-  const chromaSpatial = fmt(3 * s);
-  const lumaTmp = fmt(6 * s);
-  const chromaTmp = fmt(4.5 * s);
-  return `hqdn3d=${lumaSpatial}:${chromaSpatial}:${lumaTmp}:${chromaTmp}`;
-}
-
-/** `deshake`, or null when disabled. */
-export function buildDeshakeFilter(deshake: DeshakeSettings): string | null {
-  return deshake.enabled ? "deshake" : null;
-}
-
-/**
- * Transform filters in deterministic order: rotate first, then flips.
- * - 90 → `transpose=1`, 270 → `transpose=2`, 180 → `hflip,vflip`
- *   (two entries so join(",") yields `hflip,vflip`).
- */
-export function buildTransformFilters(t: TransformSettings): string[] {
+export function buildVisualVideoFilters(v: VisualFilters): string[] {
   const out: string[] = [];
+  if (!isDefaultEq(v.eq)) {
+    out.push(
+      `eq=brightness=${fmt(v.eq.brightness)}:contrast=${fmt(v.eq.contrast)}:saturation=${fmt(v.eq.saturation)}:gamma=${fmt(v.eq.gamma)}`,
+    );
+  }
+  if (v.denoise.enabled) {
+    const s = clamp(v.denoise.strength, 0, 10) / 4;
+    out.push(
+      `hqdn3d=${fmt(4 * s)}:${fmt(3 * s)}:${fmt(6 * s)}:${fmt(4.5 * s)}`,
+    );
+  }
+  if (v.deshake.enabled) out.push("deshake");
+  const t = v.transform;
   if (t.rotate === 90) out.push("transpose=1");
   else if (t.rotate === 270) out.push("transpose=2");
   else if (t.rotate === 180) out.push("hflip", "vflip");
@@ -227,24 +214,8 @@ export function buildTransformFilters(t: TransformSettings): string[] {
 }
 
 /**
- * Full visual stack as `-vf` chain entries, in fixed order:
- * eq → hqdn3d → deshake → transform. Empty when everything is default.
- * Both the server builder and any client-side `-vf` preview must use this.
- */
-export function buildVisualVideoFilters(v: VisualFilters): string[] {
-  const out: string[] = [];
-  const eq = buildEqFilter(v.eq);
-  if (eq) out.push(eq);
-  const denoise = buildDenoiseFilter(v.denoise);
-  if (denoise) out.push(denoise);
-  const deshake = buildDeshakeFilter(v.deshake);
-  if (deshake) out.push(deshake);
-  out.push(...buildTransformFilters(v.transform));
-  return out;
-}
-
-/**
- * CSS `filter` string matching {@link buildEqFilter} for live preview.
+ * CSS `filter` string matching the `eq` chain in
+ * {@link buildVisualVideoFilters} for live preview.
  * Uses the same `ctx.filter` / CSS syntax: brightness/contrast/saturate.
  * Returns "" when default (caller should set `filter: none`).
  * Gamma, denoise and deshake have no CSS equivalent and are intentionally
@@ -264,7 +235,7 @@ export function buildCanvasCssFilter(v: VisualFilters): string {
  * Applied to the media element itself (not the zoom/pan stage) so it
  * composes with canvas zoom instead of fighting it.
  */
-export function buildCanvasCssTransform(t: TransformSettings): string {
+export function buildCanvasCssTransform(t: VisualFilters["transform"]): string {
   const parts: string[] = [];
   if (t.flipH) parts.push("scaleX(-1)");
   if (t.flipV) parts.push("scaleY(-1)");

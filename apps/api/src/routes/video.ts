@@ -25,7 +25,7 @@ import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
 import { resolveRequestInput, type ResolvedRequestInput } from "./input.js";
 import { streamFile } from "./files.js";
 import { jobError, jobLog, systemError } from "../observability.js";
-import { normalizeTrimAlias, parseCustomArgs } from "../validation.js";
+import { parseCustomArgs } from "../validation.js";
 import {
   deleteJob,
   getJob,
@@ -637,7 +637,7 @@ app.post("/transcode/mobile", async (c) => {
     empty: "A video file or uploadId is required.",
   });
   if (!req.ok) return req.response;
-  const settings = normalizeTrimAlias(req.settings);
+  const settings = req.settings;
   const { assetId, temporaryPath, filename, isChunked } = req.input;
   const format = "mp4" as const;
   const jobId = crypto.randomUUID();
@@ -743,7 +743,7 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   });
   if (!req.ok) return req.response;
   const { form } = req;
-  const settings = normalizeTrimAlias(req.settings);
+  const settings = req.settings;
   const {
     temporaryPath: subtitleTmp,
     filename: subtitleFilename,
@@ -1029,7 +1029,7 @@ app.post("/transcode", async (c) => {
     empty: "A video file or uploadId is required.",
   });
   if (!req.ok) return req.response;
-  const settings = normalizeTrimAlias(req.settings);
+  const settings = req.settings;
   const { assetId, temporaryPath, filename, isChunked } = req.input;
 
   const format = settings.exportFormat;

@@ -15,22 +15,7 @@ import {
 
 export const PLAN_VERSION = 1 as const;
 
-export const RENDER_KINDS = [
-  "generic",
-  "mobile",
-  "mobile-subtitles",
-  "cut",
-] as const;
-export type RenderKind = (typeof RENDER_KINDS)[number];
-
-export const JOB_STATES = [
-  "queued",
-  "processing",
-  "completed",
-  "failed",
-  "cancelled",
-] as const;
-export type JobState = (typeof JOB_STATES)[number];
+export type RenderKind = "generic" | "mobile" | "mobile-subtitles" | "cut";
 
 const settingsByKind = {
   generic: genericSettingsSchema,

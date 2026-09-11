@@ -7,23 +7,36 @@
 // localStorage prefs. `useSharedMobileLayout`, `useMobileEditor`, the bulk/cut
 // layout hooks, and the canvas/preview components are all thin callers over
 // this service.
-import type {
-  CropRole,
-  CropZone,
-  CropZoneId,
-  MobileLayout,
-  MobileLayoutMode,
-} from "@repo/types";
 import { zoneToPixels } from "@repo/ffmpeg-filters";
 import { storageJSON } from "./storage-json";
 
-export type {
-  CropRole,
-  CropZone,
-  CropZoneId,
-  MobileLayout,
-  MobileLayoutMode,
-} from "@repo/types";
+export type MobileLayoutMode = "full" | "stacked";
+export type CropZoneId = "zone-1" | "zone-2";
+export type CropRole = "camera" | "gameplay" | "content" | "custom";
+
+export interface CropZone {
+  id: CropZoneId;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zoom: number;
+  role?: CropRole;
+  locked?: boolean;
+}
+
+export interface MobileLayout {
+  version: 1;
+  sourceAspectRatio: number;
+  outputAspectRatio: number;
+  mode: MobileLayoutMode;
+  zones: CropZone[];
+  splitRatio: number;
+  background:
+    | { type: "blur"; intensity: number }
+    | { type: "solid"; value: string }
+    | { type: "none" };
+}
 
 /**
  * Drag-direction signs per resize handle, relative to the fixed anchor on

@@ -194,24 +194,22 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 - `global-listener-bus.ts` — `GlobalListenerBus` service: pointer move/up +
   admin scroll/touch buses
 - `heavy.ts` — `initAppOnce` origin/mascot warming + `preloadUploadChunked` hover/focus intent preload
-- `utils.ts` — `cn` re-export, `NOOP` default callback
+- `utils.ts` — `cn` (clsx + tailwind-merge), `NOOP` default callback
 
 ## Shared packages used
 
 - `@repo/contracts` — validate with the same zod schemas the API enforces
-  (`generic/mobile/cutSettingsSchema`, `normalizeTrimAlias`,
-  `migrateRenderPlan`, `MULTIPART_FIELDS`, `UPLOAD_ID_*`, error envelope);
+  (`generic/mobile/cutSettingsSchema`, `migrateRenderPlan`,
+  `MULTIPART_FIELDS`, `UPLOAD_ID_*`, error envelope);
   used in `lib/validate-settings.ts`, `lib/export-presets.ts`.
 - `@repo/types` — `TranscodeProgress/Response`, `FFprobeReport`,
-  `MobileLayout/CropZone`, `Subtitle/*`, `CutSegment`; used in
-  `lib/api-client.ts`, `lib/mobile-layout.ts`, `lib/subtitles/`.
+  `Subtitle/*`; used in `lib/api-client.ts`, `lib/subtitles/`.
+  (`MobileLayout`/`CropZone` live in `lib/mobile-layout.ts`.)
 - `@repo/ffmpeg-filters` — `zoneToPixels`, `cropPercentToPixels`,
   visual-filter builders shared with the server so canvas/CSS preview and
   the exporter never drift.
-- `@repo/ui` — Shadcn primitives (`components/ui/*` re-export/wrap).
-  **Hard rule:** `bunx --bun shadcn@latest add <c>` before any new UI element;
-  never hand-roll button/dialog/slider/select/toast.
-- `@repo/config` — shared ts/tailwind/eslint configs.
+  **Shadcn hard rule** (repo `AGENTS.md` §3) still applies for primitives:
+  `bunx --bun shadcn@latest add <c>` before any new UI element.
 
 ## Rules
 

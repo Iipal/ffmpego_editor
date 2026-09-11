@@ -3,7 +3,7 @@
 Local-only Next.js frontend (App Router, `next dev -p 3050`). All pages are
 `"use client"`. Server state = TanStack Query, sync UI state = TanStack Store.
 Backend: `http://localhost:3100` (see `apps/api/README.md`).
-Shared code: `@repo/contracts`, `@repo/types`, `@repo/ffmpeg-filters`, `@repo/ui`.
+Shared code: `@repo/contracts`, `@repo/types`, `@repo/ffmpeg-filters`.
 
 ## 1. System overview
 
@@ -83,10 +83,10 @@ flowchart LR
 - `Sidebar` — thin composer (`components/editor/Sidebar.tsx`); one file
   per card in `crop/` (`SidebarInfoCard/CropCard/SpeedCard/`
   `ExportCard/PreflightSummary`, each subscribed only to its store slice)
-  + export logic in `crop/useCropExport.ts` (presets via `lib/export-presets.ts`, validation
-  via `lib/validate-settings.ts`). Info section keeps the deep-probe toggle
-  and `ProbeInspector` dialog (stream/format/frame/packet viewer over the
-  `ffprobeReport`, Shadcn Tabs).
+  - export logic in `crop/useCropExport.ts` (presets via `lib/export-presets.ts`, validation
+    via `lib/validate-settings.ts`). Info section keeps the deep-probe toggle
+    and `ProbeInspector` dialog (stream/format/frame/packet viewer over the
+    `ffprobeReport`, Shadcn Tabs).
 - `TrimControls`, `VisualFiltersPanel`, `AudioControls`, `AudioWaveform`,
   `VideoUploader`, `UploadProgress` — as named.
 
