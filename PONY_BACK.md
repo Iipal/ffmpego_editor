@@ -131,12 +131,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `lib/subtitles/googleFonts.ts`
 - **Result:** ~15 lines removed (both remote parses + all three cache-commit stanzas now single-source). New privates: `fetchRemoteCatalog(url, googleOnly)` (fetch → single-pass filter/dedup/sort, null when failed or under `MIN_CATALOG_SIZE` so a truncated payload never wipes the picker) and `commitCatalog(entries)` (fills `cachedMeta`/`cachedFamilies`/`familyToSubsets`); `fetchGoogleFontsMeta` is now try-fontsource → try-gwfh → curated fallback. One observable nuance: the fallback's `cachedFamilies` copy is now listed order instead of sorted — unobservable, its only consumer is the zero-caller `fetchGoogleFontFamilies` (item 20); the live `GoogleFontPicker` reads the return value, whose order is unchanged. `tsc` + `lint` clean.
 
-## 17. `createDefaultLayout` dead arithmetic — ⬜ open
+## 17. `createDefaultLayout` dead arithmetic — ✅ done
 
 - **Tag:** delete
 - **Problem:** Leftover locals (`fullW/fullH`, `a1/a2/h1/w1/h2/w2`) silenced with `void`; only the final constants ship (~20 lines).
 - **Do:** Delete the dead locals.
 - **Files:** `lib/mobile-layout.ts`
+- **Result:** ~15 lines removed (dead `fullAspect`/`fullH`/`fullW` → `w`/`h` chain in the full branch, dead `h1`/`w1`/`h2`/`w2` in the stacked branch, both `void`s, plus three stale thinking-out-loud comments). `a1`/`a2` stay — they feed the live `z1h`/`z2h`. Verified identical, not eyeballed: default layouts for full/stacked/stacked-custom-split+AR dumped before (git HEAD) vs after — byte-identical. `tsc` + `lint` clean.
 
 ## 18. `outputKindFor` + extension parsers — ⬜ open
 
@@ -189,5 +190,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–16. Open: items 17–24.
+- Done: items 1–17. Open: items 18–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

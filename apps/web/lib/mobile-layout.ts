@@ -275,16 +275,11 @@ export class MobileLayoutService {
     split = 0.5,
     sourceAR = 16 / 9,
   ): MobileLayout {
-    const fullAspect = 9 / 16;
-    const fullH = 0.9;
-    const fullW = fullH * (fullAspect * sourceAR);
     if (mode === "full") {
-      const w = Math.min(fullW, 0.50625);
-      const h = ((w / (fullAspect * sourceAR)) * sourceAR) / sourceAR;
-      // normalized: width = height * (9/16 * sourceAR) ??? simplified: for source 16:9 normalized to 1x1, 9:16 crop width = height * 9/16 * 16/9? = height*? fallback to centered
+      // Centered 9:16 content zone (precomputed constants — the zone math
+      // below went through several confused iterations; see git history).
       const cw = 0.31640625;
       const ch = 1;
-      void h;
       return this.normalizeLayout({
         version: 1,
         sourceAspectRatio: sourceAR,
@@ -307,14 +302,6 @@ export class MobileLayoutService {
     }
     const a1 = this.zoneAspect("stacked", split, "zone-1");
     const a2 = this.zoneAspect("stacked", split, "zone-2");
-    // For 16:9 source, zone AR relative to source normalized
-    const h1 = 0.85;
-    const w1 = ((h1 * a1) / sourceAR) * sourceAR;
-    const h2 = 0.75;
-    const w2 = ((h2 * a2) / sourceAR) * sourceAR;
-    void w1;
-    void w2;
-    // Correct: w = h * (zoneAspect / sourceAR) ??? For source normalized 1:1 but rendered 16:9, use w = h * zoneAspect / (sourceAR)? Keep simple use precomputed
     const z1w = 0.32;
     const z1h = (z1w / a1) * sourceAR;
     const z2w = 0.42;
