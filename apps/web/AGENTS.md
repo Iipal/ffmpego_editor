@@ -16,7 +16,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 ## How it works
 
 1. **Shell.** `app/layout.tsx` (fonts/css) → `app/providers.tsx`
-   (Theme + QueryClient `staleTime` 5 s + Tooltip + global `CompareDialog`) →
+   (Theme + QueryClient `staleTime` 5 s + Tooltip + `CompareDialog`/`QueueDock`
+   via `dynamic(ssr:false)` + idle preload) →
    `AppSidebar`/`AppNav` → route page → `DirectionalTransition`.
    Route boundaries: `app/loading.tsx` + `error.tsx` (`retry`) +
    `not-found.tsx` + `global-error.tsx` (own html/body, inline styles).
@@ -72,7 +73,9 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 - `components/editor/bulk/hooks.ts` (`useBulkEditorState`),
   `useBulkExport.ts` (per-item `BulkItem.audioTracks[]` → `POST /mobile`),
-  `BulkArea` | Header | ItemCard | ExpandedView (per-video audio picker) |
+  `BulkArea` | Header | ItemCard | ExpandedView (per-video audio picker,
+  `dynamic(ssr:false)` + hover/focus intent preload via
+  `preloadBulkExpandedView`) |
   `SettingsPanel.tsx`, `CellPreview.tsx`
 
 ### Cut
@@ -182,6 +185,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `validateSettings.assertGeneric/assertMobile/assertCut`
 - `mobile-layout.ts` — `MobileLayoutService`:
   `mobileLayoutService.clamp/normalizeLayout/...`,
+  `zoneSourceRect/drawZoneToCanvas` (canvas preview shares the exact
+  exporter pixel box — preview/export cannot drift),
   `MobileLayoutService.OUTPUT_W/H`
 - `video-file.ts` — `VideoFileService`:
   `videoFileService.isAcceptedVideoFile/formatFileSize/...`,

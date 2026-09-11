@@ -1,5 +1,3 @@
-"use client";
-
 // Google Fonts loader + catalog service for the subtitle editor.
 //
 // Editors go through the `googleFonts` singleton below: `ensureGoogleFontLoaded`

@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef } from "react";
 import type { MobileLayout, CropZone } from "@/lib/mobile-layout";
-import { MobileLayoutService } from "@/lib/mobile-layout";
+import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 
 interface MobilePreviewSharedProps {
   layout: MobileLayout;
@@ -28,10 +28,6 @@ function drawZone(
   if (!ctx) return;
   const vw = video.videoWidth;
   const vh = video.videoHeight;
-  const sx = Math.max(0, Math.round(zone.x * vw));
-  const sy = Math.max(0, Math.round(zone.y * vh));
-  const sw = Math.max(1, Math.round(zone.width * vw));
-  const sh = Math.max(1, Math.round(zone.height * vh));
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const w = canvas.width / dpr;
   const h = canvas.height / dpr;
@@ -48,13 +44,7 @@ function drawZone(
     ctx.fillStyle = "#000";
     ctx.fillRect(0, 0, w, h);
   }
-  const z = zone.zoom ?? 1;
-  const zsw = sw / z;
-  const zsh = sh / z;
-  const zsx = sx + (sw - zsw) / 2;
-  const zsy = sy + (sh - zsh) / 2;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(video, zsx, zsy, zsw, zsh, 0, 0, w, h);
+  mobileLayoutService.drawZoneToCanvas(ctx, video, zone, vw, vh, w, h);
   ctx.restore();
 }
 

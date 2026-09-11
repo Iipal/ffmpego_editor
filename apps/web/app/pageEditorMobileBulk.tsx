@@ -1,14 +1,31 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { startTransition, useEffect, useState } from "react";
 import { BulkArea } from "@/components/editor/bulk/BulkArea";
 import { BulkEmptyState } from "@/components/editor/bulk/BulkEmptyState";
-import { BulkExpandedView } from "@/components/editor/bulk/BulkExpandedView";
 import { BulkHeader } from "@/components/editor/bulk/BulkHeader";
 import { BulkItemCard } from "@/components/editor/bulk/BulkItemCard";
 import { BulkSettingsPanel } from "@/components/editor/bulk/BulkSettingsPanel";
 import { useBulkEditorState } from "@/components/editor/bulk/hooks";
 import { useBulkExport } from "@/components/editor/bulk/useBulkExport";
+
+// Canvas-heavy expanded view (528 lines) loads only on expand: hover/focus
+// on an item card warms the chunk via preloadBulkExpandedView (BulkItemCard),
+// so first expand rarely waits. CellPreview stays static — it renders in
+// every card, splitting it would waterfall the list itself.
+const DynamicBulkExpandedView = dynamic(
+  () =>
+    import("@/components/editor/bulk/BulkExpandedView").then((m) => ({
+      default: m.BulkExpandedView,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="rounded-lg bg-kumo-recessed animate-pulse border border-kumo-hairline min-h-64" />
+    ),
+  },
+);
 
 export default function MobileBulkEditorPage() {
   const {
@@ -126,7 +143,7 @@ export default function MobileBulkEditorPage() {
       />
 
       {expandedItem ? (
-        <BulkExpandedView
+        <DynamicBulkExpandedView
           key={expandedItem.id}
           item={expandedItem}
           stackedLayout={stackedLayout}

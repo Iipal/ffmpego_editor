@@ -1,5 +1,3 @@
-"use client";
-
 import { createAtom } from "@tanstack/store";
 import { useSelector } from "@tanstack/react-store";
 

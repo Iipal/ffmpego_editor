@@ -113,25 +113,7 @@ const BulkLiveStackedPreview = memo(function BulkLiveStackedPreview({
       ctx.scale(dpr, dpr);
       ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, width, h);
-      const sx = Math.max(0, Math.round(zone.x * vw));
-      const sy = Math.max(0, Math.round(zone.y * vh));
-      const sw = Math.max(1, Math.round(zone.width * vw));
-      const sh = Math.max(1, Math.round(zone.height * vh));
-      const z = zone.zoom ?? 1;
-      const zsw = sw / z;
-      const zsh = sh / z;
-      ctx.imageSmoothingQuality = "high";
-      ctx.drawImage(
-        video,
-        sx + (sw - zsw) / 2,
-        sy + (sh - zsh) / 2,
-        zsw,
-        zsh,
-        0,
-        0,
-        width,
-        h,
-      );
+      mobileLayoutService.drawZoneToCanvas(ctx, video, zone, vw, vh, width, h);
       ctx.restore();
     }
     if (useWatermark && wmImg) {

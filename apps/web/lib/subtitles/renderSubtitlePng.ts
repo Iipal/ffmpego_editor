@@ -1,4 +1,3 @@
-"use client";
 import type { Subtitle } from "./subtitleStorage";
 import { googleFonts } from "./googleFonts";
 

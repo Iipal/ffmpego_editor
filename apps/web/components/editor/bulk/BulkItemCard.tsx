@@ -17,6 +17,12 @@ const BULK_CARD_STYLE = {
   containIntrinsicSize: "0 320px",
 } as CSSProperties;
 
+/** Hover/focus intent preload of the canvas-heavy expanded-view chunk. */
+export function preloadBulkExpandedView() {
+  if (typeof window !== "undefined")
+    void import("@/components/editor/bulk/BulkExpandedView");
+}
+
 export type BulkItemCardProps = {
   item: BulkItem;
   stackedLayout: MobileLayout | null;
@@ -100,6 +106,8 @@ export const BulkItemCard = memo(function BulkItemCard({
               <button
                 type="button"
                 onClick={() => onExpand?.(it.id)}
+                onMouseEnter={preloadBulkExpandedView}
+                onFocus={preloadBulkExpandedView}
                 aria-expanded={false}
                 aria-label={`Expand ${it.baseName} preview`}
                 title="Expand preview with playback controls"

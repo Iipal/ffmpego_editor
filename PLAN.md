@@ -119,24 +119,43 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
 
 ## PART 2D — perf
 
-- [ ] **2.07** `"use client"` noise — ✅ but ❌ drop "double wrapper" clause (single
-      thin wrapper). Strip on pure libs (`renderSubtitlePng`, `googleFonts`,
-      `playheadSlice`, `hooks/*`; `admin/helpers.ts:1` already clean).
-- [ ] **2.08** Global mounts — ✅ minus 🔄 `CommandHost` (deleted with palette).
-      Lazy-mount `CompareDialog`/`QueueDock`/fonts/theme via `next/dynamic` +
-      intent preload.
-- [ ] **2.09** `transpilePackages` — ✅ still `["@repo/contracts","@repo/types"]`
-      (`next.config.ts:6`). Add `ffmpeg-filters` + `ui`.
-- [ ] **2.10** Deps — ✅ (`shadcn` in deps `:28` → devDeps; `base-ui`+`cmdk` overlap →
-      pick one; verify `lucide-react ^1.44`; drop absent `radix/react-icons`
-      optimize). Ponytail: `native` — pick one command lib.
-- [ ] **2.11** Code-split — ✅ with fixes: `useAdminJobs` hover-preload FIXED
-      (`:21,450`); `admin/heavy.tsx` is import-map, not `dynamic()` — reword.
-      Add intent preload for `CellPreview`/`BulkExpandedView` canvas.
-- [ ] **2.12** Preview/export drift — ✅ (`mobile-layout.ts:342` "Must match canvas";
-      `CellPreview:80`/`BulkExpandedView:124` hand-rolled `drawImage`; only
-      `zoneToPixels` shared). Extract `drawZoneToCanvas()` tested vs filter
-      builder.
+- [x] **2.07** `"use client"` noise — DONE 2026-09-11. Stripped from 10
+      pure modules (`lib/subtitles/renderSubtitlePng|googleFonts`,
+      `store/playheadSlice`, all 7 `hooks/*`); `admin/helpers.ts:1`
+      already clean. Safe: every importer is a client component, no
+      server tree exists. Dropped the "double wrapper" clause (single
+      thin wrapper confirmed).
+- [x] **2.08** Global mounts — DONE 2026-09-11. `CompareDialog` +
+      `QueueDock` now `dynamic(ssr:false)` in `providers.tsx` with
+      `requestIdleCallback` preload (same pattern as `preloadHeavyCard`).
+      Fonts/theme verified no-change: `next/font` is already build-time
+      optimal; `ThemeProvider` must stay SSR'd (blocking theme script —
+      see `layout.tsx` comment). `CommandHost` long gone with palette.
+- [x] **2.09** `transpilePackages` — DONE 2026-09-11. Added
+      `@repo/ffmpeg-filters` (same TS-source shape as contracts/types).
+      No `@repo/ui` entry — no such package exists (primitives are local
+      `components/ui`). Also dropped `@radix-ui/react-icons` from
+      `optimizePackageImports` (not installed, zero imports).
+- [x] **2.10** Deps — DONE 2026-09-11, verified no-change: `shadcn`
+      already in devDeps; `lucide-react` 1.44.0 installed = `^1.44`;
+      `cmdk` kept — only consumer is `ui/command.tsx` (GoogleFontPicker)
+      and base-ui ships no Command primitive, so "pick one" would mean
+      hand-rolling; no `radix/react-icons` package to drop.
+- [x] **2.11** Code-split — DONE 2026-09-11. `BulkExpandedView` (528
+      lines, canvas-heavy) is `dynamic(ssr:false)` in
+      `pageEditorMobileBulk` with hover/focus intent preload
+      (`preloadBulkExpandedView` on the card expand button).
+      `CellPreview` stays static deliberately — it renders in every
+      card, splitting it would waterfall the list. `admin/heavy.tsx`
+      confirmed import-map by design (statically analyzable paths).
+- [x] **2.12** Preview/export drift — DONE 2026-09-11. Added
+      `zoneSourceRect` (exact exporter `zoneToPixels` box + zoom as
+      center-crop) + `drawZoneToCanvas` on `MobileLayoutService`;
+      `CellPreview`, `BulkExpandedView`, `MobilePreviewShared` all route
+      through it (hand-rolled `zone.x * vw` math deleted ×3). Bonus fix:
+      preview now also upper-clamps like the exporter (was lower-clamp
+      only). Parity covered by 2 new bun tests
+      (`zoneSourceRect` = exporter box at zoom 1, center-crop at zoom 2).
 
 ## PART 2E — upload/SSE (close 3, keep 2, downgrade 1)
 

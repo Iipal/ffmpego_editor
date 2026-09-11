@@ -372,6 +372,48 @@ export class MobileLayoutService {
   }
 
   /**
+   * Canvas source rect for a zone: the exact exporter pixel box
+   * (`zoneToPixels`, same as `zoneToFilter` above) with `zoom` applied as
+   * a center-crop. Canvas previews must derive from this — never hand-roll
+   * `zone.x * vw` math — so preview and export cannot drift.
+   */
+  zoneSourceRect(
+    zone: CropZone,
+    vw: number,
+    vh: number,
+  ): { zsx: number; zsy: number; zsw: number; zsh: number } {
+    const box = zoneToPixels(zone, vw, vh);
+    const z = zone.zoom || 1;
+    const zsw = box.cw / z;
+    const zsh = box.ch / z;
+    return {
+      zsx: box.cx + (box.cw - zsw) / 2,
+      zsy: box.cy + (box.ch - zsh) / 2,
+      zsw,
+      zsh,
+    };
+  }
+
+  /**
+   * Draw a zone stretched to (`dw`, `dh`) on a 2d context. Shared by
+   * `CellPreview`, `BulkExpandedView`, and `MobilePreviewShared` —
+   * the single canvas consumer of `zoneSourceRect`.
+   */
+  drawZoneToCanvas(
+    ctx: CanvasRenderingContext2D,
+    video: HTMLVideoElement,
+    zone: CropZone,
+    vw: number,
+    vh: number,
+    dw: number,
+    dh: number,
+  ): void {
+    const r = this.zoneSourceRect(zone, vw, vh);
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(video, r.zsx, r.zsy, r.zsw, r.zsh, 0, 0, dw, dh);
+  }
+
+  /**
    * Persist a layout to localStorage: both the generic most-recent key and
    * the per-mode key, so mode switches restore their own last layout.
    * Best-effort — quota/private-mode failures are swallowed.

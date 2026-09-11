@@ -1,4 +1,3 @@
-"use client";
 import { useEffect, useState, useCallback } from "react";
 import { mobileLayoutService, type MobileLayout } from "@/lib/mobile-layout";
 

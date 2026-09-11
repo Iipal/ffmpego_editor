@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useRef } from "react";
 import { uploadChunked } from "@/lib/upload-chunked";
 import type { AudioTrackState } from "@/store/audioSlice";

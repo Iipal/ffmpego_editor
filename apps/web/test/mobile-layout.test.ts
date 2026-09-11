@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { zoneToPixels } from "@repo/ffmpeg-filters";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 
 describe("mobileLayoutService.clamp", () => {
@@ -31,5 +32,30 @@ describe("mobileLayoutService layouts", () => {
       expect(z.x + z.width).toBeLessThanOrEqual(1);
       expect(z.y + z.height).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe("zoneSourceRect preview/export parity", () => {
+  test("matches the exporter pixel box at zoom 1", () => {
+    const layout = mobileLayoutService.createDefaultLayout("stacked", 0.5);
+    for (const zone of layout.zones) {
+      const box = zoneToPixels(zone, 1920, 1080);
+      const r = mobileLayoutService.zoneSourceRect(zone, 1920, 1080);
+      expect(r.zsx).toBe(box.cx);
+      expect(r.zsy).toBe(box.cy);
+      expect(r.zsw).toBe(box.cw);
+      expect(r.zsh).toBe(box.ch);
+    }
+  });
+
+  test("applies zoom as a center-crop of the exporter box", () => {
+    const layout = mobileLayoutService.createDefaultLayout("stacked", 0.5);
+    const zone = { ...layout.zones[0], zoom: 2 };
+    const box = zoneToPixels(zone, 1920, 1080);
+    const r = mobileLayoutService.zoneSourceRect(zone, 1920, 1080);
+    expect(r.zsw).toBe(box.cw / 2);
+    expect(r.zsh).toBe(box.ch / 2);
+    expect(r.zsx).toBe(box.cx + box.cw / 4);
+    expect(r.zsy).toBe(box.cy + box.ch / 4);
   });
 });
