@@ -466,11 +466,21 @@ export class UploadChunked {
   ): Promise<T> {
     const init = opts.signal ? { signal: opts.signal } : undefined;
     if (uploadId) {
-      return apiClient.postWithUploadId<T>(endpoint, uploadId, null, init);
+      // Chunked path: the server resolves the input from the session header
+      // and ignores the (empty) body.
+      return apiClient.requestJson<T>(endpoint, {
+        ...init,
+        method: "POST",
+        headers: { "x-upload-id": uploadId },
+      });
     }
     const form = new FormData();
     form.append("file", file);
-    return apiClient.formPost<T>(endpoint, form, init);
+    return apiClient.requestJson<T>(endpoint, {
+      ...init,
+      method: "POST",
+      body: form,
+    });
   }
 
   private async sendBlob(
@@ -481,11 +491,14 @@ export class UploadChunked {
   ): Promise<Blob> {
     const init = opts.signal ? { signal: opts.signal } : undefined;
     if (uploadId) {
-      return apiClient.postBlobWithUploadId(endpoint, uploadId, init);
+      return apiClient.requestBlob(endpoint, {
+        ...init,
+        headers: { "x-upload-id": uploadId },
+      });
     }
     const form = new FormData();
     form.append("file", file);
-    return apiClient.postBlob(endpoint, form, init);
+    return apiClient.requestBlob(endpoint, { ...init, body: form });
   }
 
   /** File identity key — a different file never reuses another's bytes. */

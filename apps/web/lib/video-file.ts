@@ -112,8 +112,7 @@ export class VideoFileService {
 
   /**
    * Compare-dialog output kind from a filename: image for gif, audio for
-   * mp3/wav, video otherwise. (Single canonical copy; was duplicated in
-   * export-queue + export-history.)
+   * mp3/wav, video otherwise. (Single canonical copy used by export-queue.)
    */
   public outputKindForName(name: string): "video" | "audio" | "image" {
     const ext = this.getFileExtension(name);

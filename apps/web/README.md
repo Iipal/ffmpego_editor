@@ -216,7 +216,7 @@ flowchart LR
   `FilterBar` — status filter;
   `JobRow` — badge/progress/row actions (+ Alt download via
   `GET /api/files/:id/download` with `-alt` save suffix, Alt compare via
-  `exportHistory.openFileComparison`); `ExtractRows` — audio-extract history;
+  `exportQueue.openFileComparison`); `ExtractRows` — audio-extract history;
   `CompareDialog` (`components/export/CompareDialog.tsx`) — source-vs-output.
 
 ## 3. Data flow (every export takes this path)
@@ -254,9 +254,9 @@ flowchart LR
   nav, click toggles the dock) / `QueueActivityBadge` (collapsed nav, opens).
 - `lib/preflight.ts` (`Preflight` service:
   `preflight.check` + `probeApiConnectivity` via lightweight `GET /health`).
-- `lib/export-history.ts` (`ExportHistory` service:
-  `exportHistory.renameJob/retryEntry/openComparison/openFileComparison/retryAudioExtract`) +
-  `store/exportHistorySlice.ts`: `trackHistoryEntry`.
+- `lib/export-queue.ts` (`ExportQueue`: history retry/compare are queue-owned —
+  `retryEntry/retryAudioExtract/openComparison/openFileComparison`) +
+  `store/exportHistorySlice.ts`: `trackHistoryEntry` (read/record only).
 
 ## 4. State map
 

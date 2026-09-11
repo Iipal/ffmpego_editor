@@ -132,17 +132,16 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 #### Transport & export pipeline
 
 - `api-client.ts` — `APIClient` service:
-  `apiClient.url/post/formPost/postWithUploadId/patch/delete/postBlob/postBlobWithUploadId`
+  `apiClient.url/baseUrl/requestJson/requestBlob` (+ `VideoMetadata`/`AudioAnalysis` shapes)
 - `export-queue.ts` — `ExportQueue` service:
-  `exportQueue.enqueue/cancel/dismiss`
-- `export-history.ts` — `ExportHistory` service:
-  `exportHistory.renameJob/retryEntry/openComparison/openFileComparison/retryAudioExtract`
+  `exportQueue.enqueue/cancel/dismiss/retryEntry/retryAudioExtract/openComparison/openFileComparison`
+  (history retry/compare are queue-owned; the history store only reads/records entries)
 - `export-presets.ts` — `ExportPresets` service:
   `exportPresets.all/customs/save/remove/toPatch`
 - `transcode-progress.ts` — `TranscodeProgress` service:
   `transcodeProgress.subscribe`
 - `transcode-jobs.ts` — `TranscodeJobs` service:
-  `transcodeJobs.cancelTranscodeJob/serverErrorMessage`
+  `transcodeJobs.cancelTranscodeJob/renameJob/serverErrorMessage`
 - `preflight.ts` — `Preflight` service: `preflight.check` (fail-fast gate),
   `probeApiConnectivity` via lightweight `GET /health`
 - `save-blob-file.ts` — `SaveBlobFile` service:

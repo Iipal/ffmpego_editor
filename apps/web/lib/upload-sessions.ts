@@ -99,7 +99,8 @@ class UploadSessions {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      await apiClient.delete(`/api/upload/${uploadId}`, {
+      await apiClient.requestJson<unknown>(`/api/upload/${uploadId}`, {
+        method: "DELETE",
         signal: ctrl.signal,
       });
     } finally {

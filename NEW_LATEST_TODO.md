@@ -63,11 +63,11 @@ cutting. Nothing below is applied; this is the work list.
       Why: `class X { ... } export const x = new X()` with no instance state.
       Steps: plain exported functions, same names where callers exist.
       Verify: typecheck + mobile layout clamping unchanged.
-- [ ] **1.7 Merge queue executor + history retry/compare (~110).**
+- [x] **1.7 Merge queue executor + history retry/compare (~110).**
       `lib/export-history.ts:28`. Why: retry/compare split across queue and history.
       Steps: queue owns retry; history keeps read/record only.
       Verify: QueueDock retry + compare dialog work.
-- [ ] **1.8 Collapse api-client verb wrappers (~100).**
+- [x] **1.8 Collapse api-client verb wrappers (~100).**
       `lib/api-client.ts:67`. Why: per-verb methods over one fetch+envelope core.
       Steps: direct `fetchJson`-style calls + one envelope helper at call sites.
       Verify: uploads, transcodes, admin polls all still succeed.
@@ -75,9 +75,8 @@ cutting. Nothing below is applied; this is the work list.
       `lib/preflight.ts:49`. Why: two fail-fast gates (`preflight.check` + `validateSettings`).
       Steps: `validateSettings` only, keep the `GET /health` connectivity probe.
       Verify: blocked export still shows issues, 422 surfaces.
-- [ ] **1.10 Drop subtitle template migration/backfill (~80).**
-      `lib/subtitles/subtitleStorage.ts:83`. Why: version-migration code for
-      localStorage templates.
+- [x] **1.10 Drop subtitle template migration/backfill (~80).**
+      `lib/subtitles/subtitleStorage.ts:83`. Why: version-migration code for localStorage templates.
       Steps: plain read/write, drop backfill.
       Verify: subtitle settings persist across reload.
 - [ ] **1.11 Fold transcode error/429/log-tail shapers (~75).**

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import type { JobEntry } from "./types";
-import { exportHistory } from "@/lib/export-history";
+import { exportQueue } from "@/lib/export-queue";
+import { transcodeJobs } from "@/lib/transcode-jobs";
 import {
   hydrateHistoryStore,
   renameHistoryEntry,
@@ -35,7 +36,7 @@ export function useAdminHistory(invalidateJobs: () => void) {
   );
 
   const handleCompareOne = useCallback((job: JobEntry) => {
-    void exportHistory.openComparison(
+    void exportQueue.openComparison(
       job.jobId,
       job.filename || job.outputFile?.name || job.jobId,
       "Admin",
@@ -48,41 +49,23 @@ export function useAdminHistory(invalidateJobs: () => void) {
       toast.error("No alternate output on this job.");
       return;
     }
-    void exportHistory.openFileComparison(
-      alt.id,
-      alt.name,
-      "Admin · alternate",
-    );
+    void exportQueue.openFileComparison(alt.id, alt.name, "Admin · alternate");
   }, []);
 
   const handleRetryEntry = useCallback(
     async (entry: HistoryEntry) => {
       try {
         if (entry.kind === "audio-extract" && entry.audioFormat) {
-          const blob = await exportHistory.retryAudioExtract(
-            entry.audioFormat,
-            entry.label,
-          );
-          const [{ openComparison }, { sourceStore }] = await Promise.all([
-            import("@/store/compareSlice"),
-            import("@/store/sourceSlice"),
-          ]);
-          openComparison({
-            title: entry.label,
-            sourceUrl: sourceStore.state.mediaUrl,
-            outputUrl: URL.createObjectURL(blob),
-            outputKind: "audio",
-            meta: "Audio-only pull (re-run)",
-          });
-          toast.success("Audio re-extracted", { description: entry.label });
+          exportQueue.retryAudioExtract(entry.audioFormat, entry.label);
+          toast.success("Retry queued", { description: entry.label });
           return;
         }
         if (!entry.settingsJson) {
           toast.error("Retry unavailable — original settings were not stored.");
           return;
         }
-        const jobId = await exportHistory.retryEntry(entry);
-        toast.success("Retry queued", { description: jobId });
+        exportQueue.retryEntry(entry);
+        toast.success("Retry queued", { description: entry.label });
         invalidateJobs();
       } catch (e) {
         toast.error(e instanceof Error ? e.message : "Retry failed");
@@ -95,7 +78,7 @@ export function useAdminHistory(invalidateJobs: () => void) {
     async (jobId: string, name: string) => {
       const clean = name.trim();
       if (!clean) throw new Error("Name cannot be empty.");
-      await exportHistory.renameJob(jobId, clean); // server PATCH
+      await transcodeJobs.renameJob(jobId, clean); // server PATCH
       renameHistoryEntry(jobId, clean);
       if (!entryById.has(jobId)) {
         // Adopt untracked server job so the rename sticks across navigation.

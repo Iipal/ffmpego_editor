@@ -66,10 +66,12 @@ class Storage {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      return await apiClient.post<StorageSweepResult>(
+      return await apiClient.requestJson<StorageSweepResult>(
         "/api/storage/sweep",
-        {},
         {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
           signal: ctrl.signal,
         },
       );

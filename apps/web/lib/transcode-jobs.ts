@@ -165,6 +165,22 @@ export class TranscodeJobs {
     return body.status ?? "cancelled";
   }
 
+  /**
+   * Rename a job server-side (`PATCH /api/transcode/jobs/:id`) and return
+   * the canonical filename. Callers adopt the rename into the history store.
+   */
+  public async renameJob(jobId: string, filename: string): Promise<string> {
+    const body = await apiClient.requestJson<{ filename: string }>(
+      `/api/transcode/jobs/${jobId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename }),
+      },
+    );
+    return body.filename;
+  }
+
   /** Append the ffmpeg tail log to a failure message (truncated, single block). */
   public withLogTail(
     message: string | undefined,

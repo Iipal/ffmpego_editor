@@ -1,11 +1,11 @@
 // Central HTTP service for the local Hono API (`NEXT_PUBLIC_API_URL`).
 //
 // Editors never `fetch()` the backend directly — they go through the
-// `apiClient` singleton below (`apiClient.post/formPost/...`), which owns
-// base-URL resolution, JSON envelope error shaping (via `transcodeJobs`),
-// and the `x-upload-id` chunked-upload POST variant. `exportQueue`,
-// `upload-chunked`, `transcode-jobs`, and the admin/m Metadata hooks are all
-// thin callers over this service.
+// `apiClient` singleton below (`apiClient.requestJson/requestBlob/url`),
+// which owns base-URL resolution plus JSON/blob funnels with envelope
+// error shaping (via `transcodeJobs`). `exportQueue`, `upload-chunked`,
+// `transcode-jobs`, and the admin/metadata hooks are all thin callers
+// over this service.
 import { transcodeJobs } from "./transcode-jobs";
 import type {
   FFprobeReport,
@@ -59,8 +59,8 @@ export interface AudioAnalysis {
 
 /**
  * Singleton service owning every raw HTTP call to the backend: base-URL
- * resolution plus JSON/form/patch/delete/blob helpers with shared envelope
- * error shaping. All mutable config lives here (never scattered across
+ * resolution plus one JSON and one blob funnel with shared envelope error
+ * shaping. All mutable config lives here (never scattered across
  * callers), so endpoint construction stays consistent for fetch, XHR, SSE,
  * and `preconnect` hints.
  */
@@ -92,14 +92,14 @@ class APIClient {
   /**
    * POST a JSON body and parse the JSON reply as `T`. Used for metadata
    * probes and other small JSON endpoints (multipart uploads use
-   * `formPost` / `uploadChunked.uploadForm` instead for progress events).
+   * `uploadChunked.uploadForm` instead for progress events).
    */
   async post<T>(
     endpoint: string,
     body: unknown,
     init?: RequestInit,
   ): Promise<T> {
-    return this.requestJson<T>(this.url(endpoint), {
+    return this.requestJson<T>(endpoint, {
       ...init,
       method: "POST",
       headers: { "Content-Type": "application/json", ...init?.headers },
@@ -108,99 +108,31 @@ class APIClient {
   }
 
   /**
-   * POST a `FormData` body (file + settings) and parse the JSON reply.
-   * Error payloads are shaped through the shared envelope reader so 422
-   * `issues[]` reach toasts instead of a bare status code.
+   * Core fetch→JSON funnel: perform the request, shape non-2xx failures
+   * through the shared envelope reader, and parse the success body as `T`.
+   * Callers pass `method`/`headers`/`body` explicitly (JSON PATCH/DELETE,
+   * multipart forms, `x-upload-id` reuse) instead of per-verb wrappers.
    */
-  async formPost<T>(
-    endpoint: string,
-    form: FormData,
-    init?: RequestInit,
-  ): Promise<T> {
-    return this.requestJson<T>(this.url(endpoint), {
-      ...init,
-      method: "POST",
-      body: form,
-    });
+  async requestJson<T>(endpoint: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(this.url(endpoint), init);
+    if (!res.ok) {
+      const payload = (await res.json().catch(() => null)) as unknown;
+      throw new Error(
+        transcodeJobs.serverErrorMessage(payload) ?? `API error: ${res.status}`,
+      );
+    }
+    return res.json() as Promise<T>;
   }
 
   /**
-   * POST a multipart form that reuses a chunked-upload sparse temp file via
-   * the `x-upload-id` header (files >256 MB upload once, then every job POST
-   * references the same upload). `form` may be empty when the endpoint needs
-   * no extra parts (e.g. `POST /api/metadata` after a chunked upload).
+   * Core fetch→Blob funnel: POST a body and return the raw output `Blob`
+   * (audio-extract pulls). A null/omitted body sends a bodiless POST (used
+   * with `x-upload-id` reuse). Failures throw with the envelope message.
    */
-  async postWithUploadId<T>(
-    endpoint: string,
-    uploadId: string,
-    form?: FormData | null,
-    init?: RequestInit,
-  ): Promise<T> {
-    return this.requestJson<T>(this.url(endpoint), {
-      ...init,
-      method: "POST",
-      headers: { "x-upload-id": uploadId, ...init?.headers },
-      body: form ?? undefined,
-    });
-  }
-
-  /** PATCH a JSON body (e.g. job rename) and parse the JSON reply. */
-  async patch<T>(
-    endpoint: string,
-    body: unknown,
-    init?: RequestInit,
-  ): Promise<T> {
-    return this.requestJson<T>(this.url(endpoint), {
-      ...init,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...init?.headers },
-      body: JSON.stringify(body),
-    });
-  }
-
-  /**
-   * DELETE and parse the JSON reply (job delete / clear-all / cooperative
-   * cancel). Callers needing the raw `Response` (status text slicing) should
-   * use `url()` + `fetch` directly.
-   */
-  async delete<T>(endpoint: string, init?: RequestInit): Promise<T> {
-    return this.requestJson<T>(this.url(endpoint), {
-      ...init,
-      method: "DELETE",
-    });
-  }
-
-  /**
-   * POST a multipart form that reuses a chunked-upload sparse temp file via
-   * the `x-upload-id` header and return the raw output `Blob` (audio-extract
-   * pulls over a reused session). Mirrors `postWithUploadId` for blob
-   * endpoints; failures throw with the envelope message.
-   */
-  async postBlobWithUploadId(
-    endpoint: string,
-    uploadId: string,
-    init?: RequestInit,
-  ): Promise<Blob> {
-    return this.postBlob(endpoint, null, {
-      ...init,
-      headers: { "x-upload-id": uploadId, ...init?.headers },
-    });
-  }
-
-  /**
-   * POST a `FormData` body and return the raw output `Blob` (audio-extract
-   * pulls). A null form sends a bodiless POST (used with `x-upload-id`
-   * reuse). Failures throw with the envelope message, mirroring `formPost`.
-   */
-  async postBlob(
-    endpoint: string,
-    form: FormData | null,
-    init?: RequestInit,
-  ): Promise<Blob> {
+  async requestBlob(endpoint: string, init?: RequestInit): Promise<Blob> {
     const res = await fetch(this.url(endpoint), {
       ...init,
       method: "POST",
-      body: form ?? undefined,
     });
     if (!res.ok) {
       const payload = (await res.json().catch(() => null)) as unknown;
@@ -212,21 +144,6 @@ class APIClient {
   }
 
   // ----------------------------------------------------------------- private
-
-  /**
-   * Single fetch→JSON funnel: performs the request, shapes non-2xx failures
-   * through the shared envelope reader, and parses the success body as `T`.
-   */
-  private async requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(url, init);
-    if (!res.ok) {
-      const payload = (await res.json().catch(() => null)) as unknown;
-      throw new Error(
-        transcodeJobs.serverErrorMessage(payload) ?? `API error: ${res.status}`,
-      );
-    }
-    return res.json() as Promise<T>;
-  }
 
   /** Read the API origin once (trailing slashes trimmed, local fallback). */
   private static readBaseUrl(): string {

@@ -30,7 +30,10 @@ import {
   type ExportQueueItem,
   type ExportQueueItemKind,
 } from "@/store/exportQueueSlice";
-import { trackHistoryEntry } from "@/store/exportHistorySlice";
+import {
+  trackHistoryEntry,
+  type HistoryEntry,
+} from "@/store/exportHistorySlice";
 import { sourceStore } from "@/store/sourceSlice";
 import {
   TranscodeCancelledError,
@@ -183,6 +186,117 @@ class ExportQueue {
     const item = this.itemById(id);
     if (!item || isQueueItemActive(item)) return;
     removeQueueItem(id);
+  }
+
+  /**
+   * History retry, queue-owned: replay a stored entry's settings against
+   * the current source file as a regular queue task (dock row, progress,
+   * save + comparison, history tracking via the default `trackHistory`
+   * path). Returns the queue item id. Rejects for audio-extract entries
+   * and entries without stored settings.
+   */
+  retryEntry(entry: HistoryEntry): string {
+    if (entry.kind === "audio-extract" || !entry.settingsJson) {
+      throw new Error("Only video exports can be retried from history.");
+    }
+    return this.enqueue({
+      kind: this.kindForEndpoint(entry.endpoint),
+      label: `${entry.label} (retry)`,
+      endpoint: entry.endpoint,
+      file: this.currentFile(),
+      settingsJson: entry.settingsJson,
+      silentEnqueue: true,
+    });
+  }
+
+  /**
+   * Audio re-extract, queue-owned: direct-mode task producing the Blob via
+   * the shared chunked session, then tracking a local-only history record
+   * and opening the comparison. Returns the queue item id.
+   */
+  retryAudioExtract(audioFormat: "mp3" | "wav", label: string): string {
+    const file = this.currentFile();
+    return this.enqueue({
+      kind: "audio-extract",
+      label,
+      endpoint: "/api/audio/extract",
+      file: null,
+      silentEnqueue: true,
+      run: async () => {
+        const blob = await uploadChunked.postBlob(
+          `/api/audio/extract?format=${audioFormat}`,
+          file,
+        );
+        trackHistoryEntry({
+          jobId: `extract-${Date.now()}`,
+          endpoint: "/api/audio/extract",
+          kind: "audio-extract",
+          label,
+          createdAt: Date.now(),
+          audioFormat,
+        });
+        return blob;
+      },
+      onFinish: ({ blob }) => {
+        this.openBlobComparison(
+          blob,
+          label,
+          "Audio-only pull (re-run)",
+          "audio",
+        );
+        toast.success("Audio re-extracted", { description: label });
+      },
+    });
+  }
+
+  /**
+   * Best-effort: re-pull a finished render and open the side-by-side
+   * comparison. Never rejects — compare is advisory, and the save toast has
+   * already confirmed success by the time this runs.
+   */
+  async openComparison(
+    jobId: string,
+    title: string,
+    meta?: string | null,
+  ): Promise<void> {
+    try {
+      const blob = await saveBlobFile.fetchDownload(
+        apiClient.url(`/api/transcode/download/${jobId}`),
+      );
+      this.openBlobComparison(
+        blob,
+        title,
+        meta ?? null,
+        videoFileService.outputKindForName(title),
+      );
+    } catch {
+      // Compare is advisory — the save toast already confirmed success.
+    }
+  }
+
+  /**
+   * Best-effort: pull an alternate output by opaque file id
+   * (`GET /api/files/:id/download`) and open the side-by-side comparison
+   * against the current source. Never rejects (advisory).
+   */
+  async openFileComparison(
+    fileId: string,
+    title: string,
+    meta?: string | null,
+  ): Promise<void> {
+    try {
+      const blob = await saveBlobFile.fetchDownload(
+        apiClient.url(`/api/files/${fileId}/download`),
+      );
+      this.openBlobComparison(
+        blob,
+        title,
+        meta ?? null,
+        videoFileService.outputKindForName(title),
+      );
+    } catch {
+      // Compare is advisory — the row stays put on failure.
+    }
   }
 
   // ----------------------------------------------------------------- private
@@ -380,13 +494,12 @@ class ExportQueue {
             videoFileService.getFileExtension(task.label),
           ),
         );
-        openComparison({
-          title: saved,
-          sourceUrl: sourceStore.state.mediaUrl,
-          outputUrl: URL.createObjectURL(blob),
-          outputKind: this.outputKindFor(task),
-          meta: task.meta,
-        });
+        this.openBlobComparison(
+          blob,
+          saved,
+          task.meta ?? null,
+          this.outputKindFor(task),
+        );
       }
       if (!task.silentSuccess) {
         toast.success("Exported", {
@@ -449,6 +562,47 @@ class ExportQueue {
   /** Look up a queue row from the store (or undefined when dismissed). */
   private itemById(id: string): ExportQueueItem | undefined {
     return exportQueueStore.state.items.find((i) => i.id === id);
+  }
+
+  /**
+   * Push fetched output bytes into the global side-by-side comparison
+   * dialog (source = current media, output = blob object URL).
+   */
+  private openBlobComparison(
+    blob: Blob,
+    title: string,
+    meta: string | null,
+    outputKind: "video" | "audio" | "image",
+  ): void {
+    openComparison({
+      title,
+      sourceUrl: sourceStore.state.mediaUrl,
+      outputUrl: URL.createObjectURL(blob),
+      outputKind,
+      meta,
+    });
+  }
+
+  /**
+   * Current source file, or a rejection telling the user to reload it
+   * (retries replay stored settings against whatever is loaded now).
+   */
+  private currentFile(): File {
+    const file = sourceStore.state.file;
+    if (!file)
+      throw new Error("Load the source file again to retry this export.");
+    return file;
+  }
+
+  /**
+   * Queue row kind for a history retry: derived from the stored endpoint
+   * (history entries predate per-editor kinds; bulk retries show as mobile).
+   */
+  private kindForEndpoint(endpoint: string): ExportQueueItemKind {
+    if (endpoint.includes("/cut")) return "cut";
+    if (endpoint.includes("/subtitles")) return "subtitles";
+    if (endpoint.includes("/mobile")) return "mobile";
+    return "crop";
   }
 
   /**
