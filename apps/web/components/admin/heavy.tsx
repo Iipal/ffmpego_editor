@@ -18,4 +18,3 @@ export function preloadHeavyProgress() {
 export function preloadHeavyCard() {
   if (typeof window !== "undefined") void HEAVY_MODULES.card();
 }
-export { preloadUploadChunked } from "@/lib/preload";

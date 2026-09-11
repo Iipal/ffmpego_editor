@@ -23,3 +23,8 @@ export function initAppOnce(key: string, urls: string[]): boolean {
   } catch {}
   return true;
 }
+
+/** Hover/focus intent preload of the chunked-upload chunk. */
+export function preloadUploadChunked() {
+  if (typeof window !== "undefined") void import("@/lib/upload-chunked");
+}

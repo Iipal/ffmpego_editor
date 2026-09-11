@@ -258,13 +258,12 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph Client["TanStack Store (sync)"]
-        SRC[sourceSlice<br/>file, mediaUrl, trim]
+        SRC[sourceSlice<br/>file, mediaUrl, trim, loop]
         CROP[cropSlice<br/>crop, aspect, zoom]
         CUT[cutSlice<br/>format, fps, quality]
         FIL[filterSlice<br/>visual filters]
         AUD[audioSlice<br/>gain, fades, mutes]
         SUB[subtitleSlice<br/>subtitles, selection]
-        MOB[mobileSlice<br/>loop flag]
         HIS[exportHistorySlice<br/>entries]
         CMP[compareSlice<br/>compare dialog]
         EQ[exportQueueSlice<br/>queue rows, dock]

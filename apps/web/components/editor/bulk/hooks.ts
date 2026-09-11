@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { videoFileService } from "@/lib/video-file";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
-import { baseNameOf, loadStackedLayout } from "./helpers";
+import { loadStackedLayout } from "./helpers";
 import type { BulkItem, BulkStatus, FsDirHandle } from "./types";
 
 /**
@@ -100,7 +100,7 @@ export function useBulkEditorState() {
         file,
         url: URL.createObjectURL(file),
         name: file.name,
-        baseName: baseNameOf(file.name),
+        baseName: videoFileService.stripExtension(file.name),
         size: file.size,
         duration: 0,
         width: 0,

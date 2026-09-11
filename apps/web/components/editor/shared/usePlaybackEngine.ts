@@ -12,7 +12,6 @@ import {
   setPlayheadTime,
   usePlayheadTime,
 } from "@/store/playheadSlice";
-import { mobileStore, setMobileState } from "@/store/mobileSlice";
 import { audioStore } from "@/store/audioSlice";
 import { cutStore } from "@/store/cutSlice";
 import { useAudioPreview } from "@/hooks/useAudioPreview";
@@ -151,7 +150,7 @@ export function usePlaybackEngine(
   const volume = useSelector(sourceStore, (s) => s.volume);
   const muted = useSelector(sourceStore, (s) => s.isMuted);
   const currentTime = usePlayheadTime();
-  const loop = useSelector(mobileStore, (s) => s.isLoopEnabled);
+  const loop = useSelector(sourceStore, (s) => s.isLoopEnabled);
   const playbackSpeed = useSelector(cutStore, (s) => s.playbackSpeed);
   const trackCount = useSelector(audioStore, (s) => s.tracks.length);
   const tracks = useSelector(audioStore, (s) => s.tracks);
@@ -378,10 +377,10 @@ export function usePlaybackEngine(
     setSourceState((previous) => ({ ...previous, isMuted: !previous.isMuted }));
   }, []);
   const setLoop = useCallback((next: boolean) => {
-    setMobileState((previous) => ({ ...previous, isLoopEnabled: next }));
+    setSourceState((previous) => ({ ...previous, isLoopEnabled: next }));
   }, []);
   const toggleLoop = useCallback(() => {
-    setMobileState((previous) => ({
+    setSourceState((previous) => ({
       ...previous,
       isLoopEnabled: !previous.isLoopEnabled,
     }));

@@ -163,12 +163,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `lib/transcode-progress.ts`, `lib/playback-bus.ts`, `store/playheadSlice.ts`, `lib/transcode-jobs.ts`, `store/exportQueueSlice.ts`, `lib/subtitles/googleFonts.ts`, `lib/api-client.ts`, `lib/mobile-layout.ts`, `hooks/useSharedMobileLayout.ts`
 - **Result:** All 9 sites grep-verified zero callers before deletion. Nuances: `HeaderGetter` was used once internally (`throwTranscodeHttpError` takes a real fetch `Response`) → inlined the structural type at the signature; `fetchPromise` static orphaned by `fetchGoogleFontFamilies` → deleted with it (`cachedFamilies` kept — `commitCatalog` still fills it); `useSharedMobileLayout` keeps internal `refresh` wiring (storage/focus re-sync stays live) but returns only `{ layout }`; `playheadSlice` doc comment + `sourceStore` import trimmed. `README.md` (§transcode services) + `AGENTS.md` (api-client/transcode-progress method lists) updated. `tsc` + `lint` clean.
 
-## 21. Single-use files — ⬜ open
+## 21. Single-use files — ✅ done
 
 - **Tag:** delete
 - **Problem:** `mobileSlice` holds one boolean, `preload.ts` wraps one import, `baseNameOf` re-exports `stripExtension` under another name.
 - **Do:** Merge the boolean into `sourceSlice`, inline the import at `AdminHeader`, inline `stripExtension`.
-- **Files:** `store/mobileSlice.ts`, `lib/preload.ts`, `components/bulk/helpers.ts`
+- **Files:** deleted `store/mobileSlice.ts`, deleted `lib/preload.ts`, `components/editor/bulk/helpers.ts` (audit listed wrong path `components/bulk/helpers.ts`)
+- **Result:** `isLoopEnabled` now lives in `sourceSlice` (5 consumers repointed: `playback-bus.toggleLoop`, `PlayerControls`, `usePlaybackEngine` setLoop/toggleLoop + loop selector, `useVideoPlayback`; none of the 3 `VideoReset` providers used the `mobile` key, so the reset type simply lost its `mobile` prev/partial — no call-site changes needed). `preloadUploadChunked` moved to `lib/heavy.ts` (the shared warming funnel, topical fit — audit's "inline at AdminHeader" would have duplicated it since `EditorHeader` uses it too); both re-export shims (`admin/heavy`, `mobile-helpers`) deleted, 2 use sites import from `@/lib/heavy`. `baseNameOf` deleted, 2 bulk callers use `videoFileService.stripExtension` directly (`hooks.ts` already imported it). `README.md` state diagram (`MOB` node folded into `SRC`) + `AGENTS.md` (store list, `preload.ts` → `heavy.ts`) updated. `tsc` + `lint` clean.
 
 ## 22. Speculative props/branches — ⬜ open
 
@@ -193,5 +194,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–20. Open: items 21–24.
+- Done: items 1–21. Open: items 22–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

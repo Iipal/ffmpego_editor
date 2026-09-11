@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import { useSelector } from "@tanstack/react-store";
 import { commitPlayheadTime } from "@/store/playheadSlice";
-import { mobileStore } from "@/store/mobileSlice";
+import { sourceStore } from "@/store/sourceSlice";
 import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 
 export type UseVideoPlaybackArgs = {
@@ -27,7 +27,7 @@ export function useVideoPlayback({
 }: UseVideoPlaybackArgs) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  const isLooping = useSelector(mobileStore, (s) => s.isLoopEnabled);
+  const isLooping = useSelector(sourceStore, (s) => s.isLoopEnabled);
 
   const engine = usePlaybackEngine(videoRef, {
     mediaUrl,

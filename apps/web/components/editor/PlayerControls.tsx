@@ -12,7 +12,6 @@ import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerContr
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";
 import { commitPlayheadTime, usePlayheadTime } from "@/store/playheadSlice";
-import { mobileStore, setMobileState } from "@/store/mobileSlice";
 
 interface PlayerControlsProps {
   playerRef: RefObject<HTMLVideoElement | null>;
@@ -30,15 +29,12 @@ export function PlayerControls({ playerRef, wrapperRef }: PlayerControlsProps) {
   // Live playhead from the isolated clock — this bar re-renders on tick
   // without waking other sourceStore subscribers.
   const currentTime = usePlayheadTime();
-  const isLoopEnabled = useSelector(
-    mobileStore,
-    (state) => state.isLoopEnabled,
-  );
+  const isLoopEnabled = useSelector(sourceStore, (s) => s.isLoopEnabled);
 
   const toggleLoop = () => {
     const next = !isLoopEnabled;
     if (playerRef.current) playerRef.current.loop = next;
-    setMobileState((previous) => ({ ...previous, isLoopEnabled: next }));
+    setSourceState((previous) => ({ ...previous, isLoopEnabled: next }));
   };
 
   const setTime = (nextTime: number) => {

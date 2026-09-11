@@ -2,7 +2,8 @@
 
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
-import { preloadHeavyCard, preloadUploadChunked } from "./heavy";
+import { preloadHeavyCard } from "./heavy";
+import { preloadUploadChunked } from "@/lib/heavy";
 import type { AdminHealthProps } from "./types";
 import { cn } from "@/lib/utils";
 

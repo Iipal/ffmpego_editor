@@ -11,11 +11,6 @@ import {
 import { cropStore, setCropState, type CropSlice } from "@/store/cropSlice";
 import { cutStore, setCutState, type CutSlice } from "@/store/cutSlice";
 import {
-  mobileStore,
-  setMobileState,
-  type MobileSlice,
-} from "@/store/mobileSlice";
-import {
   subtitleStore,
   setSubtitleState,
   type SubtitleSlice,
@@ -35,7 +30,6 @@ export type VideoReset = (
     source: SourceSlice;
     crop: CropSlice;
     cut: CutSlice;
-    mobile: MobileSlice;
     subtitle: SubtitleSlice;
   },
   file: File,
@@ -44,7 +38,6 @@ export type VideoReset = (
   source?: Partial<SourceSlice>;
   crop?: Partial<CropSlice>;
   cut?: Partial<CutSlice>;
-  mobile?: Partial<MobileSlice>;
   subtitle?: Partial<SubtitleSlice>;
 };
 
@@ -90,7 +83,6 @@ export const UploadOtherButton = memo(function UploadOtherButton({
         source: sourceStore.state,
         crop: cropStore.state,
         cut: cutStore.state,
-        mobile: mobileStore.state,
         subtitle: subtitleStore.state,
       };
       const resetState = reset(previous, file, mediaUrl);
@@ -101,7 +93,6 @@ export const UploadOtherButton = memo(function UploadOtherButton({
       });
       setCropState((prev) => ({ ...prev, ...(resetState.crop || {}) }));
       setCutState((prev) => ({ ...prev, ...(resetState.cut || {}) }));
-      setMobileState((prev) => ({ ...prev, ...(resetState.mobile || {}) }));
       setSubtitleState((prev) => ({ ...prev, ...(resetState.subtitle || {}) }));
       resetPlayheadTime(resetState.source?.currentTime ?? 0);
       requestMetadata(file);

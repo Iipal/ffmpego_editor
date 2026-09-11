@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
 import type { MobileLayout } from "@/lib/mobile-layout";
-import { baseNameOf } from "./helpers";
+import { videoFileService } from "@/lib/video-file";
 import type { BulkItem, FsDirHandle } from "./types";
 import { exportQueue } from "@/lib/export-queue";
 import { validateSettings } from "@/lib/validate-settings";
@@ -66,7 +66,7 @@ export function useBulkExport({
       const duration = meta?.duration ?? 0;
       const sw = meta?.width || 1920;
       const sh = meta?.height || 1080;
-      const base = baseNameOf(file.name);
+      const base = videoFileService.stripExtension(file.name);
       const outName = `${base}_mobile_1080x1920.mp4`;
       const settingsJson = JSON.stringify({
         mobileLayout: stackedLayout,

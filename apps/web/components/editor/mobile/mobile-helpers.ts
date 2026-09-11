@@ -15,8 +15,6 @@ export function preloadHeavyPreview() {
   if (typeof window !== "undefined") void HEAVY_MODULES.portrait();
 }
 
-export { preloadUploadChunked } from "@/lib/preload";
-
 export type PointerHandler = (e: PointerEvent) => void;
 // Shared deduped global pointer bus (single copy in lib/global-listener-bus).
 export {

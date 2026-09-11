@@ -5,7 +5,7 @@ import {
   UploadOtherButton as SharedUploadOtherButton,
   type VideoReset,
 } from "../shared/UploadOtherButton";
-import { preloadUploadChunked } from "./mobile-helpers";
+import { preloadUploadChunked } from "@/lib/heavy";
 
 const mobileReset: VideoReset = (): ReturnType<VideoReset> => ({
   source: {

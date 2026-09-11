@@ -1,6 +1,5 @@
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
-import { videoFileService } from "@/lib/video-file";
 import type { BulkStatus } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -72,9 +71,4 @@ export function loadStackedLayout(): MobileLayout {
   } catch {
     return mobileLayoutService.createDefaultLayout("stacked", 0.5);
   }
-}
-
-/** Basename without extension — `videoFileService.stripExtension` re-exported under the bulk-local name. */
-export function baseNameOf(name: string): string {
-  return videoFileService.stripExtension(name);
 }

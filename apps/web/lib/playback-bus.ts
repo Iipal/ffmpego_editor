@@ -9,7 +9,6 @@
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import { setSourceState, sourceStore } from "@/store/sourceSlice";
 import { commitPlayheadTime, getPlayheadTime } from "@/store/playheadSlice";
-import { setMobileState } from "@/store/mobileSlice";
 
 /**
  * Singleton service owning global transport: shortcuts drive playback/trim
@@ -106,9 +105,9 @@ class PlaybackBus {
     }));
   }
 
-  /** Flip loop playback in `mobileSlice`. */
+  /** Flip loop playback in `sourceSlice`. */
   toggleLoop(): void {
-    setMobileState((previous) => ({
+    setSourceState((previous) => ({
       ...previous,
       isLoopEnabled: !previous.isLoopEnabled,
     }));

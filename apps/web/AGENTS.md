@@ -119,9 +119,9 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ### `store/` — sync UI state (TanStack Store)
 
-- `sourceSlice` (file/mediaUrl/trim), `cropSlice`, `cutSlice`,
+- `sourceSlice` (file/mediaUrl/trim/loop), `cropSlice`, `cutSlice`,
   `filterSlice` (visual filters), `audioSlice`, `subtitleSlice`,
-  `mobileSlice`, `playheadSlice`, `exportHistorySlice`,
+  `playheadSlice`, `exportHistorySlice`,
   `exportQueueSlice` (export queue rows + dock), `compareSlice`
 
 ### `lib/` services & utils — one service/util per file
@@ -192,7 +192,7 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `playbackBus.togglePlay/seekBy/stepFrame/trim-loop`
 - `global-listener-bus.ts` — `GlobalListenerBus` service: pointer move/up +
   admin scroll/touch buses
-- `preload.ts` — hover/focus intent preloads (`preloadUploadChunked`)
+- `heavy.ts` — `initAppOnce` origin/mascot warming + `preloadUploadChunked` hover/focus intent preload
 - `utils.ts` — `cn` re-export, `NOOP` default callback
 
 ## Shared packages used

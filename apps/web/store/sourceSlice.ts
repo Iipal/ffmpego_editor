@@ -17,6 +17,7 @@ export interface SourceSlice {
   duration: number;
   isPlaying: boolean;
   isMuted: boolean;
+  isLoopEnabled: boolean;
   volume: number;
   trimRange: [number, number];
   sourceAspectRatio: number;
@@ -42,6 +43,7 @@ export const initialSourceSlice: SourceSlice = {
   duration: 0,
   isPlaying: false,
   isMuted: false,
+  isLoopEnabled: false,
   volume: 1,
   trimRange: [0, 0],
   sourceAspectRatio: 1,
