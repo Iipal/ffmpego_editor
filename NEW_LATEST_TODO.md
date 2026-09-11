@@ -106,7 +106,7 @@ cutting. Nothing below is applied; this is the work list.
 
 ## Phase 2 — apps/web components/stores/app
 
-- [ ] **2.1 Remove PlayerControls store-adapter wrapper (~60).**
+- [x] **2.1 Remove PlayerControls store-adapter wrapper (~60).**
       `components/editor/PlayerControls.tsx:23`.
       Steps: use `shared/VideoPlayerControls` directly at call sites.
       Verify: player controls on all editor pages.

@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { Maximize } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { PlayerControls } from "@/components/editor/PlayerControls";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { TrimControls } from "@/components/editor/TrimControls";
 import { AudioControls } from "@/components/editor/AudioControls";
 import { CropOverlay } from "@/components/editor/CropOverlay";
@@ -30,7 +37,8 @@ export function VideoPlayer() {
   );
   // Shared playback engine: element transport, isolated playhead clock,
   // trim-loop clamp, volume/muted/rate/loop sync + WebAudio preview tracks.
-  usePlaybackEngine(videoRef, {
+  // Its result also drives the transport bar below (no adapter in between).
+  const playback = usePlaybackEngine(videoRef, {
     mediaUrl,
     loopRange: trimRange,
     // 20 Hz throttled snapshots + rAF smooth sync while playing (same
@@ -184,7 +192,39 @@ export function VideoPlayer() {
             </div>
           </div>
         </div>
-        <PlayerControls playerRef={videoRef} wrapperRef={wrapperRef} />
+        <div className="border-t border-kumo-line bg-kumo-base px-4 py-3 rounded-b-lg">
+          <VideoPlayerControls
+            isPlaying={playback.isPlaying}
+            currentTime={playback.currentTime}
+            duration={playback.duration}
+            onTogglePlay={playback.togglePlay}
+            onSeek={playback.seekTo}
+            volume={playback.volume}
+            onVolumeChange={playback.setVolume}
+            muted={playback.muted}
+            onToggleMute={playback.toggleMute}
+            loop={playback.loop}
+            onToggleLoop={playback.toggleLoop}
+            onPlayFromStart={() => playback.playFromStart(trimRange[0])}
+            extraActions={
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Fullscreen"
+                      onClick={() => wrapperRef.current?.requestFullscreen()}
+                    />
+                  }
+                >
+                  <Maximize />
+                </TooltipTrigger>
+                <TooltipContent>Fullscreen</TooltipContent>
+              </Tooltip>
+            }
+          />
+        </div>
       </Card>
       {/* Trim init/clamp is owned by useTrimRange inside TrimControls. */}
       <TrimControls minGap={0} initClampMargin={0.01} playerRef={videoRef} />

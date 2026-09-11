@@ -77,9 +77,10 @@ flowchart LR
 - `CropEditorHeader` — filename + export entry.
 - `CropWorkspace` — grid shell + `UploadProgress` banner.
 - `CropArea` / `CropOverlay` — crop control/readout bar + canvas rect.
-- `VideoPlayer` (`DynamicVideoPlayer` lazy) + `PlayerControls` — preview with
-  CSS filter preview + audio preview, driven by `shared/usePlaybackEngine`
-  (the single transport engine for crop/mobile/subtitles/bulk/cut).
+- `VideoPlayer` (`DynamicVideoPlayer` lazy) — preview with CSS filter
+  preview + audio preview, transport bar (`shared/VideoPlayerControls`)
+  driven directly by `shared/usePlaybackEngine` (the single transport
+  engine for crop/mobile/subtitles/bulk/cut).
 - `Sidebar` — thin composer (`components/editor/Sidebar.tsx`); one file
   per card in `crop/` (`SidebarInfoCard/CropCard/SpeedCard/`
   `ExportCard/PreflightSummary`, each subscribed only to its store slice)

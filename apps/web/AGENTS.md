@@ -99,8 +99,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 ## Shared editor components
 
-- `VideoPlayer.tsx`, `PlayerControls.tsx`
-  (+`shared/VideoPlayerControls.tsx`), `AudioControls.tsx`,
+- `VideoPlayer.tsx` (transport bar `shared/VideoPlayerControls.tsx` driven
+  directly by the `usePlaybackEngine` result), `AudioControls.tsx`,
   `AudioWaveform.tsx`, `VideoUploader.tsx`, `UploadProgress.tsx`,
   `shared/AreaShell` (top-bar/readout-grid/hint card shell
   for Crop/Mobile/Bulk/Subtitle/Jobs areas) | `shared/TrimSlider` | EmptyState | `CapabilityCard.tsx`
