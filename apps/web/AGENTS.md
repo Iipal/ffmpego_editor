@@ -187,6 +187,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `mobileLayoutService.clamp/normalizeLayout/...`,
   `zoneSourceRect/drawZoneToCanvas` (canvas preview shares the exact
   exporter pixel box — preview/export cannot drift),
+  `savePref/subscribeSaves` (same-tab save broadcast; `storage` events
+  only fire cross-tab),
   `MobileLayoutService.OUTPUT_W/H`
 - `video-file.ts` — `VideoFileService`:
   `videoFileService.isAcceptedVideoFile/formatFileSize/...`,

@@ -24,15 +24,18 @@ export function useSharedMobileLayout() {
 
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key && e.key.includes("ffmpeg-mobile-layout")) refresh();
+      if (e.key && e.key.includes("ffmpego:mobile_layout")) refresh();
     };
     window.addEventListener("storage", onStorage);
-    // also listen to visibility change to pick up changes from same tab
+    // Same-tab saves never emit `storage` — arrive via subscription instead.
+    const unsubscribe = mobileLayoutService.subscribeSaves(refresh);
+    // Focus is a backstop for saves that bypass the service.
     const onFocus = () => refresh();
     window.addEventListener("focus", onFocus);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener("focus", onFocus);
+      unsubscribe();
     };
   }, [refresh]);
 

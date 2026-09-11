@@ -33,6 +33,18 @@ describe("mobileLayoutService layouts", () => {
       expect(z.y + z.height).toBeLessThanOrEqual(1);
     }
   });
+  test("subscribeSaves notifies on savePref, stops after unsubscribe", () => {
+    let calls = 0;
+    const unsubscribe = mobileLayoutService.subscribeSaves(() => {
+      calls += 1;
+    });
+    const layout = mobileLayoutService.createDefaultLayout("stacked", 0.5);
+    mobileLayoutService.savePref(layout);
+    expect(calls).toBe(1);
+    unsubscribe();
+    mobileLayoutService.savePref(layout);
+    expect(calls).toBe(1);
+  });
 });
 
 describe("zoneSourceRect preview/export parity", () => {

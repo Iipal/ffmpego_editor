@@ -112,10 +112,12 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
 
 - 🔄 DONE, delete items: overloaded `cutSlice` (45 lines, one bool);
   anemic `mobileSlice` (file deleted).
-- [ ] **2.05** `useSharedMobileLayout.ts:20` same-tab broadcast gap (only
-      `storage`+`focus`).
-- [ ] **2.06** `playheadSlice` doc comment only, OPTIONAL (`getCommittedTime`/
-      `subscribeToPlayhead` deleted; `getPlayheadTime`/`commit`/`set` remain).
+- [x] **2.05** `useSharedMobileLayout` broadcast — DONE: `savePref`
+      notifies same-tab `subscribeSaves` listeners (`storage` never fires
+      in the writing tab); also fixed the dead cross-tab key match
+      (`"ffmpeg-mobile-layout"` vs real `"ffmpego:mobile_layout*"`).
+- [x] **2.06** `playheadSlice` — DONE, verified no-change: all five fns
+      have live callers, docs accurate.
 
 ## PART 2D — perf
 

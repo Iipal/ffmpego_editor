@@ -10,6 +10,11 @@
 import { zoneToPixels } from "@repo/ffmpeg-filters";
 import { storageJSON } from "./storage-json";
 
+/** Same-tab save listener (`storage` events only fire cross-tab). */
+export type LayoutSaveListener = () => void;
+
+const layoutSaveListeners = new Set<LayoutSaveListener>();
+
 export type MobileLayoutMode = "full" | "stacked";
 export type CropZoneId = "zone-1" | "zone-2";
 export type CropRole = "camera" | "gameplay" | "content" | "custom";
@@ -416,7 +421,8 @@ export class MobileLayoutService {
   /**
    * Persist a layout to localStorage: both the generic most-recent key and
    * the per-mode key, so mode switches restore their own last layout.
-   * Best-effort — quota/private-mode failures are swallowed.
+   * Best-effort — quota/private-mode failures are swallowed. Always notifies
+   * same-tab subscribers (the `storage` event only fires cross-tab).
    */
   savePref(l: MobileLayout): void {
     storageJSON.write("ffmpego:mobile_layout", l);
@@ -426,6 +432,18 @@ export class MobileLayoutService {
         : "ffmpego:mobile_layout:stacked",
       l,
     );
+    for (const fn of layoutSaveListeners) fn();
+  }
+
+  /**
+   * Same-tab save subscription for hooks holding layout state (the `storage`
+   * event never fires in the tab that wrote). Returns an unsubscribe fn.
+   */
+  subscribeSaves(fn: LayoutSaveListener): () => void {
+    layoutSaveListeners.add(fn);
+    return () => {
+      layoutSaveListeners.delete(fn);
+    };
   }
 
   /** Most-recent layout regardless of mode, or null when none stored. */
