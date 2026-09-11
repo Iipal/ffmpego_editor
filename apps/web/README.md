@@ -293,6 +293,9 @@ flowchart LR
 - Shared UI: `components/ui/*` (Shadcn: button, dialog, slider, select,
   sonner `Toaster`, tooltip…), `providers/ThemeProvider.tsx`,
   `components/ui/ThemeToggle.tsx`.
+- Route boundaries (`app/`): `loading.tsx` (skeleton), `error.tsx` (retry via
+  `retry`), `not-found.tsx` (links to crop/admin), `global-error.tsx`
+  (own `<html>`/`<body>`, inline styles only — no global CSS there).
 
 ## 5. Local development
 

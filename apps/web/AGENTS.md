@@ -18,6 +18,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 1. **Shell.** `app/layout.tsx` (fonts/css) → `app/providers.tsx`
    (Theme + QueryClient `staleTime` 5 s + Tooltip + global `CompareDialog`) →
    `AppSidebar`/`AppNav` → route page → `DirectionalTransition`.
+   Route boundaries: `app/loading.tsx` + `error.tsx` (`retry`) +
+   `not-found.tsx` + `global-error.tsx` (own html/body, inline styles).
    `/` redirects to `/editor/crop`. Nav order: crop → mobile →
    mobile/subtitles → mobile/bulk → cut → admin.
 2. **Page pattern.** Thin composer (`app/pageEditor*.tsx`, `app/pageAdmin.tsx`)

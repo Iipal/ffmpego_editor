@@ -20,8 +20,10 @@ deleted (`app.delete("/transcode/jobs"` `:1480`). Rest ✅ per NOTES.
 - [ ] **1.01** URL-synced state — ✅ gap real (0 `useSearchParams` in `app/`). Sync
       admin `filter`, trim, `expandedId`, mode, cut list to `?filter=&mode=&t=`.
       Ponytail: `delete` — local-only, drop unless share/deep-link demanded.
-- [ ] **1.02** `loading/error/not-found/global-error` — ✅ gap real. Add boundaries
-      (TODO typo: "ErroBoundary"). Keep — native Next.js convention, not bloat.
+- [x] **1.02** `loading/error/not-found/global-error` — ✅ DONE 2026-09-11.
+      `app/loading.tsx` (skeleton), `error.tsx` (`retry` prop, Next 16.3+
+      stable), `not-found.tsx` (crop/admin links), `global-error.tsx` (own
+      html/body, inline styles). Reuses installed Card/Button; no new deps.
 - [ ] **1.03** Global undo/redo — 🔄 premise gone (`mobileSlice` deleted; only
       `useMobileEditor.ts:52` `undoOp/redoOp` remains). Rewrite without
       `mobileSlice`. Ponytail: `delete` — don't expand beyond mobile.
