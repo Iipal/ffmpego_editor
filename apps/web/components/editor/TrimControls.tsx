@@ -14,7 +14,6 @@ import {
 import { SkipBack, SkipForward } from "lucide-react";
 import { sourceStore } from "@/store/sourceSlice";
 import { usePlayheadTime } from "@/store/playheadSlice";
-import { cn } from "@/lib/utils";
 import { formatTime } from "@/lib/format-time";
 import { seekVideoElement } from "@/components/editor/shared/usePlaybackEngine";
 import {
@@ -34,8 +33,6 @@ export type TrimControlsProps = {
   overshoot?: "reset" | "clamp";
   /** Extra side-effect after a committed range change (e.g. retime subtitles). */
   onTrimChange?: (start: number, end: number) => void;
-  /** Dims + disables the surface (e.g. ignoreTrim). */
-  disabled?: boolean;
   /** Slider max override. Defaults to duration || TRIM_SLIDER_MAX_FALLBACK. */
   sliderMax?: number;
   /** Element the "Set Player to Start/End" buttons seek. */
@@ -54,7 +51,6 @@ export function TrimControls({
   initClampMargin,
   overshoot = "clamp",
   onTrimChange,
-  disabled = false,
   sliderMax,
   playerRef,
 }: TrimControlsProps) {
@@ -113,14 +109,8 @@ export function TrimControls({
                 className="ml-1.5 font-mono text-[11px] font-normal tabular-nums text-kumo-subtle"
                 suppressHydrationWarning
               >
-                {disabled ? (
-                  <>Full length · {formatTime(duration)}</>
-                ) : (
-                  <>
-                    {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
-                    {formatTime(trimmedDuration)}
-                  </>
-                )}
+                {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
+                {formatTime(trimmedDuration)}
               </span>
             </span>
             <ChevronDown className="size-4 text-kumo-subtle" />
@@ -128,13 +118,7 @@ export function TrimControls({
         </CardHeader>
         <CollapsibleContent>
           <CardContent className="space-y-3">
-            <div
-              className={cn(
-                "rounded-lg border bg-kumo-recessed/20 p-3 space-y-3",
-                disabled && "opacity-50 pointer-events-none",
-              )}
-              aria-disabled={disabled}
-            >
+            <div className="rounded-lg border bg-kumo-recessed/20 p-3 space-y-3">
               <div className="space-y-1">
                 <TrimSlider
                   trimStart={trimStart}

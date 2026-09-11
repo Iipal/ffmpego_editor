@@ -45,11 +45,7 @@ export function FootnoteDivider() {
   );
 }
 
-export function UploaderCard({
-  formatNote = "MP4 · WebM · MOV · MKV up to 10 GB",
-}: {
-  formatNote?: string;
-}) {
+export function UploaderCard() {
   return (
     <Card className="p-6 sm:p-8">
       <CardContent className="p-0">
@@ -57,7 +53,7 @@ export function UploaderCard({
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-kumo-hairline pt-4 text-xs text-kumo-subtle">
           <LocalOnlyBadge />
           <FootnoteDivider />
-          <span>{formatNote}</span>
+          <span>MP4 · WebM · MOV · MKV up to 10 GB</span>
         </div>
       </CardContent>
     </Card>
@@ -67,12 +63,10 @@ export function UploaderCard({
 export function DashedPreviewHint({
   icon,
   label,
-  hint = "· appears after upload",
   children,
 }: {
   icon: React.ReactNode;
   label: string;
-  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -81,7 +75,7 @@ export function DashedPreviewHint({
         {icon}
         {label}
         <span className="font-mono text-[11px] tabular-nums text-kumo-subtle/70">
-          {hint}
+          · appears after upload
         </span>
       </div>
       <div className="mt-3">{children}</div>

@@ -1,6 +1,5 @@
 import { apiClient } from "@/lib/api-client";
 import type { JobEntry, JobsResponse } from "./types";
-import { GlobalListenerBus } from "@/lib/global-listener-bus";
 
 // js-hoist-regexp: hoist RegExp to module scope (avoid per-render recreation, share mutable lastIndex safely without /g)
 // JOB_ID_RE validates jobId cheaply.
@@ -22,24 +21,6 @@ const statusBadgeRaw: Record<string, string> = {
     "bg-red-100 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-900",
   cancelled: "bg-kumo-recessed text-kumo-subtle border-kumo-line",
 };
-
-// client-event-listeners: dedup global listeners (single listener for N JobRow instances)
-// Backed by the shared bus service (lib/global-listener-bus).
-// client-passive-event-listeners: passive where preventDefault not needed (scroll tracking)
-const scrollBus = new GlobalListenerBus<Event>(
-  { passive: true } as AddEventListenerOptions,
-  "scroll",
-);
-const touchBus = new GlobalListenerBus<Event>(
-  { passive: true } as AddEventListenerOptions,
-  "touchstart",
-);
-export const globalScrollHandlers = scrollBus.handlers;
-export const globalTouchHandlers = touchBus.handlers;
-export function ensureGlobalListeners() {
-  scrollBus.ensureAttached();
-  touchBus.ensureAttached();
-}
 
 // Admin filter persistence lives at the useAdminJobs call sites
 // (storageJSON round-trips directly — read once per mount, written on change).

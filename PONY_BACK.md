@@ -171,12 +171,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** deleted `store/mobileSlice.ts`, deleted `lib/preload.ts`, `components/editor/bulk/helpers.ts` (audit listed wrong path `components/bulk/helpers.ts`)
 - **Result:** `isLoopEnabled` now lives in `sourceSlice` (5 consumers repointed: `playback-bus.toggleLoop`, `PlayerControls`, `usePlaybackEngine` setLoop/toggleLoop + loop selector, `useVideoPlayback`; none of the 3 `VideoReset` providers used the `mobile` key, so the reset type simply lost its `mobile` prev/partial — no call-site changes needed). `preloadUploadChunked` moved to `lib/heavy.ts` (the shared warming funnel, topical fit — audit's "inline at AdminHeader" would have duplicated it since `EditorHeader` uses it too); both re-export shims (`admin/heavy`, `mobile-helpers`) deleted, 2 use sites import from `@/lib/heavy`. `baseNameOf` deleted, 2 bulk callers use `videoFileService.stripExtension` directly (`hooks.ts` already imported it). `README.md` state diagram (`MOB` node folded into `SRC`) + `AGENTS.md` (store list, `preload.ts` → `heavy.ts`) updated. `tsc` + `lint` clean.
 
-## 22. Speculative props/branches — ⬜ open
+## 22. Speculative props/branches — ✅ done
 
 - **Tag:** delete
 - **Problem:** Props/branches no caller ever exercises: `showSeek`/`extraContent`, slider `playheadVariant="line"`, `TrimControls.disabled`, `formatNote`/`hint`/`label` defaults, `TRIM_TIME_RE`, admin scroll/touch bus.
 - **Do:** Delete them; keep only actually-passed props.
-- **Files:** `components/shared/VideoPlayerControls.tsx`, `components/shared/TrimSlider.tsx`, `components/TrimControls.tsx`, `components/shared/EmptyState.tsx`, `components/admin/helpers.ts`
+- **Files:** `components/editor/shared/VideoPlayerControls.tsx`, `components/editor/shared/TrimSlider.tsx`, `components/editor/TrimControls.tsx`, `components/editor/shared/EmptyState.tsx`, `components/editor/mobile/mobile-helpers.ts`, `components/admin/helpers.ts` (audit listed `components/shared/…` / `components/TrimControls.tsx` without the `editor/` prefix)
+- **Result:** All six sites grep-verified zero live passes before deletion. `VideoPlayerControls`: `showSeek` (never false) + `extraContent` (never given) gone — seek slider always renders. `TrimSlider`: `playheadVariant` gone — `TrimControls` (its only caller) never passed it, so the `"line"` full-height bar was dead; marker condition unwrapped to `currentTime !== undefined && duration > 0`. `TrimControls`: `disabled` gone — all 3 callers (mobile/subtitles/VideoPlayer) omitted it, so the "Full length" readout + dim/`aria-disabled` branch was dead; `cn` import dropped (single static class left). `EmptyState`: `UploaderCard formatNote` (3 bare `<UploaderCard />` callers) + `DashedPreviewHint hint` (single caller passes no hint) inlined as literals; `label` kept (passed, required). `mobile-helpers`: `TRIM_TIME_RE` + its `void` stub gone (zero importers). Admin: `scrollBus`/`touchBus` + `globalScrollHandlers`/`globalTouchHandlers`/`ensureGlobalListeners` + `GlobalListenerBus` import gone (zero importers — nothing ever attached them). `tsc` + `lint` clean. No AGENTS.md/README changes — neither documents these props.
 
 ## 23. Native one-liners — ⬜ open
 
@@ -194,5 +195,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–21. Open: items 22–24.
+- Done: items 1–22. Open: items 23–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

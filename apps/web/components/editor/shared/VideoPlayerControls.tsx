@@ -18,8 +18,6 @@ export type VideoPlayerControlsProps = {
   duration: number;
   onTogglePlay: () => void;
   onSeek: (t: number) => void;
-  /** Length slider visibility. Default true. */
-  showSeek?: boolean;
   /** Volume 0..1. Slider hidden unless both volume + onVolumeChange given. */
   volume?: number;
   onVolumeChange?: (v: number) => void;
@@ -35,8 +33,6 @@ export type VideoPlayerControlsProps = {
   playFromStartDisabled?: boolean;
   /** Row-level extras (e.g. "Play cuts", fullscreen). */
   extraActions?: ReactNode;
-  /** Block rendered below the button row (e.g. trim-range progress). */
-  extraContent?: ReactNode;
   /** Defaults to "current / total". */
   timeLabel?: string;
 };
@@ -52,7 +48,6 @@ export function VideoPlayerControls({
   duration,
   onTogglePlay,
   onSeek,
-  showSeek = true,
   volume,
   onVolumeChange,
   muted,
@@ -63,7 +58,6 @@ export function VideoPlayerControls({
   playFromStartLabel = "Play from trim start",
   playFromStartDisabled = false,
   extraActions,
-  extraContent,
   timeLabel,
 }: VideoPlayerControlsProps) {
   const showVolume = volume !== undefined && onVolumeChange !== undefined;
@@ -72,17 +66,15 @@ export function VideoPlayerControls({
 
   return (
     <div>
-      {showSeek ? (
-        <Slider
-          className="mb-3"
-          value={[currentTime]}
-          min={0}
-          max={Math.max(duration, 0.01)}
-          step={0.01}
-          onValueChange={(v) => onSeek(readSliderValue(v))}
-          aria-label="Seek video"
-        />
-      ) : null}
+      <Slider
+        className="mb-3"
+        value={[currentTime]}
+        min={0}
+        max={Math.max(duration, 0.01)}
+        step={0.01}
+        onValueChange={(v) => onSeek(readSliderValue(v))}
+        aria-label="Seek video"
+      />
       <div className="flex items-center gap-3">
         {onPlayFromStart ? (
           <Tooltip>
@@ -176,7 +168,6 @@ export function VideoPlayerControls({
 
         {extraActions}
       </div>
-      {extraContent}
     </div>
   );
 }

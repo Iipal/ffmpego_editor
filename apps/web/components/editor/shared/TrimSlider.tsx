@@ -14,10 +14,8 @@ export type TrimSliderProps = {
   step?: number;
   /** Minimum allowed trim length. 0 = raw commits (main timeline). */
   minGap?: number;
-  /** Playhead overlay. Omitted = no overlay. */
+  /** Playhead marker overlay. Omitted = no overlay. */
   currentTime?: number;
-  /** "marker" (mobile dot) or "line" (main-timeline full-height bar). */
-  playheadVariant?: "marker" | "line";
   sliderClassName?: string;
   wrapperClassName?: string;
   onSetTrimRange: (range: [number, number]) => void;
@@ -33,7 +31,6 @@ export function TrimSlider({
   step = 0.05,
   minGap = TRIM_MIN_GAP_DEFAULT,
   currentTime,
-  playheadVariant = "marker",
   sliderClassName,
   wrapperClassName = "relative py-2",
   onSetTrimRange,
@@ -41,14 +38,6 @@ export function TrimSlider({
   const max = sliderMax ?? duration ?? TRIM_SLIDER_MAX_FALLBACK;
   return (
     <div className={wrapperClassName}>
-      {playheadVariant === "line" && currentTime !== undefined ? (
-        <div
-          className="absolute top-0 z-10 h-full w-0.5 bg-kumo-brand"
-          style={{
-            left: `${duration > 0 ? (currentTime / duration) * 100 : 0}%`,
-          }}
-        />
-      ) : null}
       <Slider
         className={sliderClassName}
         value={[trimStart, trimEnd]}
@@ -64,9 +53,7 @@ export function TrimSlider({
         }}
         aria-label="Trim range"
       />
-      {playheadVariant === "marker" &&
-      currentTime !== undefined &&
-      duration > 0 ? (
+      {currentTime !== undefined && duration > 0 ? (
         <div
           className={cn(
             "pointer-events-none absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 flex flex-col items-center",
