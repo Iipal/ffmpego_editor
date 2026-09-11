@@ -46,7 +46,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 - `components/editor/crop/CropWorkspace.tsx`, `CropArea.tsx`/`CropOverlay.tsx`,
   `VideoPlayer.tsx` (+`crop/VideoPlayerLazy.tsx`), `editor/Sidebar.tsx`
-  (export form + Info section: deep-probe toggle → `useExtendedVideoMetadataMutation`
+  (thin composer; one file per card in `crop/` (`SidebarInfoCard/CropCard/SpeedCard/ExportCard/PreflightSummary`), export logic in
+  `crop/useCropExport.ts`; Info section: deep-probe toggle → `useExtendedVideoMetadataMutation`
   with `includeFrames/includePackets` → `ProbeInspector` stream/format/frame/
   packet dialog over the returned `ffprobeReport`),
   `TrimControls.tsx`, `VisualFiltersPanel.tsx`

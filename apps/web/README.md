@@ -66,7 +66,8 @@ flowchart LR
     P --> W[CropWorkspace]
     W --> A[CropArea + CropOverlay]
     W --> V[DynamicVideoPlayer]
-    W --> S[Sidebar]
+    W --> S[Sidebar composer]
+    S --> FC[Info/Crop/Speed/Export cards]
     S --> T[TrimControls]
     S --> VF[VisualFiltersPanel]
     S --> AC[AudioControls + AudioWaveform]
@@ -79,10 +80,13 @@ flowchart LR
 - `VideoPlayer` (`DynamicVideoPlayer` lazy) + `PlayerControls` — preview with
   CSS filter preview + audio preview, driven by `shared/usePlaybackEngine`
   (the single transport engine for crop/mobile/subtitles/bulk/cut).
-- `Sidebar` — export form (format/fps/crf/speed, presets via
-  `lib/export-presets.ts`, validation via `lib/validate-settings.ts`) + Info
-  section with deep-probe toggle and `ProbeInspector` dialog (stream/format/
-  frame/packet viewer over the `ffprobeReport`, Shadcn Tabs).
+- `Sidebar` — thin composer (`components/editor/Sidebar.tsx`); one file
+  per card in `crop/` (`SidebarInfoCard/CropCard/SpeedCard/`
+  `ExportCard/PreflightSummary`, each subscribed only to its store slice)
+  + export logic in `crop/useCropExport.ts` (presets via `lib/export-presets.ts`, validation
+  via `lib/validate-settings.ts`). Info section keeps the deep-probe toggle
+  and `ProbeInspector` dialog (stream/format/frame/packet viewer over the
+  `ffprobeReport`, Shadcn Tabs).
 - `TrimControls`, `VisualFiltersPanel`, `AudioControls`, `AudioWaveform`,
   `VideoUploader`, `UploadProgress` — as named.
 
