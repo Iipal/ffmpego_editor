@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 
 export interface CutSlice {
   exportFormat: "mp4" | "webm" | "mov" | "webm-tg" | "gif";
@@ -34,12 +33,8 @@ export const initialCutSlice: CutSlice = {
   isSidebarOpen: true,
 };
 
-export const cutStore = createStore<CutSlice>(initialCutSlice);
-
-export function useCutStore() {
-  return useSelector(cutStore);
-}
-
-export function setCutState(updater: (previous: CutSlice) => CutSlice) {
-  cutStore.setState(updater);
-}
+export const {
+  store: cutStore,
+  useStore: useCutStore,
+  setState: setCutState,
+} = defineSlice<CutSlice>(initialCutSlice);

@@ -1,7 +1,7 @@
 import type { FFprobeReport } from "@repo/types";
-import { createStore, type Store } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import type { Store } from "@tanstack/store";
 import { storageJSON, type StorageKey } from "@/lib/storage-json";
+import { defineSlice } from "./slice";
 
 export interface SourceSlice {
   file: File | null;
@@ -62,17 +62,11 @@ export const initialSourceSlice: SourceSlice = {
   uploadStatus: "idle",
 };
 
-export const sourceStore = createStore<SourceSlice>(initialSourceSlice);
-
-export function useSourceStore() {
-  return useSelector(sourceStore);
-}
-
-export function setSourceState(
-  updater: (previous: SourceSlice) => SourceSlice,
-) {
-  sourceStore.setState(updater);
-}
+export const {
+  store: sourceStore,
+  useStore: useSourceStore,
+  setState: setSourceState,
+} = defineSlice<SourceSlice>(initialSourceSlice);
 
 export function loadPersistedTrim(): [number, number] | null {
   const parsed = storageJSON.read<unknown>("ffmpego:trim_range");

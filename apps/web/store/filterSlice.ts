@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 import {
   DEFAULT_VISUAL_FILTERS,
   type VisualFilters,
@@ -12,17 +11,11 @@ function cloneDefaults(): VisualFilters {
   return structuredClone(DEFAULT_VISUAL_FILTERS);
 }
 
-export const filterStore = createStore<VisualFilters>(cloneDefaults());
-
-export function useFilterStore() {
-  return useSelector(filterStore);
-}
-
-export function setFilterState(
-  updater: (previous: VisualFilters) => VisualFilters,
-) {
-  filterStore.setState(updater);
-}
+export const {
+  store: filterStore,
+  useStore: useFilterStore,
+  setState: setFilterState,
+} = defineSlice<VisualFilters>(cloneDefaults());
 
 export function resetFilters() {
   filterStore.setState(() => cloneDefaults());

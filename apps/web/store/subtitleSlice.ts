@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 import type { Subtitle } from "@repo/types";
 
 export interface SubtitleSlice {
@@ -14,14 +13,8 @@ export const initialSubtitleSlice: SubtitleSlice = {
   subtitleTrackCountExplicit: 1,
 };
 
-export const subtitleStore = createStore<SubtitleSlice>(initialSubtitleSlice);
-
-export function useSubtitleStore() {
-  return useSelector(subtitleStore);
-}
-
-export function setSubtitleState(
-  updater: (previous: SubtitleSlice) => SubtitleSlice,
-) {
-  subtitleStore.setState(updater);
-}
+export const {
+  store: subtitleStore,
+  useStore: useSubtitleStore,
+  setState: setSubtitleState,
+} = defineSlice<SubtitleSlice>(initialSubtitleSlice);

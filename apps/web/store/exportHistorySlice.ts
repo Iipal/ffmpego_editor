@@ -1,6 +1,5 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
 import { storageJSON } from "@/lib/storage-json";
+import { defineSlice } from "./slice";
 
 /**
  * Editor-side export history: lightweight pointers to server jobs.
@@ -41,16 +40,13 @@ function persist(entries: HistoryEntry[]): void {
   storageJSON.write("ffmpego:export_history", entries.slice(0, MAX_ENTRIES));
 }
 
-export const historyStore = createStore<HistorySlice>({ entries: [] });
+export const { store: historyStore, useStore: useHistoryStore } =
+  defineSlice<HistorySlice>({ entries: [] });
 
 /** Hydrate once on the history page (client-only; localStorage). */
 export function hydrateHistoryStore(): void {
   const entries = readStored();
   if (entries.length) historyStore.setState(() => ({ entries }));
-}
-
-export function useHistoryStore() {
-  return useSelector(historyStore);
 }
 
 export function trackHistoryEntry(entry: HistoryEntry): void {

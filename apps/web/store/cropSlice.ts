@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 
 export interface CropSlice {
   crop: { x: number; y: number; width: number; height: number };
@@ -17,12 +16,8 @@ export const initialCropSlice: CropSlice = {
   canvasOffset: { x: 0, y: 0 },
 };
 
-export const cropStore = createStore<CropSlice>(initialCropSlice);
-
-export function useCropStore() {
-  return useSelector(cropStore);
-}
-
-export function setCropState(updater: (previous: CropSlice) => CropSlice) {
-  cropStore.setState(updater);
-}
+export const {
+  store: cropStore,
+  useStore: useCropStore,
+  setState: setCropState,
+} = defineSlice<CropSlice>(initialCropSlice);

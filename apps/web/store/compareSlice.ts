@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 
 /** Global side-by-side source/output comparison dialog state. */
 export type CompareOutputKind = "video" | "audio" | "image";
@@ -24,11 +23,8 @@ const initial: CompareSlice = {
   meta: null,
 };
 
-export const compareStore = createStore<CompareSlice>(initial);
-
-export function useCompareStore() {
-  return useSelector(compareStore);
-}
+export const { store: compareStore, useStore: useCompareStore } =
+  defineSlice<CompareSlice>(initial);
 
 export function openComparison(input: {
   title: string;

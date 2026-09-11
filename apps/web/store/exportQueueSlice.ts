@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 
 /**
  * Live export-queue state: one row per in-flight/finished export task,
@@ -43,20 +42,14 @@ interface ExportQueueSlice {
   dockOpen: boolean;
 }
 
-export const exportQueueStore = createStore<ExportQueueSlice>({
-  items: [],
-  dockOpen: false,
-});
+export const { store: exportQueueStore, useStore: useExportQueueStore } =
+  defineSlice<ExportQueueSlice>({ items: [], dockOpen: false });
 
 const TERMINAL: ExportQueueItemStatus[] = ["completed", "failed", "cancelled"];
 const MAX_TERMINAL_ITEMS = 50;
 
 export function isQueueItemActive(item: ExportQueueItem): boolean {
   return !TERMINAL.includes(item.status);
-}
-
-export function useExportQueueStore() {
-  return useSelector(exportQueueStore);
 }
 
 export function setDockOpen(open: boolean): void {

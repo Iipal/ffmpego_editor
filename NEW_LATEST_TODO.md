@@ -118,7 +118,7 @@ cutting. Nothing below is applied; this is the work list.
       `app/editor/crop/page.tsx:1` (pattern in all editor/admin pages).
       Steps: layout renders `DirectionalTransition` once; pages export composers directly.
       Verify: all routes render + transition works.
-- [ ] **2.4 Collapse store boilerplate triples (~50).**
+- [x] **2.4 Collapse store boilerplate triples (~50).**
       `store/exportQueueSlice.ts:58` (pattern across slices).
       Steps: reduce setter triplets, keep Store-vs-Query split (never move async into store).
       Verify: typecheck + UI state updates.

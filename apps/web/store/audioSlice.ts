@@ -1,5 +1,4 @@
-import { createStore } from "@tanstack/store";
-import { useSelector } from "@tanstack/react-store";
+import { defineSlice } from "./slice";
 
 export interface MuteSegment {
   start: number;
@@ -89,12 +88,8 @@ export const initialAudioSlice: AudioSlice = {
   tracks: [],
 };
 
-export const audioStore = createStore<AudioSlice>(initialAudioSlice);
-
-export function useAudioStore() {
-  return useSelector(audioStore);
-}
-
-export function setAudioState(updater: (previous: AudioSlice) => AudioSlice) {
-  audioStore.setState(updater);
-}
+export const {
+  store: audioStore,
+  useStore: useAudioStore,
+  setState: setAudioState,
+} = defineSlice<AudioSlice>(initialAudioSlice);
