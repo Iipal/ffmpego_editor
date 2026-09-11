@@ -3,13 +3,13 @@
 import { useCallback, useRef, useState } from "react";
 import { mobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
-import { DEFAULT_SPLIT, getCachedLayout } from "./mobile-helpers";
+import { DEFAULT_SPLIT } from "./mobile-helpers";
 import type { EditorHistory, ZoneId } from "./types";
 
 export function useMobileEditor() {
   const [history, setHistory] = useState<EditorHistory>(() => ({
     layout:
-      getCachedLayout() ??
+      mobileLayoutService.loadPref() ??
       mobileLayoutService.createDefaultLayout("stacked", DEFAULT_SPLIT),
     past: [],
     future: [],

@@ -10,7 +10,7 @@ import { SourcePanel } from "@/components/editor/mobile/SourcePanel";
 import { PreviewPanel } from "@/components/editor/mobile/PreviewPanel";
 import { useMobilePageState } from "@/components/editor/mobile/useMobilePageState";
 import { useMobileExport } from "@/components/editor/mobile/useMobileExport";
-import { setCachedLayout } from "@/components/editor/mobile/mobile-helpers";
+import { mobileLayoutService } from "@/lib/mobile-layout";
 import { AudioControls } from "@/components/editor/AudioControls";
 import { TrimControls } from "@/components/editor/TrimControls";
 
@@ -78,7 +78,7 @@ export default function MobileEditorPage() {
           onUndo={s.ed.undoOp}
           onRedo={s.ed.redoOp}
           onSave={() => {
-            setCachedLayout(s.ed.layout);
+            mobileLayoutService.savePref(s.ed.layout);
             toast.success("Layout preference saved", {
               description: `${s.ed.layout.mode} · split ${Math.round(s.ed.layout.splitRatio * 100)}% · ${s.ed.layout.zones.length} zones`,
             });
@@ -137,7 +137,7 @@ export default function MobileEditorPage() {
             customFFmpegArgs={s.ed.customFFmpegArgs}
             setCustomFFmpegArgs={s.ed.setCustomFFmpegArgs}
             onSavePreference={() => {
-              setCachedLayout(s.ed.layout);
+              mobileLayoutService.savePref(s.ed.layout);
               toast.success("Layout saved as default");
             }}
             deferredFilter={s.defferedFilter}

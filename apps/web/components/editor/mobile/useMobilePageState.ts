@@ -16,7 +16,7 @@ import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import { useMobileEditor } from "./useMobileEditor";
 import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
-import { cachedBuildMobileFilter, NOOP } from "./mobile-helpers";
+import { NOOP } from "./mobile-helpers";
 import { initAppOnce } from "@/lib/heavy";
 import { apiClient } from "@/lib/api-client";
 
@@ -73,7 +73,7 @@ export function useMobilePageState() {
 
   const filterString = useMemo(
     () =>
-      cachedBuildMobileFilter(
+      mobileLayoutService.buildMobileFilter(
         ed.layout,
         sourceWidth || 1920,
         sourceHeight || 1080,

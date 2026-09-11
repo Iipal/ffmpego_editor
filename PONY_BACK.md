@@ -107,12 +107,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** deleted `components/editor/shared/useVideoPlayer.ts` (callers `bulk/BulkExpandedView`, `mobile/useMobilePageState` now use `usePlaybackEngine` directly — identical options/result), deleted `components/editor/subtitles/pointer-bus.ts` (`PreviewPane`, `useTimelineDrag` import from `@/lib/global-listener-bus`); `seekPlayerElement` (zero external importers) replaced by `seekVideoElement` inside `TrimControls` (store `duration` as clamp fallback); `useSeekTo` moved from `cut/useCutPlayback` to `shared/usePlaybackEngine` (`pageEditorCut` repointed); new `readSliderValue` in `lib/utils.ts` standardizing 10 single-value reads (`VideoPlayerControls` ×2, `VisualFiltersPanel` ×3, `Sidebar` ×3, `ZoneSliders`, `AudioControls`, `PreviewPanel`, `ZoneCard`, `CutSettingsSidebar`); stale `useVideoPlayer` mentions fixed in `playback-bus.ts`/`SourceStage.tsx`/`VideoPlayerControls.tsx` comments
 - **Result:** 2 files deleted, ~60 lines removed. Deliberately kept: `TrimSlider` dual-thumb read (range + minGap logic, not a single read), `ui/slider` thumb-count read (primitive wrapper), `subtitles/useVideoPlayback` (real hook, not a shim — audit's file list named the wrong layer). `tsc` + `lint` clean.
 
-## 14. Memo-cache ceremony — ⬜ open
+## 14. Memo-cache ceremony — ✅ done
 
 - **Tag:** shrink
 - **Problem:** `Map` + `requestIdleCallback` memo wrappers around pure fns (`formatAge`/`statusBadge`/layout/template caches) that cost nothing to recompute at this call volume (~50 lines).
 - **Do:** Call the functions directly; delete the caches and idle fallbacks.
-- **Files:** `components/admin/helpers.ts`, `components/mobile/mobile-helpers.ts`, `components/subtitles/template-cache.ts`
+- **Files:** `components/admin/helpers.ts`, `components/editor/mobile/mobile-helpers.ts`, deleted `components/editor/subtitles/template-cache.ts` (audit listed wrong paths `components/mobile/mobile-helpers.ts`, `components/subtitles/template-cache.ts`)
+- **Result:** 1 file deleted, ~110 lines removed. Admin: `formatAge`/`statusBadge` now pure (private `statusBadgeRaw` table kept); `getCachedFilter`/`setCachedFilter` wrappers gone — `useAdminJobs` reads/writes `ffmpego:admin_filters` via `storageJSON` directly (read once per mount, sync write on change). Subtitles: `useSubtitleTemplates` loads/saves via `subtitleStorage` directly (effect writes synchronously on template add/remove only — low frequency; cross-tab `storage`-event invalidation dropped, single-tab local app). Mobile: `useMobilePageState` calls `mobileLayoutService.buildMobileFilter` directly (already inside `useMemo`); `useMobileEditor` init reads `loadPref()`; `pageEditorMobile` saves via `savePref()` synchronously on explicit user save. Deliberately untouched: `googleFonts` catalog caches (network fetch, genuinely expensive), `audio-upload` transport cache (status-validated upload sessions), `subtitle-helpers` style cache (not in audit scope). `tsc` + `lint` clean.
 
 ## 15. Cut-mode selector duplication — ⬜ open
 
@@ -186,5 +187,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–13. Open: items 14–24.
+- Done: items 1–14. Open: items 15–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

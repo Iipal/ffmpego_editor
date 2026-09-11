@@ -1,5 +1,4 @@
 import { apiClient } from "@/lib/api-client";
-import { storageJSON, type StorageKey } from "@/lib/storage-json";
 import type { JobEntry, JobsResponse } from "./types";
 import { GlobalListenerBus } from "@/lib/global-listener-bus";
 
@@ -10,10 +9,9 @@ export const JOB_ID_RE = /^[a-z0-9-]{4,}$/i;
 // rerender-memo-with-default-value: stable default for optional callbacks
 export { NOOP } from "@/lib/utils";
 
-// js-cache-function-results: module-level caches for pure functions (avoid recompute per row)
-export const formatAgeCache = new Map<number, string>();
-export const statusBadgeCache = new Map<string, string>();
-export const statusBadgeRaw: Record<string, string> = {
+// js-cache-function-results: deleted — formatAge/statusBadge are trivial
+// string ops; the per-row Maps cost more than recompute at this volume.
+const statusBadgeRaw: Record<string, string> = {
   queued:
     "bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950 dark:text-sky-300 dark:border-sky-900",
   processing:
@@ -43,35 +41,8 @@ export function ensureGlobalListeners() {
   touchBus.ensureAttached();
 }
 
-// js-cache-storage: Map cache + try-catch (client-localstorage-schema)
-export const filterStorageCache = new Map<StorageKey, string | null>();
-export function getCachedFilter(): string | null {
-  if (filterStorageCache.has("ffmpego:admin_filters"))
-    return filterStorageCache.get("ffmpego:admin_filters")!;
-
-  const v = storageJSON.read<string>("ffmpego:admin_filters");
-  filterStorageCache.set("ffmpego:admin_filters", v);
-
-  return v;
-}
-export function setCachedFilter(v: string) {
-  filterStorageCache.set("ffmpego:admin_filters", v);
-
-  const schedule =
-    typeof window !== "undefined" && "requestIdleCallback" in window
-      ? (cb: () => void) =>
-          (
-            window as unknown as {
-              requestIdleCallback: (cb: () => void) => number;
-            }
-          ).requestIdleCallback(cb)
-      : (cb: () => void) => setTimeout(cb, 0);
-
-  // js-request-idle-callback: defer non-critical persistence to idle
-  schedule(() => {
-    storageJSON.write("ffmpego:admin_filters", v);
-  });
-}
+// Admin filter persistence lives at the useAdminJobs call sites
+// (storageJSON round-trips directly — read once per mount, written on change).
 
 // async-cheap-condition-before-await: cheap sync guard before async fetch
 // async-defer-await: AbortController + timeout started before fetch, await only where needed
@@ -113,28 +84,16 @@ export async function fetchJobs(): Promise<JobsResponse> {
 
 // js-cache-function-results + js-cache-property-access + js-early-exit
 export function formatAge(seconds: number): string {
-  // js-early-exit + length/ cheap guard not needed but cache lookup first
-  if (formatAgeCache.has(seconds)) return formatAgeCache.get(seconds)!;
-  let out: string;
-  if (seconds < 60) out = `${seconds}s`;
-  else {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    if (m < 60) out = `${m}m ${s}s`;
-    else {
-      const h = Math.floor(m / 60);
-      out = `${h}h ${m % 60}m`;
-    }
-  }
-  formatAgeCache.set(seconds, out);
-  return out;
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m < 60) return `${m}m ${s}s`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
 
 export function statusBadge(status: JobEntry["status"]): string {
-  if (statusBadgeCache.has(status)) return statusBadgeCache.get(status)!;
-  const v =
+  return (
     statusBadgeRaw[status] ??
-    "bg-kumo-recessed text-kumo-subtle border-kumo-line";
-  statusBadgeCache.set(status, v);
-  return v;
+    "bg-kumo-recessed text-kumo-subtle border-kumo-line"
+  );
 }

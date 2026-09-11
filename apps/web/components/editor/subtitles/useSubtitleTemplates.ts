@@ -6,7 +6,7 @@ import type {
   SubtitleTemplate,
 } from "@/lib/subtitles/subtitleStorage";
 import { generateId } from "./subtitle-helpers";
-import { getCachedTemplates, setCachedTemplates } from "./template-cache";
+import { subtitleStorage } from "@/lib/subtitles/subtitleStorage";
 
 export type UseSubtitleTemplatesArgs = {
   selectedId: string | null;
@@ -16,7 +16,7 @@ export type UseSubtitleTemplatesArgs = {
   ) => void;
 };
 
-// Style templates: lazy localStorage load, idle-persisted saves, apply/save.
+// Style templates: lazy localStorage load, synchronous saves on change.
 export function useSubtitleTemplates({
   selectedId,
   selectedSubtitle,
@@ -26,13 +26,13 @@ export function useSubtitleTemplates({
 
   // rerender-lazy-state-init: expensive localStorage read only once
   const [templates, setTemplates] = useState<SubtitleTemplate[]>(() =>
-    getCachedTemplates(),
+    subtitleStorage.load(),
   );
   const [newTemplateName, setNewTemplateName] = useState("");
 
-  // templates persistence — split from load (rerender-split-combined-hooks) + js-cache-storage + idle-callback
+  // templates persistence — split from load (rerender-split-combined-hooks)
   useEffect(() => {
-    setCachedTemplates(templates);
+    subtitleStorage.save(templates);
   }, [templates]);
 
   const handleApplyTemplate = useCallback(

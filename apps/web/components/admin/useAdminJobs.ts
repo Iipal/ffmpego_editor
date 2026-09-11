@@ -17,7 +17,7 @@ import {
   type JobEntry,
   type JobsResponse,
 } from "./types";
-import { fetchJobs, getCachedFilter, setCachedFilter } from "./helpers";
+import { fetchJobs } from "./helpers";
 import { preloadHeavyCard } from "./heavy";
 import { useLatest } from "./hooks";
 import { useAdminMutations } from "./mutations";
@@ -31,6 +31,7 @@ import {
   type HistoryEntry,
 } from "@/store/exportHistorySlice";
 import { exportHistory } from "@/lib/export-history";
+import { storageJSON } from "@/lib/storage-json";
 
 let didPreloadHeavyCard = false;
 
@@ -79,7 +80,7 @@ export function useAdminJobs() {
   // rerender-lazy-state-init: read localStorage only once (cheap guard: window check)
   // rerender-functional-setstate handled for setFilter below
   const [filter, setFilter] = useState<Filter>(() => {
-    const cached = getCachedFilter();
+    const cached = storageJSON.read<string>("ffmpego:admin_filters");
     if (cached && FILTER_SET.has(cached)) return cached as Filter;
     return "all";
   });
@@ -125,7 +126,7 @@ export function useAdminJobs() {
     jobsLengthRef.current = data?.jobs?.length ?? 0;
   }, [data]);
 
-  // Keep filter in storage via idle callback (already in setCachedFilter)
+  // Keep filter in storage (synchronous write — a short string on user action)
   // advanced-event-handler-refs: latest handlers in refs to keep subscription stable
   const invalidateRef = useRef(() =>
     queryClient.invalidateQueries({ queryKey: ["admin-jobs"] }),
@@ -148,8 +149,7 @@ export function useAdminJobs() {
     // rerender-transitions: filter change is non-urgent (list may be large)
     startTransition(() => {
       setFilter(f);
-      // functional form not needed for single value, but demonstrate persistence via cache (js-request-idle-callback)
-      setCachedFilter(f);
+      storageJSON.write("ffmpego:admin_filters", f);
     });
   }, []);
 
