@@ -140,65 +140,10 @@ export class GoogleFonts {
   async fetchGoogleFontsMeta(): Promise<GoogleFontMeta[]> {
     if (GoogleFonts.cachedMeta) return GoogleFonts.cachedMeta;
     // Try fontsource first (CORS *), then gwfh
-    try {
-      const r = await fetch(GoogleFonts.FONTSOURCE_API, {
-        cache: "force-cache",
-      });
-      if (r.ok) {
-        const data: Array<{
-          family: string;
-          subsets?: string[];
-          type?: string;
-        }> = await r.json();
-        // js-combine-iterations: single pass filters google-only + non-empty + dedups
-        const uniq = new Map<string, GoogleFontMeta>();
-        for (const f of data) {
-          if (f.type && f.type !== "google") continue;
-          if (!f.family) continue;
-          if (!uniq.has(f.family))
-            uniq.set(f.family, { family: f.family, subsets: f.subsets ?? [] });
-        }
-        if (uniq.size > GoogleFonts.MIN_CATALOG_SIZE) {
-          GoogleFonts.cachedMeta = Array.from(uniq.values()).sort((a, b) =>
-            a.family.localeCompare(b.family),
-          );
-          GoogleFonts.cachedFamilies = GoogleFonts.cachedMeta.map(
-            (m) => m.family,
-          );
-          for (const m of GoogleFonts.cachedMeta)
-            GoogleFonts.familyToSubsets.set(m.family.toLowerCase(), m.subsets);
-          return GoogleFonts.cachedMeta;
-        }
-      }
-    } catch {}
-    try {
-      const r2 = await fetch(GoogleFonts.GWFH_API, { cache: "force-cache" });
-      if (r2.ok) {
-        const data2: Array<{ family: string; subsets?: string[] }> =
-          await r2.json();
-        // js-combine-iterations: single pass filters empty + dedups
-        const uniq2 = new Map<string, GoogleFontMeta>();
-        for (const f of data2) {
-          if (!f.family) continue;
-          if (!uniq2.has(f.family))
-            uniq2.set(f.family, {
-              family: f.family,
-              subsets: f.subsets ?? [],
-            });
-        }
-        if (uniq2.size > GoogleFonts.MIN_CATALOG_SIZE) {
-          GoogleFonts.cachedMeta = Array.from(uniq2.values()).sort((a, b) =>
-            a.family.localeCompare(b.family),
-          );
-          GoogleFonts.cachedFamilies = GoogleFonts.cachedMeta.map(
-            (m) => m.family,
-          );
-          for (const m of GoogleFonts.cachedMeta)
-            GoogleFonts.familyToSubsets.set(m.family.toLowerCase(), m.subsets);
-          return GoogleFonts.cachedMeta;
-        }
-      }
-    } catch {}
+    const remote =
+      (await this.fetchRemoteCatalog(GoogleFonts.FONTSOURCE_API, true)) ??
+      (await this.fetchRemoteCatalog(GoogleFonts.GWFH_API, false));
+    if (remote) return this.commitCatalog(remote);
     const fallbackFamilies = [
       "Inter",
       "Roboto",
@@ -222,18 +167,14 @@ export class GoogleFonts {
       "Bebas Neue",
     ];
     // fallback subsets: most support latin + cyrillic for common ones, but mark conservatively
-    GoogleFonts.cachedMeta = fallbackFamilies.map((f) => ({
-      family: f,
-      subsets: GoogleFonts.CYRILLIC_FALLBACK.has(f)
-        ? ["latin", "cyrillic"]
-        : ["latin"],
-    }));
-    GoogleFonts.cachedFamilies = fallbackFamilies
-      .slice()
-      .sort((a, b) => a.localeCompare(b));
-    for (const m of GoogleFonts.cachedMeta)
-      GoogleFonts.familyToSubsets.set(m.family.toLowerCase(), m.subsets);
-    return GoogleFonts.cachedMeta;
+    return this.commitCatalog(
+      fallbackFamilies.map((f) => ({
+        family: f,
+        subsets: GoogleFonts.CYRILLIC_FALLBACK.has(f)
+          ? ["latin", "cyrillic"]
+          : ["latin"],
+      })),
+    );
   }
 
   /**
@@ -278,6 +219,50 @@ export class GoogleFonts {
   }
 
   // ----------------------------------------------------------------- private
+
+  /**
+   * Fetch + parse one remote catalog: single pass filters non-google
+   * (fontsource only) + empty names + dedups. Returns null when the fetch
+   * fails or the payload is too small to trust, so a truncated response
+   * never wipes the picker.
+   */
+  private async fetchRemoteCatalog(
+    url: string,
+    googleOnly: boolean,
+  ): Promise<GoogleFontMeta[] | null> {
+    try {
+      const r = await fetch(url, { cache: "force-cache" });
+      if (!r.ok) return null;
+      const data: Array<{
+        family: string;
+        subsets?: string[];
+        type?: string;
+      }> = await r.json();
+      // js-combine-iterations: single pass filters google-only + non-empty + dedups
+      const uniq = new Map<string, GoogleFontMeta>();
+      for (const f of data) {
+        if (googleOnly && f.type && f.type !== "google") continue;
+        if (!f.family) continue;
+        if (!uniq.has(f.family))
+          uniq.set(f.family, { family: f.family, subsets: f.subsets ?? [] });
+      }
+      if (uniq.size <= GoogleFonts.MIN_CATALOG_SIZE) return null;
+      return Array.from(uniq.values()).sort((a, b) =>
+        a.family.localeCompare(b.family),
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Fill the family/subset caches from a won catalog (remote or fallback). */
+  private commitCatalog(entries: GoogleFontMeta[]): GoogleFontMeta[] {
+    GoogleFonts.cachedMeta = entries;
+    GoogleFonts.cachedFamilies = entries.map((m) => m.family);
+    for (const m of entries)
+      GoogleFonts.familyToSubsets.set(m.family.toLowerCase(), m.subsets);
+    return entries;
+  }
 
   /**
    * True for generic families (`serif`, `system-ui`, …) and comma stacks —

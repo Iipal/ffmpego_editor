@@ -123,12 +123,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `components/editor/cut/CutPreview.tsx`, `app/pageEditorCut.tsx` (audit listed wrong path `components/cut/…`)
 - **Result:** ~20 lines removed. Preview keeps its `mode` prop (video visibility + layout branch still key off it) and the `modeBadge` in the title, so the current mode stays visible; only the `onModeChange` prop + Select JSX + now-dead header flex wrapper are gone. Single caller updated. `tsc` + `lint` clean.
 
-## 16. Google Fonts dual catalog parse — ⬜ open
+## 16. Google Fonts dual catalog parse — ✅ done
 
 - **Tag:** shrink
 - **Problem:** Fontsource + gwfh catalog parsing repeated almost verbatim, differing only in URL + one filter (~30 lines).
 - **Do:** One `fetchCatalog(url, filter)` helper.
 - **Files:** `lib/subtitles/googleFonts.ts`
+- **Result:** ~15 lines removed (both remote parses + all three cache-commit stanzas now single-source). New privates: `fetchRemoteCatalog(url, googleOnly)` (fetch → single-pass filter/dedup/sort, null when failed or under `MIN_CATALOG_SIZE` so a truncated payload never wipes the picker) and `commitCatalog(entries)` (fills `cachedMeta`/`cachedFamilies`/`familyToSubsets`); `fetchGoogleFontsMeta` is now try-fontsource → try-gwfh → curated fallback. One observable nuance: the fallback's `cachedFamilies` copy is now listed order instead of sorted — unobservable, its only consumer is the zero-caller `fetchGoogleFontFamilies` (item 20); the live `GoogleFontPicker` reads the return value, whose order is unchanged. `tsc` + `lint` clean.
 
 ## 17. `createDefaultLayout` dead arithmetic — ⬜ open
 
@@ -188,5 +189,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–15. Open: items 16–24.
+- Done: items 1–16. Open: items 17–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).
