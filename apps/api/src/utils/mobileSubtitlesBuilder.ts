@@ -1,9 +1,5 @@
-import {
-  buildAtempoFilter,
-  buildSetptsFilter,
-  zoneToPixels,
-} from "@repo/ffmpeg-filters";
-import { buildFormatArgs } from "./ffmpegBuilder.js";
+import { buildSetptsFilter, zoneToPixels } from "@repo/ffmpeg-filters";
+import { buildAtempoAudioFilter, buildFormatArgs } from "./ffmpegBuilder.js";
 
 export interface MobileLayoutForSubtitles {
   mode: "full" | "stacked";
@@ -90,9 +86,9 @@ export function buildMobileSubtitlesArgs(
   const hasSpeed = speed !== 1 && Number.isFinite(speed) && speed > 0;
   const setpts = hasSpeed ? `,${buildSetptsFilter(speed)}` : "";
 
-  // Zones are 0-100 percent — shared math with the other builders.
+  // Zones are 0-1 (schema-enforced); zoneToPixels scales directly.
   const toCrop = (z: { x: number; y: number; width: number; height: number }) =>
-    zoneToPixels(z, options.sourceWidth, options.sourceHeight, false);
+    zoneToPixels(z, options.sourceWidth, options.sourceHeight);
 
   // Base args: trim + video input + png loop inputs
   const args: string[] = [
@@ -136,13 +132,7 @@ export function buildMobileSubtitlesArgs(
   if (N === 0) {
     const filterComplex = baseFilter;
     if (hasSpeed) {
-      const atempo = speed;
-      let afilter = "";
-      if (atempo > 0 && atempo < 0.5) {
-        afilter = buildAtempoFilter(atempo);
-      } else {
-        afilter = `atempo=${atempo.toFixed(6)}`;
-      }
+      const afilter = buildAtempoAudioFilter(speed) ?? "";
       args.push(
         "-filter_complex",
         filterComplex,
@@ -189,13 +179,7 @@ export function buildMobileSubtitlesArgs(
     }
 
     if (hasSpeed) {
-      const atempo = speed;
-      let afilter = "";
-      if (atempo > 0 && atempo < 0.5) {
-        afilter = buildAtempoFilter(atempo);
-      } else {
-        afilter = `atempo=${atempo.toFixed(6)}`;
-      }
+      const afilter = buildAtempoAudioFilter(speed) ?? "";
       args.push(
         "-filter_complex",
         filterComplex,

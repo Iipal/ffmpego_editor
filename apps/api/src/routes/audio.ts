@@ -1,19 +1,12 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import { consumeUpload } from "./upload.js";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { resolveRequestInput } from "./input.js";
 import { err, quotaExceeded } from "../http.js";
-import {
-  MULTIPART_FIELDS,
-  UPLOAD_ID_HEADER,
-  UPLOAD_ID_QUERY,
-} from "@repo/contracts";
-import {
-  ArtifactStore,
-  AssetStore,
-  FileStoreQuotaError,
-  mimeForExt,
-  reserveRequestAsset,
-} from "../storage/index.js";
+import { UPLOAD_ID_HEADER, UPLOAD_ID_QUERY } from "@repo/contracts";
+import { FileStoreQuotaError, store } from "../storage/index.js";
 
 const app = new Hono();
 const PEAK_COUNT = 2400;
@@ -29,24 +22,34 @@ type AudioTrack = {
   sampleRate: number;
 };
 
-async function resolveInput(c: Context) {
-  const uploadId =
+/**
+ * Audio call-site adapter over the shared resolver: chunked sessions skip
+ * multipart parsing (header/query hit passes a null form), direct uploads
+ * parse the form; quota + missing-input map to the audio error shape here.
+ */
+async function resolveAudioInput(c: Context) {
+  const headerHit =
     c.req.header(UPLOAD_ID_HEADER) ?? c.req.query(UPLOAD_ID_QUERY);
-  if (uploadId) {
-    const consumed = consumeUpload(uploadId);
-    if (!consumed) return null;
-    return {
-      assetId: null as string | null,
-      inputPath: consumed.path,
-      remove: false,
-    };
+  const form = headerHit ? null : await c.req.formData().catch(() => null);
+  try {
+    const resolved = await resolveRequestInput(c, form);
+    if (!resolved.ok)
+      return {
+        ok: false as const,
+        response: err(c, "FILE_REQUIRED", {
+          message: "Audio file is required",
+        }),
+      };
+    const { assetId, temporaryPath: inputPath, remove } = resolved.input;
+    return { ok: true as const, input: { assetId, inputPath, remove } };
+  } catch (e) {
+    if (e instanceof FileStoreQuotaError)
+      return {
+        ok: false as const,
+        response: quotaExceeded(c, e.neededBytes, e.quotaBytes),
+      };
+    throw e;
   }
-  const form = await c.req.formData().catch(() => null);
-  const file = form?.get(MULTIPART_FIELDS.file);
-  if (!(file instanceof File)) return null;
-  // Throws FileStoreQuotaError (handlers map it to 507).
-  const { id, path: inputPath } = await reserveRequestAsset(file);
-  return { assetId: id, inputPath, remove: true };
 }
 
 async function run(args: string[]) {
@@ -60,16 +63,9 @@ async function run(args: string[]) {
 }
 
 app.post("/audio/analysis", async (c) => {
-  let input: Awaited<ReturnType<typeof resolveInput>>;
-  try {
-    input = await resolveInput(c);
-  } catch (e) {
-    if (e instanceof FileStoreQuotaError)
-      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
-    throw e;
-  }
-  if (!input)
-    return err(c, "FILE_REQUIRED", { message: "Audio file is required" });
+  const r = await resolveAudioInput(c);
+  if (!r.ok) return r.response;
+  const input = r.input;
   try {
     const probe = await run([
       "ffprobe",
@@ -212,29 +208,22 @@ app.post("/audio/analysis", async (c) => {
   } catch {
     return err(c, "INTERNAL", { message: "Audio analysis failed" });
   } finally {
-    if (input.remove && input.assetId) AssetStore.release(input.assetId);
+    if (input.remove && input.assetId) store.release(input.assetId);
   }
 });
 
 app.post("/audio/extract", async (c) => {
-  let input: Awaited<ReturnType<typeof resolveInput>>;
-  try {
-    input = await resolveInput(c);
-  } catch (e) {
-    if (e instanceof FileStoreQuotaError)
-      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
-    throw e;
-  }
-  if (!input)
-    return err(c, "FILE_REQUIRED", { message: "Audio file is required" });
+  const r = await resolveAudioInput(c);
+  if (!r.ok) return r.response;
+  const input = r.input;
   const format = c.req.query("format") === "wav" ? "wav" : "mp3";
-  // Ephemeral artifact: tracked from reserve, released after streaming.
-  // The 5-minute expiry backstop covers crashes between reserve and finally.
-  const { id: outputId, path: outputPath } = ArtifactStore.reserve({
-    kind: "ephemeral",
-    filename: `extracted.${format}`,
-    mime: mimeForExt(format),
-  });
+  // Direct temp file (no store record): buffered into the response, then
+  // unlinked in `finally` — the 5-min-ephemeral equivalent is that the
+  // file cannot outlive the request.
+  const outputPath = path.join(
+    os.tmpdir(),
+    `ffmpeg_editor_extract_${crypto.randomUUID().replace(/-/g, "")}.${format}`,
+  );
   try {
     const requestedTrack = Number(c.req.query("track") ?? 0);
     const mapTrack =
@@ -276,7 +265,6 @@ app.post("/audio/extract", async (c) => {
         details: { ffmpegStderr: result.stderr.slice(-2000) },
       });
     const body = await Bun.file(outputPath).arrayBuffer();
-    ArtifactStore.finalize(outputId);
     return new Response(body, {
       headers: {
         "Content-Type": format === "wav" ? "audio/wav" : "audio/mpeg",
@@ -284,8 +272,10 @@ app.post("/audio/extract", async (c) => {
       },
     });
   } finally {
-    ArtifactStore.release(outputId);
-    if (input.remove && input.assetId) AssetStore.release(input.assetId);
+    try {
+      fs.unlinkSync(outputPath);
+    } catch {}
+    if (input.remove && input.assetId) store.release(input.assetId);
   }
 });
 

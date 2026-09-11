@@ -8,20 +8,21 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 
 1. **Validate → reserve → enqueue.** Every `POST /transcode*` parses
    multipart `settings` (v1 `{version,kind,settings}` or legacy v0 via
-   `migrateRenderPlan`), reserves an `ArtifactStore` output **before**
+   `migrateRenderPlan`), reserves an `artifact` output **before**
    spawning ffmpeg, inserts `jobs` as `queued`, then `enqueue()`.
 2. **Bounded queue** (`routes/video.ts`): `active < min(2, cpu-1)`,
    `waitQueue ≤ 50`, else `429 + Retry-After: 10` with `rollbackQueuedJob()`.
    `pumpQueue()` advances on settle.
 3. **ffmpeg via `Bun.spawn`.** stderr progress (`out_time_us/ms` vs duration,
    ~5 Hz DB throttle) into `jobs.{progress,logTail}`. Exit `0` → `completed`
-   (+ `settleJobFiles()`); else `failed` with numeric `exitCode` + `[CODE]`
+   (+ `store.finalize()`); else `failed` with numeric `exitCode` + `[CODE]`
    (`classifyFfmpegExit`) + last-5-lines tail. `?mode=cancel` is cooperative:
    mark `cancelled` first so the runner no-ops its finish.
-4. **Files are DB rows.** `FileStore`: `AssetStore` (inputs: `upload`,
-   `request-input`) + `ArtifactStore` (outputs: `output`, `alternate-output`,
-   `subtitle-png`, `ephemeral`) at `<tmp>/ffmpeg_editor_store/<id>.<ext>`.
-   `reserve()` → write → `finalize()` → `share()`/`adopt()` → `release()`.
+4. **Files are DB rows.** Unified `FileStore` with `role` on `reserve()`:
+   `asset` inputs (`upload`, `request-input`) + `artifact` outputs (`output`,
+   `alternate-output`, `subtitle-png`, `ephemeral`) at
+   `<tmp>/ffmpeg_editor_store/<id>.<ext>`.
+   `reserve()` → write → `finalize()` → `share()` → `release()`.
    Job outputs are keep-until-delete; downloads never delete. Responses carry
    `FileDescriptor` IDs only; `publicJob()` redacts paths to `<store>`/`<tmp>`.
 5. **Reads are SSE.** `GET /progress/:jobId` (200 ms + 15 s heartbeat),
@@ -40,13 +41,13 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
   `POST /transcode`, `/transcode/mobile`, `/transcode/mobile/subtitles`,
   `/transcode/cut`; `GET /transcode/jobs`, `/jobs/stream`,
   `/download/:jobId`, `/progress/:jobId`; `DELETE /jobs`, `/jobs/:jobId`;
-  `PATCH /jobs/:jobId`. Internals: `enqueue/pumpQueue/dequeue`,
-  `runTranscode`, `runWebmTgCrfSearch`, `publicJob`, `releaseJobFiles`,
-  `getQueueStats`
+  `PATCH /jobs/:jobId`. Internals: `submitTranscode/readTranscodeRequest`,
+  `enqueue/pumpQueue/startNow`, `runTranscode`, `runWebmTgCrfSearch`,
+  `publicJob`, `releaseJobFiles`, `getQueueStats`
 - `routes/upload.ts` — `POST /upload/init`, `/upload/chunk/:uploadId`,
   `/upload/complete/:uploadId`, `GET /upload/sessions` (open-session list for
   Admin orphan UI), `GET /upload/status/:uploadId` (incl. `chunks[]` resume
-  skip-set), `DELETE /upload/:uploadId`; `consumeUpload()`; 30 min stale sweep
+  skip-set), `DELETE /upload/:uploadId`; `consumeUpload()`; boot sweep only
 - `routes/metadata.ts` — `POST /metadata` (ffprobe → summary,
   `?includeFrames&includePackets`; `packets_and_frames` split in
   `utils/metadata.ts`)
@@ -55,14 +56,16 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 - `routes/files.ts` — `GET /storage/stats`, `POST /storage/sweep` (on-demand
   reconcile, pins live uploads), `GET /files/:id/download`; `streamFile()`
   with single-range support
+- `routes/input.ts` — shared `resolveRequestInput()` (uploadId + direct file)
+  used by video/audio/metadata routes
 
 ### Persistence
 
 - `db.ts` — `bun:sqlite` `.data/app.sqlite` (WAL): `jobs`/`uploads` CRUD,
   `startupSweep()`
 - `storage/fileStore.ts` — `createFileStore`:
-  `reserve/finalize/share/adopt/touch/release`,
-  `sweepExpired/reconcile/stats/checkQuota`, `safeFilename/mimeForExt`,
+  `reserve/finalize/share/touch/release`,
+  `sweepExpired/reconcile/stats`, `safeFilename/mimeForExt`,
   TTLs/quota
 - `storage/index.ts` — process singleton (`db` + `STORE_ROOT`/
   `STORE_QUOTA_BYTES` env). **Tests: never import — use
@@ -92,6 +95,6 @@ reference: `apps/api/README.md` §1–§6. No auth/CORS/rate-limit by design.
 
 - Bun only (`bun add/run`, `Bun.spawn`, `Bun.write/file`); Hono only, no Express/Nest.
 - Record-before-bytes + quota gate (`507`) on every reserve; `release()` is idempotent — double-delete/crash-replay must be safe.
-- Every error via `err(c, CODE, …)`; never leak absolute paths (use `scrubPaths`, generic `STORE_ERROR` text).
+- Every error via `err(c, CODE, …)`; never leak absolute paths (redact to `<store>`/`<tmp>`, generic `STORE_ERROR` text).
 - Logs via `systemLog/jobLog/uploadLog` (+ `*Error` variants) so lines grep cleanly.
 - `bun test` / `bun run lint` (`tsc --noEmit`) before finishing; keep `README.md` §6 endpoint list in sync when routes change.

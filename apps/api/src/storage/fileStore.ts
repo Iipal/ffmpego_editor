@@ -1,12 +1,14 @@
 /**
- * AssetStore / ArtifactStore — first-class lifecycle for every temp file.
+ * File lifecycle for every temp file — one store object, role on reserve().
  *
- * Replaces ad hoc `os.tmpdir()` path conventions + filename-regex sweeps with
- * opaque IDs backed by a `files` table:
+ * Roles travel with the record (`asset` inputs: upload/request-input;
+ * `artifact` outputs: output/alternate-output/subtitle-png/ephemeral) at
+ * `<tmp>/ffmpeg_editor_store/<id>.<ext>`, each kind carrying its TTL default
+ * and every reserve gated by the quota (throws FileStoreQuotaError → 507).
  *
- * - `AssetStore`  — inputs: chunked uploads, single-shot request files.
- * - `ArtifactStore` — outputs: renders, alternate passes, subtitle PNGs,
- *   ephemeral extracts.
+ * `asset` inputs: upload/request-input; `artifact` outputs:
+ * output/alternate-output/subtitle-png/ephemeral. All routes use the
+ * top-level unified store directly.
  *
  * Every record carries: opaque id, role, kind, owner job, reference count,
  * byte size, MIME/extension, display name, creation time, and expiration.
@@ -372,25 +374,6 @@ export function createFileStore(
   }
 
   /**
-   * Adopt a request-scoped file into job ownership: claims an unowned record
-   * (transferring the creator's reference, no count change). Already-owned
-   * files fall back to sharing. Used for single-shot request inputs where
-   * the request itself is the only other owner.
-   */
-  function adopt(id: string, jobId: string): FileRecord | null {
-    const rec = get(id);
-    if (!rec) return null;
-    if (rec.ownerJobId === jobId) return rec;
-    if (rec.ownerJobId === null) {
-      database
-        .prepare(`UPDATE files SET ownerJobId = ?, updatedAt = ? WHERE id = ?`)
-        .run(jobId, Date.now(), id);
-      return get(id);
-    }
-    return share(id, jobId);
-  }
-
-  /**
    * Share a session-owned file with a job: adds a reference so session
    * cleanup can't delete bytes a live job is rendering. First share also
    * records the owner (exempting the file from expiration while the job
@@ -628,50 +611,35 @@ export function createFileStore(
     return { files, bytes, quotaBytes, byRole, byKind };
   }
 
-  /** Quota pre-check for routes that want a 507 with a clear message. */
-  function checkQuota(sizeHint: number): {
-    ok: boolean;
-    managedBytes: number;
-    quotaBytes: number;
-  } {
-    const managed = managedBytes();
-    return {
-      ok: managed + Math.max(0, sizeHint) <= quotaBytes,
-      managedBytes: managed,
-      quotaBytes,
-    };
+  // Single store object — role travels on reserve(), kinds carry TTL
+  // defaults, reserve() is the quota gate.
+  function describeById(id: string): FileDescriptor | null {
+    const rec = get(id);
+    return rec ? describe(rec) : null;
   }
 
-  const roleApi = (role: FileRole) => ({
-    reserve: (o: Omit<ReserveOptions, "role">) => reserve({ ...o, role }),
+  const api = {
+    reserve,
     finalize,
     syncSize,
-    adopt,
     share,
     touch,
     release,
     releaseAll,
     get,
-    describe: (id: string) => {
-      const rec = get(id);
-      return rec ? describe(rec) : null;
-    },
+    describe: describeById,
     writeAtomic,
-  });
+    sweepExpired,
+    reconcile,
+    stats,
+    managedBytes,
+  };
 
   return {
     root,
     quotaBytes,
-    AssetStore: roleApi("asset"),
-    ArtifactStore: roleApi("artifact"),
-    sweepExpired,
-    reconcile,
-    stats,
-    checkQuota,
-    managedBytes,
+    ...api,
   };
 }
 
 export type FileStore = ReturnType<typeof createFileStore>;
-export type AssetStore = FileStore["AssetStore"];
-export type ArtifactStore = FileStore["ArtifactStore"];

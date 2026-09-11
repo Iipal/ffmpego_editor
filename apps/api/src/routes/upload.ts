@@ -10,12 +10,7 @@ import {
 } from "../db.js";
 import { getDiskFreeBytes, uploadLog } from "../observability.js";
 import { err, quotaExceeded } from "../http.js";
-import {
-  AssetStore,
-  FileStoreQuotaError,
-  safeFilename,
-  store,
-} from "../storage/index.js";
+import { FileStoreQuotaError, safeFilename, store } from "../storage/index.js";
 
 const app = new Hono();
 
@@ -27,7 +22,7 @@ function removeSessionFiles(uploadId: string) {
   const s = getUpload(uploadId);
   // Refcount-aware: a job that consumed this upload holds its own reference,
   // so aborting the session never deletes bytes a live job is rendering.
-  if (s?.fileId) AssetStore.release(s.fileId);
+  if (s?.fileId) store.release(s.fileId);
   else if (s) {
     try {
       fs.unlinkSync(s.temporaryPath);
@@ -36,26 +31,10 @@ function removeSessionFiles(uploadId: string) {
   deleteUpload(uploadId);
 }
 
-// Sweep stale sessions (>6h) every 30min — DB-backed so it survives restarts.
-// Also reaps expired/stale store records (failed single-shot inputs, etc.).
-setInterval(
-  () => {
-    const cutoff = Date.now() - 6 * 60 * 60 * 1000;
-    for (const u of listUploads()) {
-      if (u.createdAt < cutoff) removeSessionFiles(u.uploadId);
-    }
-    const swept = store.sweepExpired();
-    if (swept.expired + swept.staleReserved > 0) {
-      uploadLog(
-        "sweep",
-        `reaped ${swept.expired} expired + ${swept.staleReserved} stale-reserved file(s)`,
-      );
-    }
-  },
-  30 * 60 * 1000,
-).unref?.();
+// Stale sessions (>6h) are reaped by the boot sweep only (startupSweep +
+// store reconcile in index.ts); no interval timer here.
 
-// POST /upload/init — create session, pre-allocate temp file
+// POST /upload/init — create session, create empty temp file
 // Body JSON: { filename, totalSize, chunkSize? }
 app.post("/upload/init", async (c) => {
   let body: { filename?: string; totalSize?: number; chunkSize?: number };
@@ -78,8 +57,8 @@ app.post("/upload/init", async (c) => {
     Math.max(1 * 1024 * 1024, Number(body.chunkSize) || DEFAULT_CHUNK_BYTES),
     64 * 1024 * 1024,
   );
-  // B5: disk-quota gate — refuse to pre-allocate when tmpdir cannot hold the
-  // declared file (507 so clients can surface "server disk full" distinctly).
+  // B5: disk-quota gate — refuse when tmpdir cannot hold the declared
+  // file (507 so clients can surface "server disk full" distinctly).
   const diskFree = getDiskFreeBytes(os.tmpdir());
   if (diskFree != null && totalSize > diskFree) {
     return err(c, "DISK_FULL", {
@@ -87,18 +66,16 @@ app.post("/upload/init", async (c) => {
       details: { neededBytes: totalSize, diskFreeBytes: diskFree },
     });
   }
-  const quota = store.checkQuota(totalSize);
-  if (!quota.ok) {
-    return quotaExceeded(c, totalSize, quota.quotaBytes);
-  }
   const uploadId = crypto.randomUUID();
   const safeName = safeFilename(filename, "upload.bin");
   // Record-before-bytes: the asset row owns this path before anything is
   // written, so an aborted init can never leave an untracked file.
+  // Quota gate is reserve-throw only (reserve maps FileStoreQuotaError→507).
   let assetId: string;
   let temporaryPath: string;
   try {
-    ({ id: assetId, path: temporaryPath } = AssetStore.reserve({
+    ({ id: assetId, path: temporaryPath } = store.reserve({
+      role: "asset",
       kind: "upload",
       filename: safeName,
       sizeHint: totalSize,
@@ -109,12 +86,11 @@ app.post("/upload/init", async (c) => {
     }
     throw e;
   }
-  // Pre-create sparse file to reserve space and enable random-access writes
-  const fd = fs.openSync(temporaryPath, "w");
-  try {
-    fs.ftruncateSync(fd, totalSize);
-  } catch {}
-  fs.closeSync(fd);
+  // Plain empty file — chunk writes land at their offsets and extend it
+  // as they arrive (no sparse ftruncate prealloc); complete() requires the
+  // exact final size. Created here (not lazily in chunk) so chunk can use
+  // "r+" random-access writes without buffering the whole file.
+  fs.closeSync(fs.openSync(temporaryPath, "w"));
   insertUpload({
     uploadId,
     filename: safeName,
@@ -174,7 +150,7 @@ app.post("/upload/chunk/:uploadId", async (c) => {
 
   // Resolve through the owning asset record (mirror fallback for legacy rows).
   const targetPath = s.fileId
-    ? (AssetStore.get(s.fileId)?.path ?? s.temporaryPath)
+    ? (store.get(s.fileId)?.path ?? s.temporaryPath)
     : s.temporaryPath;
   // Random-access write at offset — keeps memory flat, no buffering whole file
   const fd = fs.openSync(targetPath, "r+");
@@ -190,7 +166,7 @@ app.post("/upload/chunk/:uploadId", async (c) => {
   if (received > s.totalSize) received = s.totalSize;
   updateUpload(uploadId, { received, chunks });
   // Keep the asset row fresh so slow-but-live sessions aren't reaped as stale.
-  if (s.fileId) AssetStore.touch(s.fileId);
+  if (s.fileId) store.touch(s.fileId);
 
   return c.json({
     ok: true,
@@ -202,40 +178,30 @@ app.post("/upload/chunk/:uploadId", async (c) => {
   });
 });
 
-// POST /upload/complete/:uploadId — verify size, trim sparse tail if needed
+// POST /upload/complete/:uploadId — verify exact size (no trim: without
+// prealloc the file only reaches totalSize when every byte range landed)
 app.post("/upload/complete/:uploadId", async (c) => {
   const uploadId = c.req.param("uploadId");
   const s = getUpload(uploadId);
   if (!s)
     return err(c, "UPLOAD_NOT_FOUND", { message: "Upload session not found" });
+  let size: number;
   try {
-    const stat = fs.statSync(s.temporaryPath);
-    if (stat.size !== s.totalSize) {
-      // Truncate/extend to exact size (handles preallocated sparse file)
-      const fd = fs.openSync(s.temporaryPath, "r+");
-      fs.ftruncateSync(fd, s.totalSize);
-      fs.closeSync(fd);
-    }
+    size = fs.statSync(s.temporaryPath).size;
   } catch {
     // Generic message: fs errors embed the absolute store path.
     return err(c, "STORE_ERROR", {
       message: "Upload temp file is missing or unreadable.",
     });
   }
-  // Optionally validate received bytes — allow complete even if s.received < totalSize if client used sparse holes?
-  // For strict mode, require s.received >= totalSize else error
-  if (s.received < s.totalSize) {
-    // Check actual non-zero file size via stat
-    const stat = fs.statSync(s.temporaryPath);
-    if (stat.size < s.totalSize) {
-      return err(c, "UPLOAD_INCOMPLETE", {
-        message: `Incomplete upload: received ${s.received}/${s.totalSize}`,
-        details: { received: s.received, totalSize: s.totalSize },
-      });
-    }
+  if (size !== s.totalSize || s.received < s.totalSize) {
+    return err(c, "UPLOAD_INCOMPLETE", {
+      message: `Incomplete upload: received ${s.received}/${s.totalSize}`,
+      details: { received: s.received, totalSize: s.totalSize },
+    });
   }
   // Record the real byte size on the owning asset (quota accounting).
-  if (s.fileId) AssetStore.finalize(s.fileId, s.totalSize);
+  if (s.fileId) store.finalize(s.fileId, s.totalSize);
   return c.json({
     ok: true,
     uploadId,
@@ -247,7 +213,7 @@ app.post("/upload/complete/:uploadId", async (c) => {
 
 // GET /upload/sessions — list open sessions for the Admin dashboard so
 // orphaned uploads (abandoned before complete) are visible + abortable
-// instead of sitting until the 6h server sweep. Newest first.
+// instead of sitting until the 6h boot sweep. Newest first.
 app.get("/upload/sessions", (c) => {
   const now = Date.now();
   const sessions = listUploads()
@@ -298,14 +264,14 @@ export interface ConsumedUpload {
 
 // Helper for other routes: resolve a completed upload's file. Takes no
 // reference — transient consumers (metadata probe) just read the bytes,
-// while job creators follow up with AssetStore.share/adopt so the bytes
+// while job creators follow up with store.share so the bytes
 // survive session cleanup while the job needs them.
 // Upload rows persist in SQLite so metadata + transcode can reuse the same
 // uploadId without re-uploading.
 export function consumeUpload(uploadId: string): ConsumedUpload | null {
   const s = getUpload(uploadId);
   if (!s) return null;
-  const rec = s.fileId ? AssetStore.get(s.fileId) : null;
+  const rec = s.fileId ? store.get(s.fileId) : null;
   const filePath = rec?.path ?? s.temporaryPath;
   try {
     fs.accessSync(filePath);

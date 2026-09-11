@@ -1,18 +1,10 @@
 import { Hono } from "hono";
-import { consumeUpload } from "./upload.js";
+import { resolveRequestInput } from "./input.js";
 import { extractVideoMetadata, type FFprobeReport } from "../utils/metadata.js";
 import { systemError } from "../observability.js";
 import { err, quotaExceeded } from "../http.js";
-import {
-  MULTIPART_FIELDS,
-  UPLOAD_ID_HEADER,
-  UPLOAD_ID_QUERY,
-} from "@repo/contracts";
-import {
-  AssetStore,
-  FileStoreQuotaError,
-  reserveRequestAsset,
-} from "../storage/index.js";
+import { UPLOAD_ID_HEADER, UPLOAD_ID_QUERY } from "@repo/contracts";
+import { FileStoreQuotaError, store } from "../storage/index.js";
 
 const app = new Hono();
 
@@ -23,22 +15,9 @@ app.post("/metadata", async (c) => {
   const includeFrames = c.req.query("includeFrames") === "true";
   const includePackets = c.req.query("includePackets") === "true";
 
-  let temporaryPath: string;
-  let filename: string;
-  // Single-shot request asset (record-before-bytes so a failed probe leaves
-  // a tracked record, never a stray file). Released after probing.
-  let assetId: string | null = null;
-
-  if (uploadIdHeader) {
-    const consumed = consumeUpload(uploadIdHeader);
-    if (!consumed)
-      return err(c, "UPLOAD_NOT_FOUND", {
-        message: "Upload session not found or expired",
-      });
-    temporaryPath = consumed.path;
-    filename = consumed.filename;
-  } else {
-    let form: FormData;
+  // Chunked sessions skip multipart parsing; direct uploads parse the form.
+  let form: FormData | null = null;
+  if (!uploadIdHeader) {
     try {
       form = await c.req.formData();
     } catch (e) {
@@ -47,32 +26,29 @@ app.post("/metadata", async (c) => {
         message: "Invalid multipart body / file too large",
       });
     }
-    // also allow uploadId inside multipart (chunked flow)
-    const uploadIdField = form.get(MULTIPART_FIELDS.uploadId);
-    if (typeof uploadIdField === "string" && uploadIdField.trim()) {
-      const consumed = consumeUpload(uploadIdField.trim());
-      if (!consumed)
-        return err(c, "UPLOAD_NOT_FOUND", {
-          message: "Upload session not found or expired",
-        });
-      temporaryPath = consumed.path;
-      filename = consumed.filename;
-    } else {
-      const file = form.get(MULTIPART_FIELDS.file);
-      if (!(file instanceof File))
-        return err(c, "FILE_REQUIRED", { message: "Video file is required" });
-      try {
-        ({ id: assetId, path: temporaryPath } =
-          await reserveRequestAsset(file));
-      } catch (e) {
-        if (e instanceof FileStoreQuotaError) {
-          return quotaExceeded(c, e.neededBytes, e.quotaBytes);
-        }
-        throw e;
-      }
-      filename = file.name;
-    }
   }
+  let resolved: Awaited<ReturnType<typeof resolveRequestInput>>;
+  try {
+    resolved = await resolveRequestInput(c, form);
+  } catch (e) {
+    if (e instanceof FileStoreQuotaError) {
+      return quotaExceeded(c, e.neededBytes, e.quotaBytes);
+    }
+    throw e;
+  }
+  if (!resolved.ok) {
+    return resolved.reason === "upload-not-found"
+      ? err(c, "UPLOAD_NOT_FOUND", {
+          message: "Upload session not found or expired",
+        })
+      : err(c, "FILE_REQUIRED", { message: "Video file is required" });
+  }
+  const temporaryPath = resolved.input.temporaryPath;
+  const filename = resolved.input.filename;
+  // Single-shot request asset (record-before-bytes so a failed probe leaves
+  // a tracked record, never a stray file). Released after probing; chunked
+  // session bytes stay for transcode reuse.
+  const assetId = resolved.input.remove ? resolved.input.assetId : null;
   const args = [
     "ffprobe",
     "-v",
@@ -97,7 +73,7 @@ app.post("/metadata", async (c) => {
   try {
     process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
   } catch (e) {
-    if (assetId) AssetStore.release(assetId);
+    if (assetId) store.release(assetId);
     systemError("[metadata] ffprobe spawn failed:", e);
     return err(c, "INTERNAL", {
       message: "Video inspector unavailable (spawn failed)",
@@ -105,7 +81,7 @@ app.post("/metadata", async (c) => {
   }
   const exitCode = await process.exited;
   // Only delete temp file if it was created for this single-shot request; chunked uploads are reused for transcode
-  if (assetId) AssetStore.release(assetId);
+  if (assetId) store.release(assetId);
   if (exitCode !== 0) {
     const stderr = await new Response(process.stderr as ReadableStream)
       .text()

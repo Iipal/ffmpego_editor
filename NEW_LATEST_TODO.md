@@ -154,47 +154,47 @@ cutting. Nothing below is applied; this is the work list.
 
 ## Phase 3 — apps/api
 
-- [ ] **3.1 Four transcode endpoints repeat reserve/claim/enqueue/rollback (~60).**
+- [x] **3.1 Four transcode endpoints repeat reserve/claim/enqueue/rollback (~60).**
       `src/routes/video.ts:770`.
       Steps: one `submitTranscode` helper; keep `active < min(2,cpu-1)` bound and wait-queue ≤ 50 semantics.
       Verify: enqueue + queue-full 429 + cancel paths.
-- [ ] **3.2 Bounded-queue pump/starters/dequeue/killProc (~60).**
+- [x] **3.2 Bounded-queue pump/starters/dequeue/killProc (~60).**
       `src/routes/video.ts:64`.
       Steps: simple active counter + starter, same bounds as 3.1.
       Verify: two concurrent jobs max, third waits, cancel kills proc.
-- [ ] **3.3 Audio filter builders triplicated (~60).**
+- [x] **3.3 Audio filter builders triplicated (~60).**
       `src/utils/ffmpegBuilder.ts:95`.
       Steps: one shared audio-filter helper across the three builders; preview/export must not drift.
       Verify: exports with audio filters byte-compare filters before/after (log the `-af` chain).
-- [ ] **3.4 Plan-field/plan-error/schema pipeline (~50).**
+- [x] **3.4 Plan-field/plan-error/schema pipeline (~50).**
       `src/routes/video.ts:641`.
       Steps: inline `JSON.parse` + zod at handlers.
       Verify: invalid plans still 422 with `issues[]`.
-- [ ] **3.5 Hand-rolled dynamic SET builders (~45).**
+- [x] **3.5 Hand-rolled dynamic SET builders (~45).**
       `src/db.ts:165`.
       Steps: static SQL updates per caller.
       Verify: job/upload updates persist.
-- [ ] **3.6 Triplicated resolveInput (~40).**
+- [x] **3.6 Triplicated resolveInput (~40).**
       `src/routes/audio.ts:32` (also in video/metadata routes).
       Steps: one shared resolver.
       Verify: all three routes resolve uploadId + direct uploads.
-- [ ] **3.7 Sparse preallocate ftruncate + trim/clamp (~35).**
+- [x] **3.7 Sparse preallocate ftruncate + trim/clamp (~35).**
       `src/routes/upload.ts:112`.
       Steps: plain sequential writes.
       Verify: chunked upload assembles byte-identical file.
-- [ ] **3.8 Legacy ensureColumn/dropColumn migration theater (~32).**
+- [x] **3.8 Legacy ensureColumn/dropColumn migration theater (~32).**
       `src/db.ts:77`.
       Steps: fresh CREATE TABLE (local-only DB, no prod to migrate).
       Verify: clean boot creates schema, jobs survive restart.
-- [ ] **3.9 Micro-wrappers exportBase/parseArgs/scrubPaths/settle (~30).**
+- [x] **3.9 Micro-wrappers exportBase/parseArgs/scrubPaths/settle (~30).**
       `src/routes/video.ts:90`.
       Steps: inline at callers.
       Verify: typecheck + one export per format.
-- [ ] **3.10 AssetStore/ArtifactStore factory duality (~28).**
+- [x] **3.10 AssetStore/ArtifactStore factory duality (~28).**
       `src/storage/fileStore.ts:645`.
       Steps: single store object, keep reserve→finalize→release semantics.
       Verify: render + download + job delete.
-- [ ] **3.11 adopt() falling back to share() (~28).**
+- [x] **3.11 adopt() falling back to share() (~28).**
       `src/storage/fileStore.ts:380`.
       Steps: `share()` only.
       Verify: file downloads by opaque ID.
@@ -202,15 +202,15 @@ cutting. Nothing below is applied; this is the work list.
       `src/routes/video.ts:920`.
       Steps: single `subtitles[]` field.
       Verify: subtitle burn-in export works.
-- [ ] **3.13 checkQuota pre-check duplicating reserve gate (~25).**
+- [x] **3.13 checkQuota pre-check duplicating reserve gate (~25).**
       `src/storage/fileStore.ts:631`.
       Steps: reserve-throw only.
       Verify: disk-full still 507s, no blind retry client-side.
-- [ ] **3.14 percentZones/percentLayout scaling (~25).**
+- [x] **3.14 percentZones/percentLayout scaling (~25).**
       `src/routes/video.ts:594`.
       Steps: builders accept 0-1 directly.
       Verify: mobile zone exports land in the same pixels.
-- [ ] **3.15 Hand-rolled Range parse in streamFile (~22).**
+- [x] **3.15 Hand-rolled Range parse in streamFile (~22).**
       `src/routes/files.ts:23`.
       Steps: Bun.file range response.
       Verify: ranged download resumes + video seeks.
@@ -218,11 +218,11 @@ cutting. Nothing below is applied; this is the work list.
       `src/observability.ts:12`.
       Steps: `console.log` directly.
       Verify: logs still appear on export failure.
-- [ ] **3.17 30-min upload sweeper duplicating boot sweep (~16).**
+- [x] **3.17 30-min upload sweeper duplicating boot sweep (~16).**
       `src/routes/upload.ts:41`.
       Steps: boot sweep only.
       Verify: stale sessions cleared on restart.
-- [ ] **3.18 Audio-extract reserve/finalize/release dance (~15).**
+- [x] **3.18 Audio-extract reserve/finalize/release dance (~15).**
       `src/routes/audio.ts:233`.
       Steps: direct temp file.
       Verify: mp3/wav extract downloads.
@@ -234,7 +234,7 @@ cutting. Nothing below is applied; this is the work list.
       `src/http.ts:45`.
       Steps: use `err` everywhere.
       Verify: error envelope shape unchanged (contract tests / client parsing).
-- [ ] **3.21 Remove @types/node (~1).**
+- [x] **3.21 Remove @types/node (~1).**
       `apps/api/package.json:25` — covered by `@types/bun`. Verify: typecheck.
 
 ## Phase 4 — packages + root configs

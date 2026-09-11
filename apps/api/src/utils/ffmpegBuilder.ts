@@ -92,20 +92,32 @@ export interface TranscodeOptions {
   }>;
 }
 
+/**
+ * Shared speed→audio filter atom.
+ *
+ * Byte-identical to the atempo selection triplicated in cutBuilder.ts
+ * (`atempo` const) and mobileSubtitlesBuilder.ts (both `hasSpeed` branches):
+ * rates in (0, 0.5) chain `buildAtempoFilter`, everything else is a single
+ * `atempo=` (atempo only accepts 0.5–100). Returns null when there is no
+ * speed change. Those builders import this directly, so `-af` cannot drift.
+ */
+export function buildAtempoAudioFilter(
+  rate: number | undefined,
+): string | null {
+  if (rate === undefined || rate === 1) return null;
+  return rate > 0 && rate < 0.5
+    ? buildAtempoFilter(rate)
+    : `atempo=${rate.toFixed(6)}`;
+}
+
 function buildAudioFilter(
   options: TranscodeOptions,
   speed?: number,
   track?: NonNullable<TranscodeOptions["audioTracks"]>[number],
 ) {
   const filters: string[] = [];
-  const rate = speed ?? options.speed;
-  if (rate !== undefined && rate !== 1) {
-    filters.push(
-      rate > 0 && rate < 0.5
-        ? buildAtempoFilter(rate)
-        : `atempo=${rate.toFixed(6)}`,
-    );
-  }
+  const atempo = buildAtempoAudioFilter(speed ?? options.speed);
+  if (atempo) filters.push(atempo);
   const settings = track ?? {
     gainDb: options.gainDb ?? 0,
     loudnormEnabled: options.loudnormTargetLufs !== undefined,
@@ -402,13 +414,13 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
   let usedComplex = false;
   if (options.mobileLayout) {
     const ml = options.mobileLayout;
-    // Zones arrive as 0-100 percent (routes scale the 0-1 values up front).
+    // Zones are 0-1 (schema-enforced); zoneToPixels scales directly.
     const toCrop = (z: {
       x: number;
       y: number;
       width: number;
       height: number;
-    }) => zoneToPixels(z, options.sourceWidth, options.sourceHeight, false);
+    }) => zoneToPixels(z, options.sourceWidth, options.sourceHeight);
     const hasSpeed = options.speed !== undefined && options.speed !== 1;
     const setpts = hasSpeed
       ? `,${buildSetptsFilter(options.speed as number)}`
@@ -429,29 +441,24 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       }
       return ["-map", audioMap, ...(fallback ? ["-filter:a", fallback] : [])];
     };
+    // One shared push for the three filter_complex branches (full+wm,
+    // stacked+wm, stacked simple): audioArgs already handles a null fallback.
+    const pushComplexAudio = (filterComplex: string) => {
+      args.push(
+        "-filter_complex",
+        filterComplex,
+        "-map",
+        "[v]",
+        ...audioArgs(getAudio()),
+      );
+    };
     if (ml.mode === "full" && ml.zones[0]) {
       const c = toCrop(ml.zones[0]);
       if (wm) {
         // use filter_complex for watermark overlay on top of cropped/scaled video
         const base = `[0:v]crop=${c.cw}:${c.ch}:${c.cx}:${c.cy},scale=1080:1920:flags=lanczos${setpts}[vbase]`;
         const filterComplex = `${base};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
-        const af = getAudio();
-        if (af)
-          args.push(
-            "-filter_complex",
-            filterComplex,
-            "-map",
-            "[v]",
-            ...audioArgs(af),
-          );
-        else
-          args.push(
-            "-filter_complex",
-            filterComplex,
-            "-map",
-            "[v]",
-            ...audioArgs(null),
-          );
+        pushComplexAudio(filterComplex);
         usedComplex = true;
         videoFilters.length = 0;
       } else {
@@ -473,43 +480,11 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
       const baseComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[vbase]`;
       if (wm) {
         const fullComplex = `${baseComplex};[vbase][1:v]overlay=0:0:format=auto:shortest=1[v]`;
-        const af = getAudio();
-        if (af)
-          args.push(
-            "-filter_complex",
-            fullComplex,
-            "-map",
-            "[v]",
-            ...audioArgs(af),
-          );
-        else
-          args.push(
-            "-filter_complex",
-            fullComplex,
-            "-map",
-            "[v]",
-            ...audioArgs(null),
-          );
+        pushComplexAudio(fullComplex);
         usedComplex = true;
       } else {
         const simpleComplex = `[0:v]crop=${a.cw}:${a.ch}:${a.cx}:${a.cy},scale=1080:${h1}:flags=lanczos${setpts}[z1];[0:v]crop=${b.cw}:${b.ch}:${b.cx}:${b.cy},scale=1080:${h2}:flags=lanczos${setpts}[z2];[z1][z2]vstack=inputs=2[v]`;
-        const af = getAudio();
-        if (af)
-          args.push(
-            "-filter_complex",
-            simpleComplex,
-            "-map",
-            "[v]",
-            ...audioArgs(af),
-          );
-        else
-          args.push(
-            "-filter_complex",
-            simpleComplex,
-            "-map",
-            "[v]",
-            ...audioArgs(null),
-          );
+        pushComplexAudio(simpleComplex);
         usedComplex = true;
       }
       videoFilters.length = 0;

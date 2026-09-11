@@ -1,9 +1,8 @@
+import { buildSetptsFilter, zoneToPixels } from "@repo/ffmpeg-filters";
 import {
-  buildAtempoFilter,
-  buildSetptsFilter,
-  zoneToPixels,
-} from "@repo/ffmpeg-filters";
-import { resolveWatermarkPath } from "./ffmpegBuilder.js";
+  buildAtempoAudioFilter,
+  resolveWatermarkPath,
+} from "./ffmpegBuilder.js";
 
 export type CutMode = "full-size" | "2-stack" | "1-stack";
 
@@ -58,7 +57,7 @@ function toPixels(
   sourceWidth: number,
   sourceHeight: number,
 ): { cw: number; ch: number; cx: number; cy: number } {
-  // Accept either 0-1 normalized or 0-100 percent (mobile endpoint multiplies by 100 before builder).
+  // Accept either 0-1 normalized or 0-100 percent (auto-detected).
   const normalized = !(z.width > 1 || z.height > 1 || z.x > 1 || z.y > 1);
   return zoneToPixels(z, sourceWidth, sourceHeight, normalized);
 }
@@ -107,16 +106,9 @@ export function buildCutFFmpegArgs(options: CutTranscodeOptions): string[] {
     "aac",
   );
 
-  const hasSpeed = options.speed !== undefined && options.speed !== 1;
+  const atempo = buildAtempoAudioFilter(options.speed);
+  const hasSpeed = atempo !== null;
   const speed = hasSpeed ? (options.speed as number) : 1;
-  const atempo = hasSpeed
-    ? (() => {
-        if (speed > 0 && speed < 0.5) {
-          return buildAtempoFilter(speed);
-        }
-        return `atempo=${speed.toFixed(6)}`;
-      })()
-    : null;
   const vSpeed = hasSpeed ? `,${buildSetptsFilter(speed)}` : "";
   const enabledAudioTracks =
     options.audioTracks?.filter((track) => track.enabled) ?? [];

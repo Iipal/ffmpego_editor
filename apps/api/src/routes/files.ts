@@ -11,18 +11,13 @@ import fs from "node:fs";
 import { systemError, systemLog } from "../observability.js";
 import { err, errResponse } from "../http.js";
 import { liveUploadPaths } from "../db.js";
-import {
-  ArtifactStore,
-  AssetStore,
-  store,
-  type FileRecord,
-} from "../storage/index.js";
+import { store, type FileRecord } from "../storage/index.js";
 
 const app = new Hono();
 
 export function lookup(id: string): FileRecord | null {
   if (!/^(ast|art)_[0-9a-f]{32}$/.test(id)) return null;
-  return ArtifactStore.get(id) ?? AssetStore.get(id);
+  return store.get(id);
 }
 
 /**
@@ -49,42 +44,39 @@ export function streamFile(
     "Cache-Control": "no-store",
     "Accept-Ranges": "bytes",
   };
-  if (rangeHeader) {
-    const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
-    if (!m || (m[1] === "" && m[2] === "")) {
-      return errResponse(
-        "RANGE_INVALID",
-        { message: "Invalid Range header." },
-        {
-          "Content-Range": `bytes */${total}`,
-        },
-      );
-    }
-    let start = m[1] === "" ? total - Number(m[2]) : Number(m[1]);
-    let end = m[2] === "" ? total - 1 : Number(m[2]);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) {
-      return errResponse(
-        "RANGE_INVALID",
-        { message: "Invalid Range header." },
-        {
-          "Content-Range": `bytes */${total}`,
-        },
-      );
-    }
-    start = Math.max(0, Math.min(start, total - 1));
-    end = Math.max(start, Math.min(end, total - 1));
-    const length = end - start + 1;
-    return new Response(Bun.file(rec.path).slice(start, end + 1), {
-      status: 206,
-      headers: {
-        ...baseHeaders,
-        "Content-Length": String(length),
-        "Content-Range": `bytes ${start}-${end}/${total}`,
-      },
+  if (!rangeHeader) {
+    return new Response(Bun.file(rec.path), {
+      headers: { ...baseHeaders, "Content-Length": String(total) },
     });
   }
-  return new Response(Bun.file(rec.path), {
-    headers: { ...baseHeaders, "Content-Length": String(total) },
+  // Single-range request (download resume + video seek): parse the bounds,
+  // serve the slice natively via Bun.file. Anything unparseable is 416.
+  const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+  const rs = m?.[1] ?? "";
+  const re = m?.[2] ?? "";
+  let start = rs === "" ? total - Number(re) : Number(rs);
+  let end = re === "" ? total - 1 : Number(re);
+  if (
+    !m ||
+    (rs === "" && re === "") ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end)
+  ) {
+    return errResponse(
+      "RANGE_INVALID",
+      { message: "Invalid Range header." },
+      { "Content-Range": `bytes */${total}` },
+    );
+  }
+  start = Math.max(0, Math.min(start, total - 1));
+  end = Math.max(start, Math.min(end, total - 1));
+  return new Response(Bun.file(rec.path).slice(start, end + 1), {
+    status: 206,
+    headers: {
+      ...baseHeaders,
+      "Content-Length": String(end - start + 1),
+      "Content-Range": `bytes ${start}-${end}/${total}`,
+    },
   });
 }
 

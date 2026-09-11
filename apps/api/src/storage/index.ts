@@ -20,10 +20,8 @@ export const store = createFileStore(db, {
   isJobAlive: (jobId) => getJob(jobId) !== null,
 });
 
-export const { AssetStore, ArtifactStore } = store;
-
 /**
- * Reserve + write + finalize a single-shot request upload as an AssetStore
+ * Reserve + write + finalize a single-shot request upload as an asset
  * record. Throws FileStoreQuotaError on quota breach (routes map it to 507
  * via quotaExceeded); releases the reservation if bytes fail to land, so a
  * failed write leaves a tracked row, never a stray file.
@@ -32,7 +30,8 @@ export async function reserveRequestAsset(
   file: File,
 ): Promise<{ id: string; path: string }> {
   const size = Number.isFinite(file.size) ? file.size : 0;
-  const { id, path } = AssetStore.reserve({
+  const { id, path } = store.reserve({
+    role: "asset",
     kind: "request-input",
     filename: file.name || "upload.bin",
     mime: file.type || undefined,
@@ -41,10 +40,10 @@ export async function reserveRequestAsset(
   try {
     await Bun.write(path, file);
   } catch (e) {
-    AssetStore.release(id);
+    store.release(id);
     throw e;
   }
-  AssetStore.finalize(id);
+  store.finalize(id);
   return { id, path };
 }
 export type { FileStore } from "./fileStore.js";

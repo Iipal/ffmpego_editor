@@ -12,7 +12,7 @@ export interface JobRow {
   error: string | null;
   logTail: string | null;
   exitCode: number | null;
-  /** Opaque AssetStore/ArtifactStore IDs — the only file references. */
+  /** Opaque store file IDs — the only file references. */
   inputFileId: string | null;
   outputFileId: string | null;
   alternateFileId: string | null;
@@ -29,7 +29,7 @@ export interface UploadRow {
   totalSize: number;
   received: number;
   temporaryPath: string;
-  /** Owning AssetStore record for the pre-allocated session file. */
+  /** Owning store record for the pre-allocated session file. */
   fileId: string | null;
   createdAt: number;
   chunks: number[];
@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS jobs (
   progress REAL NOT NULL DEFAULT 0,
   error TEXT,
   logTail TEXT,
+  exitCode INTEGER,
+  inputFileId TEXT,
+  outputFileId TEXT,
+  alternateFileId TEXT,
+  subtitleFileIds TEXT DEFAULT '[]',
   createdAt INTEGER NOT NULL,
   updatedAt INTEGER NOT NULL,
   kind TEXT NOT NULL DEFAULT 'transcode',
@@ -67,45 +72,11 @@ CREATE TABLE IF NOT EXISTS uploads (
   totalSize INTEGER NOT NULL,
   received INTEGER NOT NULL DEFAULT 0,
   temporaryPath TEXT NOT NULL,
+  fileId TEXT,
   createdAt INTEGER NOT NULL,
   chunks TEXT NOT NULL DEFAULT '[]'
 );
 `);
-
-// B4: numeric ffmpeg exit code (null while pending / spawn failure).
-// ALTER TABLE has no IF NOT EXISTS — guard via PRAGMA so restarts don't crash.
-function ensureColumn(table: string, column: string, ddl: string): void {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
-    name: string;
-  }[];
-  if (!cols.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${ddl};`);
-  }
-}
-ensureColumn("jobs", "exitCode", "INTEGER");
-// AssetStore/ArtifactStore ownership (opaque file IDs).
-ensureColumn("jobs", "inputFileId", "TEXT");
-ensureColumn("jobs", "outputFileId", "TEXT");
-ensureColumn("jobs", "alternateFileId", "TEXT");
-ensureColumn("jobs", "subtitleFileIds", "TEXT DEFAULT '[]'");
-ensureColumn("uploads", "fileId", "TEXT");
-
-// Dropped: pre-AssetStore path-mirror columns (outputPath,
-// alternateOutputPath, temporaryInputPath, subtitlePaths). Files are
-// referenced by store ID only; jobs table is empty-or-migrated in practice
-// (local dev data), so legacy rows lose their path mirrors here.
-function dropColumn(table: string, column: string): void {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as {
-    name: string;
-  }[];
-  if (cols.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} DROP COLUMN ${column};`);
-  }
-}
-dropColumn("jobs", "outputPath");
-dropColumn("jobs", "alternateOutputPath");
-dropColumn("jobs", "temporaryInputPath");
-dropColumn("jobs", "subtitlePaths");
 
 function rowToJob(r: Record<string, unknown>): JobRow {
   return {
@@ -177,41 +148,24 @@ export function updateJob(
     >
   >,
 ): void {
-  const sets: string[] = [];
-  const vals: (string | number | null)[] = [];
-  if (patch.status !== undefined) {
-    sets.push("status = ?");
-    vals.push(patch.status);
-  }
-  if (patch.progress !== undefined) {
-    sets.push("progress = ?");
-    vals.push(patch.progress);
-  }
-  if (patch.error !== undefined) {
-    sets.push("error = ?");
-    vals.push(patch.error);
-  }
-  if (patch.logTail !== undefined) {
-    sets.push("logTail = ?");
-    vals.push(patch.logTail);
-  }
-  if (patch.exitCode !== undefined) {
-    sets.push("exitCode = ?");
-    vals.push(patch.exitCode);
-  }
-  if (patch.alternateFileId !== undefined) {
-    sets.push("alternateFileId = ?");
-    vals.push(patch.alternateFileId);
-  }
-  if (patch.filename !== undefined) {
-    sets.push("filename = ?");
-    vals.push(patch.filename);
-  }
-  if (!sets.length) return;
-  sets.push("updatedAt = ?");
-  vals.push(Date.now());
-  vals.push(jobId);
-  db.prepare(`UPDATE jobs SET ${sets.join(", ")} WHERE jobId = ?`).run(...vals);
+  // Single static UPDATE: merge over the current row so partial patches
+  // (incl. explicit nulls) persist exactly, with no dynamic SET builder.
+  const cur = getJob(jobId);
+  if (!cur || Object.keys(patch).length === 0) return;
+  const next = { ...cur, ...patch };
+  db.prepare(
+    `UPDATE jobs SET status = ?, progress = ?, error = ?, logTail = ?, exitCode = ?, alternateFileId = ?, filename = ?, updatedAt = ? WHERE jobId = ?`,
+  ).run(
+    next.status,
+    next.progress,
+    next.error,
+    next.logTail,
+    next.exitCode,
+    next.alternateFileId,
+    next.filename,
+    Date.now(),
+    jobId,
+  );
 }
 
 export function deleteJob(jobId: string): void {
@@ -256,20 +210,16 @@ export function updateUpload(
   uploadId: string,
   patch: Partial<Pick<UploadRow, "received" | "chunks">>,
 ): void {
-  const sets: string[] = [];
-  const vals: (string | number)[] = [];
-  if (patch.received !== undefined) {
-    sets.push("received = ?");
-    vals.push(patch.received);
-  }
-  if (patch.chunks !== undefined) {
-    sets.push("chunks = ?");
-    vals.push(JSON.stringify(patch.chunks));
-  }
-  if (!sets.length) return;
-  vals.push(uploadId);
-  db.prepare(`UPDATE uploads SET ${sets.join(", ")} WHERE uploadId = ?`).run(
-    ...vals,
+  // Single static UPDATE over the merged row — no dynamic SET builder.
+  if (patch.received === undefined && patch.chunks === undefined) return;
+  const cur = getUpload(uploadId);
+  if (!cur) return;
+  db.prepare(
+    `UPDATE uploads SET received = ?, chunks = ? WHERE uploadId = ?`,
+  ).run(
+    patch.received ?? cur.received,
+    JSON.stringify(patch.chunks ?? cur.chunks),
+    uploadId,
   );
 }
 

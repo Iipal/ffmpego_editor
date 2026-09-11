@@ -3,12 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type { z } from "zod";
 import { err, quotaExceeded } from "../http.js";
 import {
   MULTIPART_FIELDS,
-  UPLOAD_ID_HEADER,
-  UPLOAD_ID_QUERY,
   classifyFfmpegExit,
   migrateRenderPlan,
   type RenderKind,
@@ -25,16 +22,10 @@ import {
 } from "../utils/ffmpegBuilder.js";
 import { buildCutFFmpegArgs, totalCutDuration } from "../utils/cutBuilder.js";
 import { buildMobileSubtitlesArgs } from "../utils/mobileSubtitlesBuilder.js";
-import { consumeUpload } from "./upload.js";
+import { resolveRequestInput, type ResolvedRequestInput } from "./input.js";
 import { streamFile } from "./files.js";
 import { jobError, jobLog, systemError } from "../observability.js";
-import {
-  cutSettingsSchema,
-  genericSettingsSchema,
-  mobileSettingsSchema,
-  normalizeTrimAlias,
-  parseCustomArgs,
-} from "../validation.js";
+import { normalizeTrimAlias, parseCustomArgs } from "../validation.js";
 import {
   deleteJob,
   getJob,
@@ -45,10 +36,7 @@ import {
   type JobStatus,
 } from "../db.js";
 import {
-  ArtifactStore,
-  AssetStore,
   FileStoreQuotaError,
-  reserveRequestAsset,
   safeFilename,
   store,
   type FileDescriptor,
@@ -110,7 +98,8 @@ function reserveOutputFile(
   displayBase: string,
 ): { fileId: string; path: string } {
   const base = safeFilename(displayBase, "export") || "export";
-  const { id, path: filePath } = ArtifactStore.reserve({
+  const { id, path: filePath } = store.reserve({
+    role: "artifact",
     kind,
     filename: `${base}.${ext}`,
     ownerJobId: jobId,
@@ -134,18 +123,27 @@ function releaseJobFiles(
     job.alternateFileId,
     ...(job.subtitleFileIds ?? []),
   ].filter((x): x is string => !!x);
-  return ArtifactStore.releaseAll(ids);
+  return store.releaseAll(ids);
 }
 
 /**
- * Record real byte sizes on a completed job's artifacts (ffmpeg writes
- * directly to reserved paths, so sizes are synced at settle time).
+ * Single-pass export: terminal state is settled here (multi-pass callers
+ * use runAttempt + failJob directly so they can run further iterations).
+ * On success the reserved artifacts are finalized to their real byte sizes
+ * (ffmpeg renders directly into reserved paths).
  */
-function settleJobFiles(jobId: string): void {
-  const j = getJob(jobId);
-  if (!j || j.status !== "completed") return;
-  for (const id of [j.outputFileId, j.alternateFileId]) {
-    if (id) ArtifactStore.finalize(id);
+async function runTranscode(jobId: string, args: string[], duration: number) {
+  const code = await runAttempt(jobId, args, duration);
+  if (code === -1) return;
+  if (code === 0) {
+    updateJob(jobId, { status: "completed", progress: 100, exitCode: 0 });
+    const j = getJob(jobId);
+    for (const id of [j?.outputFileId, j?.alternateFileId]) {
+      if (id) store.finalize(id);
+    }
+    jobLog(jobId, "completed (exit 0)");
+  } else {
+    failJob(jobId, code);
   }
 }
 
@@ -155,10 +153,6 @@ function settleJobFiles(jobId: string): void {
  * errors echo absolute input/output paths, so those free-text fields are
  * redacted to `<store>` / `<tmp>` placeholders at this single choke point.
  */
-function scrubPaths(s: string | null): string | null {
-  if (!s) return s;
-  return s.split(store.root).join("<store>").split(os.tmpdir()).join("<tmp>");
-}
 function publicJob(j: JobRow): {
   jobId: string;
   status: JobRow["status"];
@@ -172,16 +166,17 @@ function publicJob(j: JobRow): {
   filename: string;
   createdAt: number;
 } {
+  const redact = (s: string | null) =>
+    s?.split(store.root).join("<store>").split(os.tmpdir()).join("<tmp>") ??
+    null;
   return {
     jobId: j.jobId,
     status: j.status,
     progress: j.progress,
-    outputFile: j.outputFileId ? ArtifactStore.describe(j.outputFileId) : null,
-    alternateFile: j.alternateFileId
-      ? ArtifactStore.describe(j.alternateFileId)
-      : null,
-    error: scrubPaths(j.error),
-    logTail: scrubPaths(j.logTail),
+    outputFile: j.outputFileId ? store.describe(j.outputFileId) : null,
+    alternateFile: j.alternateFileId ? store.describe(j.alternateFileId) : null,
+    error: redact(j.error),
+    logTail: redact(j.logTail),
     exitCode: j.exitCode,
     kind: j.kind,
     filename: j.filename,
@@ -203,25 +198,24 @@ function killProc(jobId: string) {
   }, 2000).unref?.();
 }
 
-function dequeue(jobId: string) {
-  const i = waitQueue.indexOf(jobId);
-  if (i >= 0) waitQueue.splice(i, 1);
-  starters.delete(jobId);
-}
-
 function pumpQueue() {
   while (activeCount < MAX_CONCURRENT && waitQueue.length > 0) {
     const nextId = waitQueue.shift()!;
     const start = starters.get(nextId);
     if (!start) continue;
     starters.delete(nextId);
-    activeCount++;
-    updateJob(nextId, { status: "processing", progress: 0 });
-    void start().finally(() => {
-      activeCount = Math.max(0, activeCount - 1);
-      pumpQueue();
-    });
+    startNow(nextId, start);
   }
+}
+
+/** Mark processing and run; the slot is released (and the queue pumped) on settle. */
+function startNow(jobId: string, start: () => Promise<void>) {
+  activeCount++;
+  updateJob(jobId, { status: "processing", progress: 0 });
+  void start().finally(() => {
+    activeCount = Math.max(0, activeCount - 1);
+    pumpQueue();
+  });
 }
 
 /**
@@ -231,12 +225,7 @@ function pumpQueue() {
  */
 function enqueue(jobId: string, start: () => Promise<void>): boolean {
   if (activeCount < MAX_CONCURRENT) {
-    activeCount++;
-    updateJob(jobId, { status: "processing", progress: 0 });
-    void start().finally(() => {
-      activeCount = Math.max(0, activeCount - 1);
-      pumpQueue();
-    });
+    startNow(jobId, start);
     return true;
   }
   if (waitQueue.length >= MAX_QUEUED) return false;
@@ -245,57 +234,7 @@ function enqueue(jobId: string, start: () => Promise<void>): boolean {
   return true;
 }
 
-function createQueuedJob(
-  init: Omit<
-    JobRow,
-    "status" | "progress" | "error" | "logTail" | "exitCode" | "updatedAt"
-  >,
-): JobRow {
-  insertJob({
-    ...init,
-    status: "queued",
-    progress: 0,
-    error: null,
-    logTail: null,
-    exitCode: null,
-  });
-  return getJob(init.jobId)!;
-}
-
 const app = new Hono();
-
-async function resolveInputFile(
-  c: Context,
-  form: FormData,
-): Promise<ResolvedInput | null> {
-  const headerId = c.req.header(UPLOAD_ID_HEADER);
-  const queryId = c.req.query(UPLOAD_ID_QUERY);
-  const fieldId = form.get(MULTIPART_FIELDS.uploadId);
-  const uploadId =
-    headerId ??
-    queryId ??
-    (typeof fieldId === "string" ? fieldId.trim() : null);
-  if (uploadId) {
-    const consumed = consumeUpload(uploadId);
-    if (!consumed) return null;
-    return {
-      assetId: consumed.assetId,
-      temporaryPath: consumed.path,
-      filename: consumed.filename,
-      isChunked: true,
-    };
-  }
-  const file = form.get(MULTIPART_FIELDS.file);
-  if (!(file instanceof File)) return null;
-  // Throws FileStoreQuotaError (readTranscodeRequest maps it to 507).
-  const { id, path: tmp } = await reserveRequestAsset(file);
-  return {
-    assetId: id,
-    temporaryPath: tmp,
-    filename: file.name,
-    isChunked: false,
-  };
-}
 
 /**
  * Convert FFmpeg progress lines into a normalized progress percentage.
@@ -404,21 +343,6 @@ function failJob(jobId: string, code: number): void {
     error: `FFmpeg exited with code ${code} [${cls.code}]${cls.retryable ? " (retryable)" : ""}. ${cls.message}${last ? `\nLast output:\n${last}` : ""}`,
   });
   jobError(jobId, `failed (exit ${code}, ${cls.code})`);
-}
-
-/**
- * Single-pass export: terminal state is settled here (multi-pass callers
- * use runAttempt + failJob directly so they can run further iterations).
- */
-async function runTranscode(jobId: string, args: string[], duration: number) {
-  const code = await runAttempt(jobId, args, duration);
-  if (code === -1) return;
-  if (code === 0) {
-    updateJob(jobId, { status: "completed", progress: 100, exitCode: 0 });
-    jobLog(jobId, "completed (exit 0)");
-  } else {
-    failJob(jobId, code);
-  }
 }
 
 /**
@@ -551,27 +475,13 @@ async function probeMediaDuration(inputPath: string): Promise<number | null> {
   }
 }
 
-function queueFullResponse(c: Context) {
-  return err(c, "QUEUE_FULL", {
-    message: "Transcode queue is full, try again shortly.",
-    details: { ...getQueueStats() },
-    headers: { "Retry-After": "10" },
-  });
-}
-
 /**
- * Claim a resolved input for a job: chunked session files are shared
- * (extra ref so session cleanup can't pull bytes out from under the job),
- * single-shot request files are adopted (ownership transfer).
+ * Claim a resolved input for a job: the file gets an extra ref so session
+ * cleanup can't pull bytes out from under the job.
  */
-function claimInputAsset(
-  assetId: string | null,
-  isChunked: boolean,
-  jobId: string,
-): void {
+function claimInputAsset(assetId: string | null, jobId: string): void {
   if (!assetId) return;
-  if (isChunked) AssetStore.share(assetId, jobId);
-  else AssetStore.adopt(assetId, jobId);
+  store.share(assetId, jobId);
 }
 
 /** Queue-full / quota rollback: release the job's files, delete the row. */
@@ -587,148 +497,18 @@ function rollbackQueuedJob(jobId: string): void {
 }
 
 /**
- * B4: parse customFFmpegArgs via shell-quote + structural denylist.
- * Returns the parsed args or an { argError } the route turns into 400.
- */
-/** Zones arrive 0-1; builders want 0-100 percent. */
-function percentZones<
-  Z extends { x: number; y: number; width: number; height: number },
->(zones: Z[]): Z[] {
-  return zones.map((z) => ({
-    ...z,
-    x: z.x * 100,
-    y: z.y * 100,
-    width: z.width * 100,
-    height: z.height * 100,
-  }));
-}
-
-function percentLayout<
-  L extends {
-    mode: unknown;
-    splitRatio: number;
-    zones: { x: number; y: number; width: number; height: number }[];
-  },
->(layout: L) {
-  return {
-    mode: layout.mode,
-    splitRatio: layout.splitRatio,
-    zones: percentZones(layout.zones),
-  };
-}
-
-/** Export filename, falling back to the uploaded name. */
-function exportBase(
-  settings: { exportFilename: string },
-  filename: string,
-): string {
-  return settings.exportFilename.trim() || filename;
-}
-
-function parseArgsField(
-  raw: string | undefined,
-  allowVf: boolean,
-): { args: string[]; extraVf: string[] } | { argError: string } {
-  try {
-    return parseCustomArgs(raw, { allowVf });
-  } catch (e) {
-    return {
-      argError: e instanceof Error ? e.message : "Invalid customFFmpegArgs.",
-    };
-  }
-}
-
-const SETTINGS_SCHEMAS = {
-  generic: genericSettingsSchema,
-  mobile: mobileSettingsSchema,
-  "mobile-subtitles": mobileSettingsSchema,
-  cut: cutSettingsSchema,
-} as const;
-
-/**
- * Parse the multipart `settings` field as a versioned render plan.
- * Accepts v0 bare settings (legacy — migrated by kind detection) and the
- * v1 `{ version, kind, settings }` wrapper; anything else is rejected
- * explicitly so old clients get an actionable error, not opaque validation.
- */
-function parsePlanField<K extends RenderKind>(
-  value: FormDataEntryValue | null,
-  kind: K,
-):
-  | { ok: true; settings: z.infer<(typeof SETTINGS_SCHEMAS)[K]> }
-  | {
-      ok: false;
-      issues: string[];
-      reason: "invalid" | "unsupported-version";
-    } {
-  if (typeof value !== "string") {
-    return {
-      ok: false,
-      issues: ["settings: required JSON string field"],
-      reason: "invalid",
-    };
-  }
-  let raw: unknown;
-  try {
-    raw = JSON.parse(value);
-  } catch {
-    return { ok: false, issues: ["settings: invalid JSON"], reason: "invalid" };
-  }
-  const migrated = migrateRenderPlan(raw, kind);
-  if (!migrated.ok) return migrated;
-  if (migrated.plan.kind !== kind) {
-    return {
-      ok: false,
-      issues: [
-        `plan kind "${migrated.plan.kind}" does not match this endpoint ("${kind}")`,
-      ],
-      reason: "invalid",
-    };
-  }
-  return {
-    ok: true,
-    settings: migrated.plan.settings as z.infer<(typeof SETTINGS_SCHEMAS)[K]>,
-  };
-}
-
-function planError(
-  c: Context,
-  r: { issues: string[]; reason: "invalid" | "unsupported-version" },
-  message: string,
-) {
-  return err(
-    c,
-    r.reason === "unsupported-version"
-      ? "PLAN_VERSION_UNSUPPORTED"
-      : "VALIDATION_FAILED",
-    { message, issues: r.issues },
-  );
-}
-
-interface ResolvedInput {
-  /** Owning asset record (chunked session file, or fresh request-input). */
-  assetId: string | null;
-  temporaryPath: string;
-  filename: string;
-  isChunked: boolean;
-}
-
-/**
  * Shared prologue for the four transcode endpoints: multipart parse, plan
- * validation, input resolution. Returns the ready triple, or an error
- * response the route returns directly.
+ * validation (v1 `{ version, kind, settings }` or legacy v0 bare settings
+ * migrated by kind detection), input resolution. Returns the ready triple,
+ * or an error response the route returns directly. Invalid plans are 422
+ * with `issues[]` so old clients get an actionable error.
  */
-async function readTranscodeRequest<K extends RenderKind>(
+async function readTranscodeRequest(
   c: Context,
-  kind: K,
+  kind: RenderKind,
   messages: { log: string; invalid: string; empty: string },
 ): Promise<
-  | {
-      ok: true;
-      form: FormData;
-      settings: z.infer<(typeof SETTINGS_SCHEMAS)[K]>;
-      input: ResolvedInput;
-    }
+  | { ok: true; form: FormData; settings: any; input: ResolvedRequestInput }
   | { ok: false; response: ReturnType<typeof err> }
 > {
   let form: FormData;
@@ -743,13 +523,55 @@ async function readTranscodeRequest<K extends RenderKind>(
       }),
     };
   }
-  const parsed = parsePlanField(form.get(MULTIPART_FIELDS.settings), kind);
-  if (!parsed.ok) {
-    return { ok: false, response: planError(c, parsed, messages.invalid) };
+  const field = form.get(MULTIPART_FIELDS.settings);
+  if (typeof field !== "string") {
+    return {
+      ok: false,
+      response: err(c, "VALIDATION_FAILED", {
+        message: messages.invalid,
+        issues: ["settings: required JSON string field"],
+      }),
+    };
   }
-  let input: ResolvedInput | null;
+  let raw: unknown;
   try {
-    input = await resolveInputFile(c, form);
+    raw = JSON.parse(field);
+  } catch {
+    return {
+      ok: false,
+      response: err(c, "VALIDATION_FAILED", {
+        message: messages.invalid,
+        issues: ["settings: invalid JSON"],
+      }),
+    };
+  }
+  const migrated = migrateRenderPlan(raw, kind);
+  if (!migrated.ok) {
+    return {
+      ok: false,
+      response: err(
+        c,
+        migrated.reason === "unsupported-version"
+          ? "PLAN_VERSION_UNSUPPORTED"
+          : "VALIDATION_FAILED",
+        { message: messages.invalid, issues: migrated.issues },
+      ),
+    };
+  }
+  if (migrated.plan.kind !== kind) {
+    return {
+      ok: false,
+      response: err(c, "VALIDATION_FAILED", {
+        message: messages.invalid,
+        issues: [
+          `plan kind "${migrated.plan.kind}" does not match this endpoint ("${kind}")`,
+        ],
+      }),
+    };
+  }
+  let resolved: Awaited<ReturnType<typeof resolveRequestInput>>;
+  try {
+    resolved = await resolveRequestInput(c, form);
   } catch (e) {
     if (e instanceof FileStoreQuotaError)
       return {
@@ -758,13 +580,53 @@ async function readTranscodeRequest<K extends RenderKind>(
       };
     throw e;
   }
-  if (!input) {
+  if (!resolved.ok) {
     return {
       ok: false,
       response: err(c, "FILE_REQUIRED", { message: messages.empty }),
     };
   }
-  return { ok: true, form, settings: parsed.settings, input };
+  return {
+    ok: true,
+    form,
+    settings: migrated.plan.settings,
+    input: resolved.input,
+  };
+}
+
+/**
+ * Shared epilogue for the four transcode endpoints: insert the job as
+ * `queued` (output already reserved before ffmpeg spawns), claim the input,
+ * then enqueue. When the bounded queue is full the job is rolled back and
+ * the caller returns the 429 (`Retry-After: 10`); otherwise null.
+ */
+function submitTranscode(
+  c: Context,
+  init: Omit<
+    JobRow,
+    "status" | "progress" | "error" | "logTail" | "exitCode" | "updatedAt"
+  > & { isChunked: boolean },
+  start: () => Promise<void>,
+): ReturnType<typeof err> | null {
+  const { isChunked: _isChunked, ...row } = init;
+  insertJob({
+    ...row,
+    status: "queued",
+    progress: 0,
+    error: null,
+    logTail: null,
+    exitCode: null,
+  });
+  claimInputAsset(init.inputFileId, init.jobId);
+  if (!enqueue(init.jobId, start)) {
+    rollbackQueuedJob(init.jobId);
+    return err(c, "QUEUE_FULL", {
+      message: "Transcode queue is full, try again shortly.",
+      details: { ...getQueueStats() },
+      headers: { "Retry-After": "10" },
+    });
+  }
+  return null;
 }
 
 app.post("/transcode/mobile", async (c) => {
@@ -779,25 +641,37 @@ app.post("/transcode/mobile", async (c) => {
   const { assetId, temporaryPath, filename, isChunked } = req.input;
   const format = "mp4" as const;
   const jobId = crypto.randomUUID();
-  const baseName = exportBase(settings, filename);
+  const baseName = settings.exportFilename.trim() || filename;
   let originalOutput: { fileId: string; path: string };
   try {
     originalOutput = reserveOutputFile(jobId, "output", format, baseName);
   } catch (e) {
+    if (assetId && !isChunked) store.release(assetId);
     if (e instanceof FileStoreQuotaError) {
-      if (assetId && !isChunked) AssetStore.release(assetId);
       return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     }
     throw e;
   }
   const originalOutputPath = originalOutput.path;
-  const mobileLayout = percentLayout(settings.mobileLayout);
-  const custom = parseArgsField(
-    (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
-    false, // mobile builds a filter_complex graph — -vf denied at parse
-  );
-  if ("argError" in custom)
-    return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
+  // Zones are 0-1 (schema-enforced); builders scale to pixels directly.
+  const ml = settings.mobileLayout;
+  const mobileLayout = {
+    mode: ml.mode,
+    splitRatio: ml.splitRatio,
+    zones: ml.zones,
+  };
+  let custom: { args: string[]; extraVf: string[] };
+  try {
+    // Mobile builds a filter_complex graph — -vf denied at parse.
+    custom = parseCustomArgs(
+      (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
+      { allowVf: false },
+    );
+  } catch (e) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message: e instanceof Error ? e.message : "Invalid customFFmpegArgs.",
+    });
+  }
   if (!isVisualFiltersDefault(settings.visualFilters)) {
     return err(c, "CUSTOM_ARGS_INVALID", {
       message:
@@ -815,7 +689,7 @@ app.post("/transcode/mobile", async (c) => {
   }
   const originalArgs = buildFFmpegArgs({
     inputPath: temporaryPath,
-    filename: exportBase(settings, filename),
+    filename: baseName,
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     trimRange: settings.trimRange,
@@ -837,26 +711,22 @@ app.post("/transcode/mobile", async (c) => {
     audioTracks: settings.audioTracks,
   });
   jobLog(jobId, "mobile ffmpeg args:", originalArgs.join(" "));
-  createQueuedJob({
-    jobId,
-    inputFileId: assetId,
-    outputFileId: originalOutput.fileId,
-    alternateFileId: null,
-    subtitleFileIds: [],
-    createdAt: Date.now(),
-    kind: "mobile",
-    filename: exportBase(settings, filename),
-  });
-  claimInputAsset(assetId, isChunked, jobId);
-  const started = enqueue(jobId, () =>
-    runTranscode(jobId, originalArgs, progressDuration).finally(() =>
-      settleJobFiles(jobId),
-    ),
+  const rejected = submitTranscode(
+    c,
+    {
+      jobId,
+      inputFileId: assetId,
+      outputFileId: originalOutput.fileId,
+      alternateFileId: null,
+      subtitleFileIds: [],
+      createdAt: Date.now(),
+      kind: "mobile",
+      filename: baseName,
+      isChunked,
+    },
+    () => runTranscode(jobId, originalArgs, progressDuration),
   );
-  if (!started) {
-    rollbackQueuedJob(jobId);
-    return queueFullResponse(c);
-  }
+  if (rejected) return rejected;
   return c.json({
     jobId,
     progressUrl: `/api/transcode/progress/${jobId}`,
@@ -881,11 +751,9 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     isChunked: subtitleIsChunked,
   } = req.input;
 
-  // Parse subtitles metadata: front-end sends JSON array with startTime/endTime/x/y
-  const rawSubtitles =
-    form.get(MULTIPART_FIELDS.subtitles) ??
-    form.get(MULTIPART_FIELDS.subtitlesMeta) ??
-    form.get(MULTIPART_FIELDS.subtitles_meta);
+  // Subtitles metadata: front-end sends a JSON array with startTime/endTime/x/y
+  // in the `subtitles` field, plus one `subtitle_N` PNG file per entry.
+  const rawSubtitles = form.get(MULTIPART_FIELDS.subtitles);
   let subtitlesMeta: Array<{
     startTime: number;
     endTime: number;
@@ -895,82 +763,56 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     height?: number;
   }> = [];
   if (typeof rawSubtitles === "string" && rawSubtitles.trim()) {
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(rawSubtitles);
-      if (Array.isArray(parsed)) {
-        subtitlesMeta = parsed.filter(
-          (s: unknown) =>
-            typeof s === "object" &&
-            s !== null &&
-            typeof (s as Record<string, unknown>).startTime === "number" &&
-            typeof (s as Record<string, unknown>).endTime === "number" &&
-            typeof (s as Record<string, unknown>).x === "number" &&
-            typeof (s as Record<string, unknown>).y === "number" &&
-            Number.isFinite(
-              (s as Record<string, unknown>).startTime as number,
-            ) &&
-            Number.isFinite((s as Record<string, unknown>).endTime as number),
-        ) as typeof subtitlesMeta;
-      }
+      parsed = JSON.parse(rawSubtitles);
     } catch {
       return err(c, "SUBTITLES_INVALID", { message: "Invalid subtitles JSON" });
     }
+    if (!Array.isArray(parsed)) {
+      return err(c, "SUBTITLES_INVALID", { message: "Invalid subtitles JSON" });
+    }
+    subtitlesMeta = parsed.filter(
+      (s: unknown) =>
+        typeof s === "object" &&
+        s !== null &&
+        typeof (s as Record<string, unknown>).startTime === "number" &&
+        typeof (s as Record<string, unknown>).endTime === "number" &&
+        typeof (s as Record<string, unknown>).x === "number" &&
+        typeof (s as Record<string, unknown>).y === "number" &&
+        Number.isFinite((s as Record<string, unknown>).startTime as number) &&
+        Number.isFinite((s as Record<string, unknown>).endTime as number),
+    ) as typeof subtitlesMeta;
   }
 
-  // Collect PNG files: keys starting with subtitle_ or subtitle (excluding main file)
-  const subtitleFiles: File[] = [];
-  const entries: Array<[string, unknown]> = [];
-  for (const [k, v] of form.entries()) {
-    entries.push([k, v]);
+  // PNG overlays (`subtitle_0`, `subtitle_1`, …) pair positionally with
+  // subtitlesMeta entries. The frontend appends them in order; the sort keeps
+  // the pairing stable if parts ever arrive out of order. Wire format unchanged.
+  const subtitlePrefix = `${MULTIPART_FIELDS.subtitleFilePrefix}_`;
+  const pngEntries: Array<[string, File]> = [];
+  for (const [k, v] of form.entries() as Iterable<[string, unknown]>) {
+    if (v instanceof File && k.startsWith(subtitlePrefix))
+      pngEntries.push([k, v]);
   }
-  // Prefer keys subtitle_0, subtitle_1 etc, sorted numerically
-  const pngEntries = entries.filter(
-    ([k, v]) =>
-      v instanceof File && k.startsWith(MULTIPART_FIELDS.subtitleFilePrefix),
-  );
-  if (pngEntries.length) {
-    pngEntries.sort((a, b) => {
-      const na = parseInt(a[0].replace(/\D/g, "") || "0", 10);
-      const nb = parseInt(b[0].replace(/\D/g, "") || "0", 10);
-      return na - nb;
-    });
-    for (const [, v] of pngEntries) subtitleFiles.push(v as File);
-  } else {
-    // fallback: any image file not the main file
-    const fallback = entries.filter(
-      ([k, v]) =>
-        v instanceof File &&
-        k !== "file" &&
-        (v as File).type.startsWith("image/"),
-    );
-    for (const [, v] of fallback) subtitleFiles.push(v as File);
-  }
+  const pngIndex = (k: string) =>
+    parseInt(k.slice(subtitlePrefix.length), 10) || 0;
+  pngEntries.sort((a, b) => pngIndex(a[0]) - pngIndex(b[0]));
+  const subtitleFiles = pngEntries.map(([, v]) => v);
 
   if (subtitlesMeta.length !== subtitleFiles.length) {
-    // Allow zero subtitles with zero files
-    if (!(subtitlesMeta.length === 0 && subtitleFiles.length === 0)) {
-      return err(c, "SUBTITLES_INVALID", {
-        message: `Subtitles count mismatch: meta ${subtitlesMeta.length} vs files ${subtitleFiles.length}`,
-      });
-    }
+    return err(c, "SUBTITLES_INVALID", {
+      message: `Subtitles count mismatch: meta ${subtitlesMeta.length} vs files ${subtitleFiles.length}`,
+    });
   }
 
-  // Validate each meta clamped inside trim
-  const [trimStart, trimEnd] = settings.trimRange;
   for (const s of subtitlesMeta) {
-    if (
-      s.endTime <= s.startTime ||
-      s.startTime < trimStart - 0.001 ||
-      s.endTime > trimEnd + 0.001
-    ) {
-      // clamp instead of reject? but reject if clearly outside
-    }
     if (s.x < 0 || s.x > 100 || s.y < 0 || s.y > 100) {
       return err(c, "SUBTITLES_INVALID", {
         message: "Subtitle x/y must be 0-100",
       });
     }
   }
+  const [trimStart, trimEnd] = settings.trimRange;
 
   const format = "mp4" as const;
   const jobId = crypto.randomUUID();
@@ -983,20 +825,20 @@ app.post("/transcode/mobile/subtitles", async (c) => {
   try {
     for (let i = 0; i < subtitleFiles.length; i++) {
       const f = subtitleFiles[i];
-      const { id, path: pngPath } = ArtifactStore.reserve({
+      const { id, path: pngPath } = store.reserve({
+        role: "artifact",
         kind: "subtitle-png",
         filename: `sub${i}.png`,
         mime: "image/png",
         ownerJobId: jobId,
       });
-      await ArtifactStore.writeAtomic(id, await f.arrayBuffer());
+      await store.writeAtomic(id, await f.arrayBuffer());
       subtitleFileIds.push(id);
       subtitlePngPaths.push(pngPath);
     }
   } catch (e) {
-    for (const id of subtitleFileIds) ArtifactStore.release(id);
-    if (subtitleAssetId && !subtitleIsChunked)
-      AssetStore.release(subtitleAssetId);
+    for (const id of subtitleFileIds) store.release(id);
+    if (subtitleAssetId && !subtitleIsChunked) store.release(subtitleAssetId);
     if (e instanceof FileStoreQuotaError)
       return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
@@ -1012,28 +854,37 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     pngPath: subtitlePngPaths[i],
   }));
 
-  const mobileLayout = percentLayout(settings.mobileLayout);
+  const mobileLayout = {
+    mode: settings.mobileLayout.mode,
+    splitRatio: settings.mobileLayout.splitRatio,
+    zones: settings.mobileLayout.zones,
+  };
 
-  const custom = parseArgsField(
-    (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
-    false, // subtitles builder owns a filter_complex graph
-  );
-  if ("argError" in custom)
-    return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
+  let custom: { args: string[]; extraVf: string[] };
+  try {
+    // Subtitles builder owns a filter_complex graph — -vf denied at parse.
+    custom = parseCustomArgs(
+      (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
+      { allowVf: false },
+    );
+  } catch (e) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message: e instanceof Error ? e.message : "Invalid customFFmpegArgs.",
+    });
+  }
   if (!isVisualFiltersDefault(settings.visualFilters)) {
     return err(c, "CUSTOM_ARGS_INVALID", {
       message:
         "visualFilters cannot be combined with mobileLayout (this export builds its own filter graph). Use the plain transcode endpoint instead.",
     });
   }
-  const baseName = exportBase(settings, subtitleFilename);
+  const baseName = settings.exportFilename.trim() || subtitleFilename;
   let originalOutput: { fileId: string; path: string };
   try {
     originalOutput = reserveOutputFile(jobId, "output", format, baseName);
   } catch (e) {
-    for (const id of subtitleFileIds) ArtifactStore.release(id);
-    if (subtitleAssetId && !subtitleIsChunked)
-      AssetStore.release(subtitleAssetId);
+    for (const id of subtitleFileIds) store.release(id);
+    if (subtitleAssetId && !subtitleIsChunked) store.release(subtitleAssetId);
     if (e instanceof FileStoreQuotaError)
       return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
@@ -1053,35 +904,30 @@ app.post("/transcode/mobile/subtitles", async (c) => {
     crf: 10,
     customArgs: custom.args,
     outputPath: originalOutputPath,
-    filename: exportBase(settings, subtitleFilename),
+    filename: baseName,
     speed: settings.exportSpeed,
     audioTracks: settings.audioTracks,
   });
 
   jobLog(jobId, "mobile-subtitles ffmpeg args:", originalArgs.join(" "));
 
-  createQueuedJob({
-    jobId,
-    inputFileId: subtitleAssetId,
-    outputFileId: originalOutput.fileId,
-    alternateFileId: null,
-    subtitleFileIds,
-    createdAt: Date.now(),
-    kind: "mobile-subtitles",
-    filename: exportBase(settings, subtitleFilename),
-  });
-  claimInputAsset(subtitleAssetId, subtitleIsChunked, jobId);
-  const started = enqueue(jobId, () =>
-    runTranscode(
+  const rejected = submitTranscode(
+    c,
+    {
       jobId,
-      originalArgs,
-      Math.max(0.001, trimEnd - trimStart),
-    ).finally(() => settleJobFiles(jobId)),
+      inputFileId: subtitleAssetId,
+      outputFileId: originalOutput.fileId,
+      alternateFileId: null,
+      subtitleFileIds,
+      createdAt: Date.now(),
+      kind: "mobile-subtitles",
+      filename: baseName,
+      isChunked: subtitleIsChunked,
+    },
+    () =>
+      runTranscode(jobId, originalArgs, Math.max(0.001, trimEnd - trimStart)),
   );
-  if (!started) {
-    rollbackQueuedJob(jobId);
-    return queueFullResponse(c);
-  }
+  if (rejected) return rejected;
   return c.json({
     jobId,
     progressUrl: `/api/transcode/progress/${jobId}`,
@@ -1100,27 +946,33 @@ app.post("/transcode/cut", async (c) => {
   const settings = req.settings;
   const { assetId, temporaryPath, filename, isChunked } = req.input;
   const jobId = crypto.randomUUID();
-  const baseName = exportBase(settings, filename);
+  const baseName = settings.exportFilename.trim() || filename;
   let originalOutput: { fileId: string; path: string };
   try {
     originalOutput = reserveOutputFile(jobId, "output", "mp4", baseName);
   } catch (e) {
-    if (assetId && !isChunked) AssetStore.release(assetId);
+    if (assetId && !isChunked) store.release(assetId);
     if (e instanceof FileStoreQuotaError)
       return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   const originalOutputPath = originalOutput.path;
   const totalDuration = Math.max(0.001, totalCutDuration(settings.cuts));
-  const custom = parseArgsField(
-    (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
-    false, // cut builder owns a filter_complex graph
-  );
-  if ("argError" in custom)
-    return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
+  let custom: { args: string[]; extraVf: string[] };
+  try {
+    // Cut builder owns a filter_complex graph — -vf denied at parse.
+    custom = parseCustomArgs(
+      (settings.customFFmpegArgs || "").replace(/(^|\s)-an(\s|$)/g, " "),
+      { allowVf: false },
+    );
+  } catch (e) {
+    return err(c, "CUSTOM_ARGS_INVALID", {
+      message: e instanceof Error ? e.message : "Invalid customFFmpegArgs.",
+    });
+  }
   const cutArgs = buildCutFFmpegArgs({
     inputPath: temporaryPath,
-    filename: exportBase(settings, filename),
+    filename: baseName,
     sourceWidth: settings.sourceWidth,
     sourceHeight: settings.sourceHeight,
     cuts: settings.cuts,
@@ -1136,26 +988,22 @@ app.post("/transcode/cut", async (c) => {
     watermark: !!settings.watermark,
   });
   jobLog(jobId, "cut ffmpeg args:", cutArgs.join(" "));
-  createQueuedJob({
-    jobId,
-    inputFileId: assetId,
-    outputFileId: originalOutput.fileId,
-    alternateFileId: null,
-    subtitleFileIds: [],
-    createdAt: Date.now(),
-    kind: "cut",
-    filename: exportBase(settings, filename),
-  });
-  claimInputAsset(assetId, isChunked, jobId);
-  const started = enqueue(jobId, () =>
-    runTranscode(jobId, cutArgs, totalDuration).finally(() =>
-      settleJobFiles(jobId),
-    ),
+  const rejected = submitTranscode(
+    c,
+    {
+      jobId,
+      inputFileId: assetId,
+      outputFileId: originalOutput.fileId,
+      alternateFileId: null,
+      subtitleFileIds: [],
+      createdAt: Date.now(),
+      kind: "cut",
+      filename: baseName,
+      isChunked,
+    },
+    () => runTranscode(jobId, cutArgs, totalDuration),
   );
-  if (!started) {
-    rollbackQueuedJob(jobId);
-    return queueFullResponse(c);
-  }
+  if (rejected) return rejected;
   const dims =
     settings.mode === "full-size"
       ? { width: settings.sourceWidth, height: settings.sourceHeight }
@@ -1188,34 +1036,48 @@ app.post("/transcode", async (c) => {
   const jobId = crypto.randomUUID();
   const isWebmTg = format === "webm-tg";
 
-  // Reserve the render target in the ArtifactStore (record before ffmpeg
+  // Reserve the render target in the store (record before ffmpeg
   // spawns). webm-tg renders a .webm file.
   const outputExt = isWebmTg ? "webm" : format;
-  const baseName = exportBase(settings, filename);
+  const baseName = settings.exportFilename.trim() || filename;
   let originalOutput: { fileId: string; path: string };
   try {
     originalOutput = reserveOutputFile(jobId, "output", outputExt, baseName);
   } catch (e) {
-    if (assetId && !isChunked) AssetStore.release(assetId);
+    if (assetId && !isChunked) store.release(assetId);
     if (e instanceof FileStoreQuotaError)
       return quotaExceeded(c, e.neededBytes, e.quotaBytes);
     throw e;
   }
   const originalOutputPath = originalOutput.path;
 
-  const mobileLayout = settings.mobileLayout
-    ? percentLayout(settings.mobileLayout)
+  const ml = settings.mobileLayout;
+  const mobileLayout = ml
+    ? {
+        mode: ml.mode,
+        splitRatio: ml.splitRatio,
+        zones: ml.zones,
+      }
     : null;
   // B4: -vf merges into our -vf chain only for the plain path; a
   // mobileLayout builds a filter_complex graph where -vf is denied.
   // webm-tg is a strict preset: custom args + visual stack are ignored
   // entirely so the rendered command stays exactly the telegram sticker
   // invocation.
-  const custom = isWebmTg
-    ? { args: [] as string[], extraVf: [] as string[] }
-    : parseArgsField(settings.customFFmpegArgs, !mobileLayout);
-  if ("argError" in custom)
-    return err(c, "CUSTOM_ARGS_INVALID", { message: custom.argError });
+  let custom: { args: string[]; extraVf: string[] };
+  if (isWebmTg) {
+    custom = { args: [], extraVf: [] };
+  } else {
+    try {
+      custom = parseCustomArgs(settings.customFFmpegArgs, {
+        allowVf: !mobileLayout,
+      });
+    } catch (e) {
+      return err(c, "CUSTOM_ARGS_INVALID", {
+        message: e instanceof Error ? e.message : "Invalid customFFmpegArgs.",
+      });
+    }
+  }
   const visualFilters = isWebmTg ? undefined : settings.visualFilters;
   if (mobileLayout && !isVisualFiltersDefault(visualFilters)) {
     return err(c, "CUSTOM_ARGS_INVALID", {
@@ -1227,7 +1089,7 @@ app.post("/transcode", async (c) => {
   try {
     originalArgs = buildFFmpegArgs({
       inputPath: temporaryPath,
-      filename: exportBase(settings, filename),
+      filename: baseName,
       sourceWidth: settings.sourceWidth,
       sourceHeight: settings.sourceHeight,
       trimRange: settings.trimRange,
@@ -1258,18 +1120,6 @@ app.post("/transcode", async (c) => {
 
   jobLog(jobId, "ffmpeg args:", originalArgs.join(" "));
 
-  createQueuedJob({
-    jobId,
-    inputFileId: assetId,
-    outputFileId: originalOutput.fileId,
-    alternateFileId: null,
-    subtitleFileIds: [],
-    createdAt: Date.now(),
-    kind: "transcode",
-    filename: exportBase(settings, filename),
-  });
-  claimInputAsset(assetId, isChunked, jobId);
-
   // webm-tg renders trim (capped at 3s) or a flat 3s when trim is ignored.
   const duration = isWebmTg
     ? telegramWebmTgDuration(settings.trimRange, settings.ignoreTrim)
@@ -1289,7 +1139,7 @@ app.post("/transcode", async (c) => {
         (crf, attemptPath) =>
           buildFFmpegArgs({
             inputPath: temporaryPath,
-            filename: exportBase(settings, filename),
+            filename: baseName,
             sourceWidth: settings.sourceWidth,
             sourceHeight: settings.sourceHeight,
             trimRange: settings.trimRange,
@@ -1303,11 +1153,13 @@ app.post("/transcode", async (c) => {
         duration,
         originalOutputPath,
       );
-      settleJobFiles(jobId);
+      const done = getJob(jobId);
+      if (done?.status === "completed")
+        for (const id of [done.outputFileId, done.alternateFileId])
+          if (id) store.finalize(id);
       return;
     }
     await runTranscode(jobId, originalArgs, duration);
-    settleJobFiles(jobId);
     const afterFirst = getJob(jobId);
     if (!afterFirst || afterFirst.status !== "completed") return;
     // webm-tg is a single strict pass: no speed-adjusted alternate output.
@@ -1333,7 +1185,7 @@ app.post("/transcode", async (c) => {
       const alternateOutputPath = alternate.path;
       const speedArgs = buildFFmpegArgs({
         inputPath: temporaryPath,
-        filename: exportBase(settings, filename),
+        filename: baseName,
         sourceWidth: settings.sourceWidth,
         sourceHeight: settings.sourceHeight,
         trimRange: settings.trimRange,
@@ -1364,15 +1216,25 @@ app.post("/transcode", async (c) => {
         progress: 0,
       });
       await runTranscode(jobId, speedArgs, duration);
-      settleJobFiles(jobId);
     }
   };
 
-  const started = enqueue(jobId, runAll);
-  if (!started) {
-    rollbackQueuedJob(jobId);
-    return queueFullResponse(c);
-  }
+  const rejected = submitTranscode(
+    c,
+    {
+      jobId,
+      inputFileId: assetId,
+      outputFileId: originalOutput.fileId,
+      alternateFileId: null,
+      subtitleFileIds: [],
+      createdAt: Date.now(),
+      kind: "transcode",
+      filename: baseName,
+      isChunked,
+    },
+    runAll,
+  );
+  if (rejected) return rejected;
 
   return c.json({ jobId, progressUrl: `/api/transcode/progress/${jobId}` });
 });
@@ -1446,7 +1308,11 @@ function hardDeleteJob(id: string): { killed: boolean; deleted: boolean } {
   const job = getJob(id);
   if (!job) return { killed: false, deleted: false };
   const wasActive = job.status === "processing" || job.status === "queued";
-  if (job.status === "queued") dequeue(id);
+  if (job.status === "queued") {
+    const qi = waitQueue.indexOf(id);
+    if (qi >= 0) waitQueue.splice(qi, 1);
+    starters.delete(id);
+  }
   if (job.status === "processing") {
     killProc(id);
     // Release the slot now; runTranscode's finally still decrements via pump
@@ -1529,7 +1395,9 @@ app.delete("/transcode/jobs/:jobId", async (c) => {
     const job = getJob(id);
     if (!job) return err(c, "JOB_NOT_FOUND", { message: "Job not found." });
     if (job.status === "queued") {
-      dequeue(id);
+      const qi = waitQueue.indexOf(id);
+      if (qi >= 0) waitQueue.splice(qi, 1);
+      starters.delete(id);
       updateJob(id, { status: "cancelled", error: "Cancelled by user." });
       return c.json({ cancelled: id, status: "cancelled" });
     }
@@ -1588,12 +1456,12 @@ app.get("/transcode/download/:jobId", (c) => {
 
   // Resolve the rendered artifact by opaque ID — the on-disk path never
   // leaves the server.
-  const rec = job.outputFileId ? ArtifactStore.get(job.outputFileId) : null;
+  const rec = job.outputFileId ? store.get(job.outputFileId) : null;
   if (!rec) {
     return err(c, "OUTPUT_MISSING", { message: "Output file not found." });
   }
-  ArtifactStore.syncSize(rec.id);
-  const fresh = ArtifactStore.get(rec.id);
+  store.syncSize(rec.id);
+  const fresh = store.get(rec.id);
   return streamFile(
     fresh ?? rec,
     c.req.header("Range") ?? c.req.header("range"),

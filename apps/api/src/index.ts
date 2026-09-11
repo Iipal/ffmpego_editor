@@ -23,7 +23,7 @@ if (sweep.recoveredJobs > 0 || sweep.deletedFiles > 0) {
     `startup sweep: marked ${sweep.recoveredJobs} interrupted job(s) failed, deleted ${sweep.deletedFiles} orphan file(s)`,
   );
 }
-// AssetStore/ArtifactStore reconciliation: expired + stale-reserved rows,
+// Store reconciliation: expired + stale-reserved rows,
 // rows whose bytes vanished, and store-root files with no owning row.
 // Live upload sessions are pinned so slow uploads survive a restart sweep.
 {

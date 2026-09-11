@@ -1,9 +1,9 @@
 # FFmpeg Editor API (`apps/api`)
 
 Local-only video backend. **Hono on Bun**, **SQLite** (`bun:sqlite`) for persistence,
-**`ffmpeg` / `ffprobe`** via `Bun.spawn()` for all media work, and an
-**AssetStore / ArtifactStore** (`src/storage/fileStore.ts`) so every temp file
-is a tracked DB row — never a stray path in `/tmp`.
+**`ffmpeg` / `ffprobe`** via `Bun.spawn()` for all media work, and a
+**unified FileStore** (`src/storage/fileStore.ts`, `role` on `reserve()`) so
+every temp file is a tracked DB row — never a stray path in `/tmp`.
 
 - Runtime: `bun run --watch src/index.ts` (default port `3100`)
 - Entrypoint: `src/index.ts` → mounts 5 route modules under `/api`
@@ -26,7 +26,7 @@ flowchart LR
     Q -- yes<br/>active lt 2 --> FF[ffmpeg<br/>processing]
     Q -- no, room<br/>waitQueue lt 50 --> Wait[queued<br/>pump on settle] --> FF
     Q -- no, full --> Denied([429<br/>rollback])
-    FF --> Art[ArtifactStore<br/>rendered file]
+    FF --> Art[store<br/>rendered file]
     Art --> DL([download<br/>by job ID])
     style Hono fill:#0d9488,color:#fff
     style Art fill:#134e4a,color:#fff
@@ -49,8 +49,8 @@ flowchart LR
 
     subgraph State["state + binaries"]
         DB["SQLite<br/>jobs, uploads, files"]
-        AS["AssetStore<br/>inputs"]
-        AR["ArtifactStore<br/>outputs"]
+        AS["store role=asset<br/>inputs"]
+        AR["store role=artifact<br/>outputs"]
         FF["ffmpeg"]
         FP["ffprobe"]
     end
@@ -121,7 +121,7 @@ flowchart TB
 
     Queued -- slot free<br/>enqueue --> Processing
     Queued -- queue full 429<br/>rollback --> Failed
-    Queued -- cancel while waiting<br/>dequeue --> Cancelled
+    Queued -- cancel while waiting<br/>drop from waitQueue --> Cancelled
 
     Processing -- ffmpeg exit 0<br/>finalize --> Completed
     Processing -- ffmpeg exit != 0<br/>logTail --> Failed
@@ -146,10 +146,9 @@ Edge → code reference (`src/routes/video.ts`):
 - `queued → processing` — `enqueue()` / `pumpQueue()` when
   `activeCount < MAX_CONCURRENT`
 - `queued → failed` — queue-full 429 or quota 507 → `rollbackQueuedJob()`
-- `queued / processing → cancelled` — `DELETE ?mode=cancel` → `dequeue()` /
-  `killProc()`, runner no-ops finish
+- `queued / processing → cancelled` — `DELETE ?mode=cancel` → `killProc()` (+ drop from `waitQueue` while waiting), runner no-ops finish
 - `processing → completed / failed` — `runTranscode()` /
-  `runWebmTgCrfSearch()` → `updateJob()` + `settleJobFiles()`
+  `runWebmTgCrfSearch()` → `updateJob()` + `store.finalize()`
 - `* → deleted` — `hardDeleteJob()` → `releaseJobFiles()` + `deleteJob()` +
   `pumpQueue()`
 
@@ -164,9 +163,9 @@ sequenceDiagram
     participant Web
     participant API as upload.ts
     participant DB as uploads table
-    participant Store as AssetStore
+    participant Store as Store
     Web->>API: POST /api/upload/init {filename, totalSize}
-    API->>Store: reserve() kind=upload → assetId + sparse file
+    API->>Store: reserve() kind=upload → assetId + empty file
     API->>DB: insertUpload()
     API-->>Web: {uploadId, assetId, chunkSize}
     loop each chunk
@@ -178,7 +177,7 @@ sequenceDiagram
     Web->>API: POST /api/upload/complete/:uploadId
     API->>Store: finalize(assetId)
     API-->>Web: {ok, filename}
-    Note over Web,Store: Later calls pass uploadId (header / query / multipart<br/>field) and consumeUpload() resolves bytes without re-upload.<br/>Transcode then share()s or adopt()s the asset so abort<br/>can't pull bytes out from under a live job.
+    Note over Web,Store: Later calls pass uploadId (header / query / multipart<br/>field) and consumeUpload() resolves bytes without re-upload.<br/>Stale sessions (>6h) are reaped by the boot sweep only.<br/>Transcode then share()s the asset so abort<br/>can't pull bytes out from under a live job.
 ```
 
 Single-shot alternative: `multipart file` field works on every
@@ -192,10 +191,10 @@ flowchart TB
     R["reserve() BEFORE bytes<br/>quota gate → FileStoreQuotaError → 507"]
     R --> W["write bytes<br/>Bun.write / writeAtomic .part + rename /<br/>ffmpeg renders directly into path"]
     W --> F["finalize() real byteSize"]
-    F --> S["share() chunked input<br/>refCount++<br/>adopt() single-shot input<br/>ownerJobId = jobId"]
+    F --> S["share() input with job<br/>refCount++<br/>ownerJobId = jobId"]
     S --> K["keep-until-delete<br/>job-owned outputs exempt from expiry"]
     K --> RL["release() at zero refs<br/>unlink + delete row (idempotent)"]
-    K --> SW["sweepExpired() 30min + reconcile() on boot<br/>expired / stale-reserved / missing / orphans"]
+    K --> SW["sweepExpired() + reconcile() on boot / on-demand sweep<br/>expired / stale-reserved / missing / orphans"]
 
     subgraph Public["what clients see"]
         D["FileDescriptor<br/>{id, role, kind, name, byteSize, mime, ext}<br/>ast_… / art_…"]
@@ -205,8 +204,8 @@ flowchart TB
     RL -. serves .-> DL
 ```
 
-`AssetStore` = inputs (`upload`, `request-input`, TTL 6h / 1h).
-`ArtifactStore` = outputs (`output`, `alternate-output`, `subtitle-png`
+Role `asset` = inputs (`upload`, `request-input`, TTL 6h / 1h).
+Role `artifact` = outputs (`output`, `alternate-output`, `subtitle-png`
 keep-until-delete, `ephemeral` TTL 5min). On-disk name is always
 `<fileId>.<ext>` (`safeFilename` + `mimeForExt` decide display name / MIME).
 `publicJob()` in `video.ts` redacts `<store>` / `<tmp>` out of `error`/`logTail`.
@@ -228,12 +227,12 @@ ops endpoints `GET /` and `GET /health`). Errors use the shared `{ code, message
 ### Upload sessions (`src/routes/upload.ts`)
 
 - `POST /api/upload/init` — create session: validate `totalSize` (≤10 GB),
-  disk + quota gates (507), `AssetStore.reserve()`, pre-allocate sparse file.
+  reserve-throw quota gate (507), `store.reserve()`, create empty file.
   Returns `{uploadId, assetId, chunkSize}`.
 - `POST /api/upload/chunk/:uploadId` — random-access write of one raw chunk
   (`x-chunk-index/offset` or query). Idempotent per index, clamps `received`,
   `touch()`es asset.
-- `POST /api/upload/complete/:uploadId` — verify/truncate to `totalSize`,
+- `POST /api/upload/complete/:uploadId` — verify size equals `totalSize`,
   `finalize()` asset. `UPLOAD_INCOMPLETE` if short.
 - `GET /api/upload/sessions` — list open sessions `{count, sessions[]}`
   (newest first: `received/percent/ageSeconds`) for the Admin orphan/abort UI.
@@ -302,8 +301,8 @@ or legacy v0, migrated via `migrateRenderPlan`) + `file` **or** `uploadId`
   waveform (8 kHz mono `f32le`) + `loudnorm` LUFS report. `?track=N` selects
   audio stream. Single-shot asset released after; chunked inputs read in place.
 - `POST /api/audio/extract` — demux one track to
-  `?format=mp3 (libmp3lame q2) | wav (pcm_s16le)`. Renders to an `ephemeral`
-  artifact, streams it, then releases.
+  `?format=mp3 (libmp3lame q2) | wav (pcm_s16le)`. Renders to a direct
+  temp file, streams it, then deletes.
 
 ### Files (`src/routes/files.ts`)
 
