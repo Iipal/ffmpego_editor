@@ -115,12 +115,13 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 - **Files:** `components/admin/helpers.ts`, `components/editor/mobile/mobile-helpers.ts`, deleted `components/editor/subtitles/template-cache.ts` (audit listed wrong paths `components/mobile/mobile-helpers.ts`, `components/subtitles/template-cache.ts`)
 - **Result:** 1 file deleted, ~110 lines removed. Admin: `formatAge`/`statusBadge` now pure (private `statusBadgeRaw` table kept); `getCachedFilter`/`setCachedFilter` wrappers gone — `useAdminJobs` reads/writes `ffmpego:admin_filters` via `storageJSON` directly (read once per mount, sync write on change). Subtitles: `useSubtitleTemplates` loads/saves via `subtitleStorage` directly (effect writes synchronously on template add/remove only — low frequency; cross-tab `storage`-event invalidation dropped, single-tab local app). Mobile: `useMobilePageState` calls `mobileLayoutService.buildMobileFilter` directly (already inside `useMemo`); `useMobileEditor` init reads `loadPref()`; `pageEditorMobile` saves via `savePref()` synchronously on explicit user save. Deliberately untouched: `googleFonts` catalog caches (network fetch, genuinely expensive), `audio-upload` transport cache (status-validated upload sessions), `subtitle-helpers` style cache (not in audit scope). `tsc` + `lint` clean.
 
-## 15. Cut-mode selector duplication — ⬜ open
+## 15. Cut-mode selector duplication — ✅ done
 
 - **Tag:** shrink
 - **Problem:** Identical mode `<Select>` in both preview and settings sidebar.
 - **Do:** Keep one (settings sidebar), drop the other.
-- **Files:** `components/cut/CutPreview.tsx`, `components/cut/CutSettingsSidebar.tsx`
+- **Files:** `components/editor/cut/CutPreview.tsx`, `app/pageEditorCut.tsx` (audit listed wrong path `components/cut/…`)
+- **Result:** ~20 lines removed. Preview keeps its `mode` prop (video visibility + layout branch still key off it) and the `modeBadge` in the title, so the current mode stays visible; only the `onModeChange` prop + Select JSX + now-dead header flex wrapper are gone. Single caller updated. `tsc` + `lint` clean.
 
 ## 16. Google Fonts dual catalog parse — ⬜ open
 
@@ -187,5 +188,5 @@ Status per item: ✅ done / ⬜ open. Update README.md and AGENTS.md respectfull
 
 ## Totals
 
-- Done: items 1–14. Open: items 15–24.
+- Done: items 1–15. Open: items 16–24.
 - Net removable (remaining): ~1600 lines + 0 dependencies (`cmdk` stays — `GoogleFontPicker` uses it; `next-themes` is the surviving theme system per item 8).

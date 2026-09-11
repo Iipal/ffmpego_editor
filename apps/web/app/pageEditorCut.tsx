@@ -153,7 +153,6 @@ export default function CutEditorPage() {
         <div className="flex flex-col gap-4">
           <CutPreview
             mode={mode}
-            onModeChange={setMode}
             modeBadge={modeBadge}
             videoRef={videoRef}
             mediaUrl={mediaUrl}

@@ -3,13 +3,6 @@
 import type { ReactNode, RefObject } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { MobilePreviewShared } from "@/components/editor/MobilePreviewShared";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { cn } from "@/lib/utils";
@@ -18,7 +11,6 @@ import type { CutMode } from "./types";
 
 export function CutPreview({
   mode,
-  onModeChange,
   modeBadge,
   videoRef,
   mediaUrl,
@@ -39,7 +31,6 @@ export function CutPreview({
   children,
 }: {
   mode: CutMode;
-  onModeChange: (v: CutMode) => void;
   modeBadge: string;
   videoRef: RefObject<HTMLVideoElement | null>;
   mediaUrl: string | null;
@@ -62,27 +53,12 @@ export function CutPreview({
   return (
     <Card className="overflow-hidden">
       <CardHeader className="py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-sm font-semibold tracking-normal">
-            Preview
-            <span className="ml-1.5 font-mono text-[11px] font-normal tabular-nums text-kumo-subtle">
-              {modeBadge}
-            </span>
-          </CardTitle>
-          <Select
-            value={mode}
-            onValueChange={(v) => onModeChange(v as CutMode)}
-          >
-            <SelectTrigger className="h-7 w-40 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="full-size">Full-size</SelectItem>
-              <SelectItem value="2-stack">9:16 2-Stack</SelectItem>
-              <SelectItem value="1-stack">9:16 1-Zone</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <CardTitle className="text-sm font-semibold tracking-normal">
+          Preview
+          <span className="ml-1.5 font-mono text-[11px] font-normal tabular-nums text-kumo-subtle">
+            {modeBadge}
+          </span>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {/* Single source video: visible in full-size, hidden feeder for 9:16 canvas */}
