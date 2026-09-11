@@ -9,7 +9,7 @@ import {
   ensureGlobalPointerListeners,
   globalPointerMoveHandlers,
   globalPointerUpHandlers,
-} from "./mobile-helpers";
+} from "@/lib/global-listener-bus";
 import type { SourceStageProps } from "./types";
 
 export const SourceStage = memo(function SourceStage({

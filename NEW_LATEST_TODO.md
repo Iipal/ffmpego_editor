@@ -142,11 +142,11 @@ cutting. Nothing below is applied; this is the work list.
       `components/view-transition/DirectionalTransition.tsx:4`.
       Steps: use ViewTransition inline (after 2.3).
       Verify: transitions work.
-- [ ] **2.10 Fold mobile-helpers re-export + preload shim (~18).**
+- [x] **2.10 Fold mobile-helpers re-export + preload shim (~18).**
       `components/editor/mobile/mobile-helpers.ts:3`.
       Steps: import bus directly.
       Verify: typecheck.
-- [ ] **2.11 Drop useLatest one-function module (~12).**
+- [x] **2.11 Drop useLatest one-function module (~12).**
       `components/admin/hooks.ts:6`.
       Steps: `useRef` + `useEffect` inline.
       Verify: typecheck.

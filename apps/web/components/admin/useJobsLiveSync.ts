@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiClient } from "@/lib/api-client";
-import { useLatest } from "./hooks";
 import type { JobsResponse } from "./types";
 
 export type LiveStatus = "connecting" | "live" | "reconnecting" | "error";
@@ -26,8 +25,11 @@ export function useJobsLiveSync(
   onSnapshot: (payload: JobsResponse) => void,
 ): LiveStatus {
   const [status, setStatus] = useState<LiveStatus>("connecting");
-  // advanced-use-latest: stable subscription, latest callback without re-subscribing
-  const latestRef = useLatest(onSnapshot);
+  // Stable subscription, latest callback without re-subscribing.
+  const latestRef = useRef(onSnapshot);
+  useEffect(() => {
+    latestRef.current = onSnapshot;
+  }, [onSnapshot]);
 
   useEffect(() => {
     let closed = false;

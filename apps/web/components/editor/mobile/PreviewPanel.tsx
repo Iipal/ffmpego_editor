@@ -11,7 +11,11 @@ import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileLayout } from "@/lib/mobile-layout";
 import { PortraitPreview } from "./PortraitPreview";
 import { CustomArgsCollapsible } from "@/components/editor/CustomArgsCollapsible";
-import { preloadHeavyPreview } from "./mobile-helpers";
+
+// Hover/focus intent preload for the heavy portrait preview chunk.
+function preloadHeavyPreview() {
+  void import("@/components/editor/MobilePreviewShared");
+}
 
 type PreviewPanelProps = {
   layout: MobileLayout;

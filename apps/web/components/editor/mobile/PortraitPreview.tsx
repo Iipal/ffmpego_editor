@@ -3,7 +3,6 @@
 import { memo } from "react";
 import dynamic from "next/dynamic";
 import { MobileLayoutService } from "@/lib/mobile-layout";
-import { HEAVY_MODULES } from "./mobile-helpers";
 import { usePortraitCanvas } from "./usePortraitCanvas";
 import {
   NoPreviewPlaceholder,
@@ -14,7 +13,7 @@ import type { PortraitPreviewProps } from "./types";
 
 export const DynamicPortraitPreview = dynamic(
   () =>
-    HEAVY_MODULES.portrait().then((m) => ({
+    import("@/components/editor/MobilePreviewShared").then((m) => ({
       default:
         m.MobilePreviewShared as unknown as React.ComponentType<PortraitPreviewProps>,
     })),
