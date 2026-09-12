@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
+import { useAudioAnalysis } from "@/lib/query-hooks";
 import { setAudioState } from "@/store/audioSlice";
 
 export function AudioWaveform({

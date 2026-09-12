@@ -1,11 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { VideoMetadata } from "@/lib/api-client";
+import type { FFprobeReport } from "@repo/types";
 import { setSourceState } from "@/store/sourceSlice";
 import { cutStore, setCutState } from "@/store/cutSlice";
-import { uploadChunked } from "@/lib/upload-chunked";
-import { videoFileService } from "@/lib/video-file";
-import { transcodeJobs } from "@/lib/transcode-jobs";
+import { uploadChunked } from "../upload-chunked";
+import { videoFileService } from "../video-file";
+import { transcodeJobs } from "../transcode-jobs";
 
 function setUploadProgress(sent: number, total: number) {
   const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
@@ -34,6 +34,20 @@ function resetUploadStage(totalBytes: number) {
 export interface ProbeDepth {
   includeFrames?: boolean;
   includePackets?: boolean;
+}
+
+/** ffprobe-backed metadata returned by `POST /api/metadata`. */
+export interface VideoMetadata {
+  filename: string;
+  containerFormat: string;
+  durationSeconds: number;
+  width: number;
+  height: number;
+  frameRate: number;
+  videoCodec: string;
+  audioCodec?: string;
+  bitrateKbps: number;
+  ffprobe: FFprobeReport;
 }
 
 // Shared POST /metadata fetch: chunked uploadId reuse for big files, direct

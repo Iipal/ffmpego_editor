@@ -1,6 +1,6 @@
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys } from "./query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { uploadSessions, type UploadSession } from "@/lib/upload-sessions";
+import { uploadSessions, type UploadSession } from "../upload-sessions";
 
 export type { UploadSession };
 

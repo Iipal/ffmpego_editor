@@ -1,6 +1,6 @@
 "use client";
 
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys } from "@/lib/query-hooks";
 import {
   useCallback,
   useDeferredValue,

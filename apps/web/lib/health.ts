@@ -3,10 +3,11 @@
 // `GET /health` (root, not under `/api`) returns the ops snapshot from
 // `apps/api/src/index.ts`: ffmpeg build line, tmpdir disk headroom, and queue
 // depth. Editors and Admin go through the `health` singleton below instead of
-// raw `fetch()` so timeout + error shaping live in one place. TanStack Query
-// wiring lives in `hooks/useHealth.ts`; rendering lives in
+// the shared axios funnel (`query-hooks/http.getJson`) so timeout + error
+// shaping live in one place. TanStack Query
+// wiring lives in `lib/query-hooks/useHealth.ts`; rendering lives in
 // `components/admin/AdminHeader.tsx` + `JobsArea.tsx`.
-import { fetchJson } from "./fetch-json";
+import { getJson } from "./query-hooks/http";
 
 /** Queue depth snapshot mirrored from `GET /health` (`getQueueStats`). */
 export interface HealthQueueStats {
@@ -45,7 +46,7 @@ class Health {
   async fetchHealth(
     timeoutMs = Health.DEFAULT_TIMEOUT_MS,
   ): Promise<HealthSnapshot> {
-    return fetchJson<HealthSnapshot>("/health", {
+    return getJson<HealthSnapshot>("/health", {
       timeoutMs,
       label: "Health check",
     });

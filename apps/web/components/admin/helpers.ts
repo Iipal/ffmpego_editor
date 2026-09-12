@@ -1,4 +1,4 @@
-import { apiClient } from "@/lib/api-client";
+import { getJson } from "@/lib/query-hooks/http";
 import type { JobEntry, JobsResponse } from "./types";
 
 // js-hoist-regexp: hoist RegExp to module scope (avoid per-render recreation, share mutable lastIndex safely without /g)
@@ -22,42 +22,15 @@ const statusBadgeRaw: Record<string, string> = {
 // Admin filter persistence lives at the useAdminJobs call sites
 // (storageJSON round-trips directly — read once per mount, written on change).
 
-// async-cheap-condition-before-await: cheap sync guard before async fetch
-// async-defer-await: AbortController + timeout started before fetch, await only where needed
-// async-api-routes: note — this is a client fetch to Hono API; server route runs on Bun via Bun.spawn (see apps/api)
+// Jobs list fetch for the admin `useAdminJobs` query: one axios GET with a
+// short timeout (was manual AbortController + fetch — now `getJson`). Live
+// updates arrive via SSE (`useJobsLiveSync`); this is initial paint +
+// manual refresh only.
 export async function fetchJobs(): Promise<JobsResponse> {
-  // cheap condition first — avoid network if base URL missing (saves 4s timeout)
-  const baseUrl = apiClient.baseUrl;
-  if (!baseUrl || typeof baseUrl !== "string" || baseUrl.length === 0) {
-    throw new Error("API base URL not configured");
-  }
-  // defer await: start timeout synchronously before any await
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 4000);
-  try {
-    // async-parallel note: if we needed health + jobs, we'd do Promise.all([fetchJobs, fetchHealth]) — not here (single resource)
-    // async-dependencies note: jobs -> progress per job would chain via better-all / Promise.all(map(...then))
-    // async-suspense-boundaries: page is client-polling via useQuery (SWR dedup), not RSC Suspense; streaming not applicable here
-    const res = await fetch(apiClient.url("/api/transcode/jobs"), {
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      // defer expensive text read until branch actually taken
-      const text = await res.text().catch(() => "");
-      throw new Error(
-        `Failed to fetch jobs: ${res.status} ${text.slice(0, 200)}`,
-      );
-    }
-    return (await res.json()) as JobsResponse;
-  } catch (e) {
-    if ((e as Error).name === "AbortError")
-      throw new Error(
-        `Fetch timeout to ${apiClient.url("/api/transcode/jobs")} (API not reachable)`,
-      );
-    throw e;
-  } finally {
-    clearTimeout(timeout);
-  }
+  return getJson<JobsResponse>("/api/transcode/jobs", {
+    timeoutMs: 4000,
+    label: "Jobs list",
+  });
 }
 
 // js-cache-function-results + js-cache-property-access + js-early-exit

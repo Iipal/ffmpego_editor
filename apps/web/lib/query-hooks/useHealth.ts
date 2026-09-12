@@ -1,6 +1,6 @@
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys } from "./query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { health, type HealthSnapshot } from "@/lib/health";
+import { health, type HealthSnapshot } from "../health";
 
 export type { HealthSnapshot };
 

@@ -5,7 +5,7 @@
 // Editors call `preflight.check(...)` during render for the advisory summary
 // and `preflight.probeApiConnectivity()` inside the export gate; both funnel
 // through this service so the fail-fast rules live in one place.
-import { apiClient } from "./api-client";
+import { apiBaseUrl } from "./query-hooks/http";
 import { health } from "./health";
 
 /** Single fail-fast finding: `error` blocks export, `warn` is advisory. */
@@ -169,9 +169,7 @@ class Preflight {
     } catch (e) {
       return e instanceof Error
         ? e.message
-        : "API unreachable — is the backend running on " +
-            apiClient.baseUrl +
-            "?";
+        : "API unreachable — is the backend running on " + apiBaseUrl() + "?";
     }
   }
 

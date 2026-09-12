@@ -2,7 +2,7 @@
 
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
-import { apiClient } from "@/lib/api-client";
+import { apiBaseUrl, apiUrl } from "@/lib/query-hooks";
 import { FILTER_OPTIONS, type Filter } from "./types";
 import type { LiveStatus } from "./useJobsLiveSync";
 
@@ -62,7 +62,7 @@ export const FilterBar = memo(function FilterBar({
           className="text-[10px] font-mono text-kumo-subtle ml-auto"
           suppressHydrationWarning
         >
-          API: {apiClient.url("/api/transcode/jobs")}
+          API: {apiUrl("/api/transcode/jobs")}
         </span>
       </div>
       <div
@@ -77,8 +77,8 @@ export const FilterBar = memo(function FilterBar({
       </div>
       {isError ? (
         <div className="rounded border border-red-200 bg-red-50 px-2 py-1 text-xs text-red-700 dark:bg-red-950 dark:text-red-300">
-          {(error as Error).message} — check API at {apiClient.baseUrl} is
-          running & CORS allowed.
+          {(error as Error).message} — check API at {apiBaseUrl()} is running &
+          CORS allowed.
           <Button
             variant="outline"
             size="xs"

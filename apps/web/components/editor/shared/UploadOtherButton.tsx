@@ -15,7 +15,7 @@ import {
   setSubtitleState,
   type SubtitleSlice,
 } from "@/store/subtitleSlice";
-import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
+import { useVideoMetadataMutation } from "@/lib/query-hooks";
 import { resetPlayheadTime } from "@/store/playheadSlice";
 import { toast } from "sonner";
 import { VideoFileService, videoFileService } from "@/lib/video-file";

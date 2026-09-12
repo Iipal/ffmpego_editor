@@ -193,17 +193,17 @@ flowchart LR
   SSE live sync + delete/cancel/clear actions (derived list in
   `useAdminDerived`, downloads in `useAdminDownloads`, compare/retry/rename
   in `useAdminHistory`).
-- Readiness: `useHealthQuery` (`hooks/useHealth.ts` over `lib/health.ts`,
+- Readiness: `useHealthQuery` (`lib/query-hooks/useHealth.ts` over `lib/health.ts`,
   `GET /health` polled every 15 s) — ffmpeg version, tmpdir disk headroom,
   queue depth. `AdminHeader` shows the status dot + summary line.
-- Storage: `useStorageStatsQuery` (`hooks/useStorageStats.ts` over
+- Storage: `useStorageStatsQuery` (`lib/query-hooks/useStorageStats.ts` over
   `lib/storage.ts`, `GET /api/storage/stats` polled every 30 s) — managed
   bytes vs quota, file counts, asset/artifact split. `JobsArea` shows the
   quota bar + Sweep button (`POST /api/storage/sweep` via
   `useStorageSweepMutation`, reaps expired/stale/orphan rows, live jobs
   untouched) and warns at ≥90% since new exports then fail with 507
   QUOTA_EXCEEDED/DISK_FULL.
-- Upload sessions: `useUploadSessionsQuery` (`hooks/useUploadSessions.ts`
+- Upload sessions: `useUploadSessionsQuery` (`lib/query-hooks/useUploadSessions.ts`
   over `lib/upload-sessions.ts`, `GET /api/upload/sessions` polled every
   10 s) — interrupted chunked uploads still holding server bytes, each with
   its resume progress (`received/total`) + age + Abort button

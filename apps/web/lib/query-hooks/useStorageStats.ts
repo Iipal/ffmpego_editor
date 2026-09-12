@@ -1,10 +1,10 @@
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys } from "./query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   storage,
   type StorageStats,
   type StorageSweepResult,
-} from "@/lib/storage";
+} from "../storage";
 
 export type { StorageStats, StorageSweepResult };
 

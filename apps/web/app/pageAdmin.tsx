@@ -10,7 +10,7 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { apiBaseUrl } from "@/lib/query-hooks";
 import { videoFileService } from "@/lib/video-file";
 import {
   Card,
@@ -30,20 +30,18 @@ import { TipsHoisted } from "@/components/admin/placeholders";
 import { preloadHeavyCard } from "@/components/admin/heavy";
 import { initAppOnce } from "@/lib/heavy";
 import { useAdminJobs } from "@/components/admin/useAdminJobs";
-import { useHealthQuery } from "@/hooks/useHealth";
-import {
-  useStorageStatsQuery,
-  useStorageSweepMutation,
-} from "@/hooks/useStorageStats";
 import {
   useAbortUploadSessionMutation,
+  useHealthQuery,
+  useStorageStatsQuery,
+  useStorageSweepMutation,
   useUploadSessionsQuery,
-} from "@/hooks/useUploadSessions";
+} from "@/lib/query-hooks";
 
 export default function PageAdmin() {
   // advanced-init-once: one-time preconnect, not per mount
   useEffect(() => {
-    initAppOnce("admin", [apiClient.baseUrl]);
+    initAppOnce("admin", [apiBaseUrl()]);
   }, []);
 
   const admin = useAdminJobs();
@@ -175,7 +173,7 @@ export default function PageAdmin() {
           filter={deferredFilter}
           isStale={isFilterStale}
           isFetching={isFetching}
-          apiBase={apiClient.baseUrl}
+          apiBase={apiBaseUrl()}
           liveStatus={liveStatus}
           onRefresh={handleRefresh}
         />

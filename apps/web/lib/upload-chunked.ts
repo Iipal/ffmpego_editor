@@ -9,7 +9,7 @@
 // observe fetch upload progress, XHR can). `shouldUseChunked` is the
 // threshold heuristic choosing between the two.
 
-import { apiClient } from "./api-client";
+import { apiUrl, requestBlob, requestJson } from "./query-hooks/http";
 import { transcodeJobs } from "./transcode-jobs";
 import { uploadSessions } from "./upload-sessions";
 import { MULTIPART_FIELDS, UPLOAD_ID_HEADER } from "@repo/contracts";
@@ -150,7 +150,7 @@ export class UploadChunked {
 
     // 1) init (fresh uploads only)
     if (uploadId === null) {
-      const initRes = await fetch(apiClient.url("/api/upload/init"), {
+      const initRes = await fetch(apiUrl("/api/upload/init"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -200,9 +200,7 @@ export class UploadChunked {
         try {
           const buf = await blob.arrayBuffer();
           const res = await fetch(
-            apiClient.url(
-              `/api/upload/chunk/${uploadId}?index=${i}&offset=${offset}`,
-            ),
+            apiUrl(`/api/upload/chunk/${uploadId}?index=${i}&offset=${offset}`),
             {
               method: "POST",
               headers: {
@@ -259,7 +257,7 @@ export class UploadChunked {
 
     // 3) complete
     const completeRes = await fetch(
-      apiClient.url(`/api/upload/complete/${uploadId}`),
+      apiUrl(`/api/upload/complete/${uploadId}`),
       {
         method: "POST",
         signal: opts.signal,
@@ -292,7 +290,7 @@ export class UploadChunked {
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      const url = apiClient.url(endpoint);
+      const url = apiUrl(endpoint);
 
       if (opts.signal) {
         if (opts.signal.aborted)
@@ -352,7 +350,7 @@ export class UploadChunked {
         signal: opts.signal,
       });
       if (result.resumed) opts.onResumed?.(result.resumedBytes, file.size);
-      const res = await fetch(apiClient.url(endpoint), {
+      const res = await fetch(apiUrl(endpoint), {
         method: "POST",
         headers: { [UPLOAD_ID_HEADER]: result.uploadId },
         body: opts.buildForm(false) ?? undefined,
@@ -500,7 +498,7 @@ export class UploadChunked {
     if (uploadId) {
       // Chunked path: the server resolves the input from the session header
       // and ignores the (empty) body.
-      return apiClient.requestJson<T>(endpoint, {
+      return requestJson<T>(endpoint, {
         ...init,
         method: "POST",
         headers: { [UPLOAD_ID_HEADER]: uploadId },
@@ -508,7 +506,7 @@ export class UploadChunked {
     }
     const form = new FormData();
     form.append(MULTIPART_FIELDS.file, file);
-    return apiClient.requestJson<T>(endpoint, {
+    return requestJson<T>(endpoint, {
       ...init,
       method: "POST",
       body: form,
@@ -523,14 +521,14 @@ export class UploadChunked {
   ): Promise<Blob> {
     const init = opts.signal ? { signal: opts.signal } : undefined;
     if (uploadId) {
-      return apiClient.requestBlob(endpoint, {
+      return requestBlob(endpoint, {
         ...init,
         headers: { [UPLOAD_ID_HEADER]: uploadId },
       });
     }
     const form = new FormData();
     form.append(MULTIPART_FIELDS.file, file);
-    return apiClient.requestBlob(endpoint, { ...init, body: form });
+    return requestBlob(endpoint, { ...init, body: form });
   }
 
   /** File identity key — a different file never reuses another's bytes. */

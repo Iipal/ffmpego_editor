@@ -7,10 +7,9 @@
 // stale / orphan records without touching live jobs. The Admin dashboard goes
 // through the `storage` singleton below instead of raw `fetch()` so timeout +
 // error shaping live in one place. TanStack Query wiring lives in
-// `hooks/useStorageStats.ts`; rendering lives in
+// `lib/query-hooks/useStorageStats.ts`; rendering lives in
 // `components/admin/JobsArea.tsx`.
-import { apiClient } from "./api-client";
-import { fetchJson } from "./fetch-json";
+import { getJson, requestJson } from "./query-hooks/http";
 
 /** Store census mirrored from `GET /api/storage/stats` (`store.stats()`). */
 export interface StorageStats {
@@ -49,7 +48,7 @@ class Storage {
   async fetchStats(
     timeoutMs = Storage.DEFAULT_TIMEOUT_MS,
   ): Promise<StorageStats> {
-    return fetchJson<StorageStats>("/api/storage/stats", {
+    return getJson<StorageStats>("/api/storage/stats", {
       timeoutMs,
       label: "Storage stats",
     });
@@ -66,15 +65,12 @@ class Storage {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      return await apiClient.requestJson<StorageSweepResult>(
-        "/api/storage/sweep",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-          signal: ctrl.signal,
-        },
-      );
+      return await requestJson<StorageSweepResult>("/api/storage/sweep", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+        signal: ctrl.signal,
+      });
     } finally {
       clearTimeout(timer);
     }

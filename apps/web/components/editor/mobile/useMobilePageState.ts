@@ -18,11 +18,11 @@ import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine"
 import { useMobileLayoutActions } from "./useMobileLayoutActions";
 import { NOOP } from "@/lib/utils";
 import { initAppOnce } from "@/lib/heavy";
-import { apiClient } from "@/lib/api-client";
+import { apiBaseUrl } from "@/lib/query-hooks";
 
 export function useMobilePageState() {
   useEffect(() => {
-    initAppOnce("mobile", [apiClient.baseUrl]);
+    initAppOnce("mobile", [apiBaseUrl()]);
   }, []);
 
   const file = useSelector(sourceStore, (s) => s.file);

@@ -34,8 +34,9 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
    `openComparison`. Fire-and-forget: progress lives in `exportQueueSlice`
    (QueueDock + AppNav badge); `uploadId` reuse means big files upload once.
 4. **State split.** TanStack Store (`store/`) = sync UI (file, trim, crop,
-   filters, cuts, subtitles, history, compare). TanStack Query (`hooks/`,
-   `useAdminJobs`) = async server state + SSE live sync. Never swap them.
+   filters, cuts, subtitles, history, compare). TanStack Query
+   (`lib/query-hooks/`, `useAdminJobs`) = async server state + SSE live sync.
+   Never swap them.
 
 ## Where methods live
 
@@ -115,15 +116,32 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `BulkSettingsPanel`); backend `parseCustomArgs` denylist rejects managed
   flags with a 4xx the export error paths surface
 
-### `hooks/` — async server state (TanStack Query + SSE live sync)
+### `lib/query-hooks/` — all server-state transport (axios + TanStack Query)
+
+- `http.ts` — single API module: `apiBaseUrl`/`apiUrl` + axios funnels
+  (`getJson` polling-GET with timeout + human shaping,
+  `requestJson`/`requestBlob` generic funnels with `TranscodeHttpError`
+  shaping, `deleteJson` label-shaped DELETEs). Deliberately NOT axios:
+  chunked binary PUTs + XHR `uploadForm` (upload progress), SSE
+  `EventSource` streams, absolute-URL blob downloads, external font fetches.
+- `query-keys.ts` — canonical query keys (adminJobs, storageStats,
+  uploadSessions, health, audioAnalysis).
+- `useHealth/useStorageStats/useUploadSessions/useAudioAnalysis/useVideoMetadata.ts`
+  — the Query hooks (polling queries + mutations; `VideoMetadata` /
+  `AudioAnalysis` shapes live in their hook files). `index.ts` barrel —
+  every server-state import comes from `@/lib/query-hooks`.
+- `hooks/` keeps only non-server hooks: `useAudioPreview` (WebAudio),
+  `useSharedMobileLayout` (localStorage).
+
+### `hooks/` — non-server hooks only (`useAudioPreview`, `useSharedMobileLayout`)
 
 - `useVideoMetadata.ts` (initial + extended probe; extended takes
-  `{file,includeFrames,includePackets}`), `useAudioAnalysis.ts`,
-  `useAudioPreview.ts` (both via `upload-chunked` session reuse, not raw
-  FormData), `useSharedMobileLayout.ts`
-- `useHealth.ts` (`GET /health` readiness poll)
-- `useStorageStats.ts` (`GET /storage/stats` 30 s poll + sweep mutation)
-- `useUploadSessions.ts` (`GET /upload/sessions` 10 s poll + abort mutation)
+  `{file,includeFrames,includePackets}`) and `useAudioAnalysis.ts` live in
+  `lib/query-hooks/` (both via `upload-chunked` session reuse, not raw
+  FormData)
+- Polling queries live there too: `useHealth` (`GET /health` readiness poll),
+  `useStorageStats` (`GET /storage/stats` 30 s poll + sweep mutation),
+  `useUploadSessions` (`GET /upload/sessions` 10 s poll + abort mutation)
 
 ### `store/` — sync UI state (TanStack Store)
 
@@ -136,8 +154,6 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 #### Transport & export pipeline
 
-- `api-client.ts` — `APIClient` service:
-  `apiClient.url/baseUrl/requestJson/requestBlob` (+ `VideoMetadata`/`AudioAnalysis` shapes)
 - `export-queue.ts` — `ExportQueue` service:
   `exportQueue.enqueue/cancel/dismiss/retryEntry/retryAudioExtract/openComparison/openFileComparison`
   (history retry/compare are queue-owned; the history store only reads/records entries)
@@ -149,8 +165,6 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `transcodeJobs.cancelTranscodeJob/renameJob/serverErrorMessage`
   (failures throw `TranscodeHttpError`: status + Retry-After preserved;
   429 queue-full / 507 disk-full shaped, 422 issues[] folded in)
-- `query-keys.ts` — shared TanStack Query keys (`queryKeys.adminJobs`,
-  `storageStats`, `uploadSessions`, `health`, `audioAnalysis(file, track)`)
 - `preflight.ts` — `Preflight` service: `preflight.check` (fail-fast gate),
   `probeApiConnectivity` via lightweight `GET /health`
 - `save-blob-file.ts` — `SaveBlobFile` service:
@@ -171,8 +185,6 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
 
 #### Readiness & storage snapshots
 
-- `fetch-json.ts` — `fetchJson(path, {timeoutMs, label})` funnel: base-URL
-  guard + abort timeout + human error shaping for the polling GETs below
 - `health.ts` — `Health` service: `health.fetchHealth` (`GET /health`
   readiness snapshot: ffmpeg, disk, queue)
 - `storage.ts` — `Storage` service: `storage.fetchStats`
@@ -214,7 +226,8 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   `MULTIPART_FIELDS`, `UPLOAD_ID_*`, error envelope);
   used in `lib/validate-settings.ts`, `lib/export-presets.ts`.
 - `@repo/types` — `TranscodeProgress/Response`, `FFprobeReport`,
-  `Subtitle/*`; used in `lib/api-client.ts`, `lib/subtitles/`.
+  `Subtitle/*`; used in `lib/query-hooks/` (`VideoMetadata` /
+  `AudioAnalysis` shapes), `lib/subtitles/`.
   (`MobileLayout`/`CropZone` live in `lib/mobile-layout.ts`.)
 - `@repo/ffmpeg-filters` — `zoneToPixels`, `cropPercentToPixels`,
   visual-filter builders shared with the server so canvas/CSS preview and

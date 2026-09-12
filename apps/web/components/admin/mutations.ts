@@ -1,9 +1,9 @@
 "use client";
 
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys } from "@/lib/query-hooks";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
+import { deleteJson } from "@/lib/query-hooks/http";
 import { transcodeJobs } from "@/lib/transcode-jobs";
 import { JOB_ID_RE } from "./helpers";
 
@@ -15,17 +15,9 @@ export function useAdminMutations(onMutated: () => void) {
     mutationFn: async (jobId: string) => {
       // async-cheap-condition-before-await: validate cheap sync before async fetch
       if (!JOB_ID_RE.test(jobId)) throw new Error("Invalid jobId");
-      // async-defer-await: start fetch, defer res.json until success branch
-      const res = await fetch(apiClient.url(`/api/transcode/jobs/${jobId}`), {
-        method: "DELETE",
+      return deleteJson<unknown>(`/api/transcode/jobs/${jobId}`, {
+        label: "Delete failed",
       });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as unknown;
-        throw new Error(
-          transcodeJobs.serverErrorMessage(j) ?? `Delete failed: ${res.status}`,
-        );
-      }
-      return res.json() as Promise<unknown>;
     },
     onSuccess: () => {
       // js-request-idle-callback: defer non-critical toast analytics to idle (keep main path fast)
@@ -46,17 +38,12 @@ export function useAdminMutations(onMutated: () => void) {
   });
 
   const clearAllMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(apiClient.url("/api/transcode/jobs"), {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error(`Clear-all failed: ${res.status}`);
-      return res.json() as Promise<{
+    mutationFn: () =>
+      deleteJson<{
         cleared: number;
         killed: number;
         ids: string[];
-      }>;
-    },
+      }>("/api/transcode/jobs", { label: "Clear-all failed" }),
     onSuccess: (r) => {
       // async-parallel: toast + invalidate are independent — start both promptly
       const p1 = Promise.resolve(
@@ -73,16 +60,13 @@ export function useAdminMutations(onMutated: () => void) {
   });
 
   const clearPendingMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: () =>
       // B2: the server treats ?status=processing|pending as processing+queued,
       // so this clears both active and queued jobs.
-      const res = await fetch(
-        apiClient.url("/api/transcode/jobs?status=processing"),
-        { method: "DELETE" },
-      );
-      if (!res.ok) throw new Error(`Clear pending failed: ${res.status}`);
-      return res.json() as Promise<{ cleared: number; killed: number }>;
-    },
+      deleteJson<{ cleared: number; killed: number }>(
+        "/api/transcode/jobs?status=processing",
+        { label: "Clear pending failed" },
+      ),
     onSuccess: (r) => {
       if (r.cleared === 0) toast.info("No pending jobs to clear");
       else toast.success(`Cleared ${r.cleared} pending jobs`);

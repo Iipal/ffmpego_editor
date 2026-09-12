@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { UploadProgress } from "@/components/editor/UploadProgress";
-import { useVideoMetadataMutation } from "@/hooks/useVideoMetadata";
+import { useVideoMetadataMutation } from "@/lib/query-hooks";
 import { cn } from "@/lib/utils";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore, setSourceState } from "@/store/sourceSlice";

@@ -13,10 +13,9 @@
 // `localStorage` (uploadId + file identity + chunk size). When the same file
 // is uploaded again, the uploader verifies the session via status and skips
 // already-received chunks instead of starting over. TanStack Query wiring
-// lives in `hooks/useUploadSessions.ts`; rendering lives in
+// lives in `lib/query-hooks/useUploadSessions.ts`; rendering lives in
 // `components/admin/UploadSessions.tsx`.
-import { apiClient } from "./api-client";
-import { fetchJson } from "./fetch-json";
+import { getJson, requestJson } from "./query-hooks/http";
 import { storageJSON } from "./storage-json";
 
 /** One open upload session from `GET /api/upload/sessions`. */
@@ -69,7 +68,7 @@ class UploadSessions {
   async listSessions(
     timeoutMs = UploadSessions.DEFAULT_TIMEOUT_MS,
   ): Promise<UploadSession[]> {
-    const body = await fetchJson<{ sessions?: UploadSession[] }>(
+    const body = await getJson<{ sessions?: UploadSession[] }>(
       "/api/upload/sessions",
       { timeoutMs, label: "Upload sessions" },
     );
@@ -85,7 +84,7 @@ class UploadSessions {
     uploadId: string,
     timeoutMs = UploadSessions.DEFAULT_TIMEOUT_MS,
   ): Promise<UploadSessionStatus | null> {
-    return fetchJson<UploadSessionStatus | null>(
+    return getJson<UploadSessionStatus | null>(
       `/api/upload/status/${uploadId}`,
       { timeoutMs, label: "Upload status", notFoundNull: true },
     );
@@ -99,7 +98,7 @@ class UploadSessions {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      await apiClient.requestJson<unknown>(`/api/upload/${uploadId}`, {
+      await requestJson<unknown>(`/api/upload/${uploadId}`, {
         method: "DELETE",
         signal: ctrl.signal,
       });

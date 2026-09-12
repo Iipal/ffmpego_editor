@@ -18,7 +18,8 @@
 // SSE, and DELETE the server job. Cancelling before the POST lands marks the
 // runner orphaned so the late job id is deleted instead of rendering.
 
-import { apiClient, type TranscodeResponse } from "./api-client";
+import { apiUrl } from "./query-hooks/http";
+import type { TranscodeResponse } from "@repo/types";
 import { saveBlobFile } from "./save-blob-file";
 import { openComparison } from "@/store/compareSlice";
 import {
@@ -262,7 +263,7 @@ class ExportQueue {
   ): Promise<void> {
     try {
       const blob = await saveBlobFile.fetchDownload(
-        apiClient.url(`/api/transcode/download/${jobId}`),
+        apiUrl(`/api/transcode/download/${jobId}`),
       );
       this.openBlobComparison(
         blob,
@@ -287,7 +288,7 @@ class ExportQueue {
   ): Promise<void> {
     try {
       const blob = await saveBlobFile.fetchDownload(
-        apiClient.url(`/api/files/${fileId}/download`),
+        apiUrl(`/api/files/${fileId}/download`),
       );
       this.openBlobComparison(
         blob,
@@ -408,7 +409,7 @@ class ExportQueue {
     const submitted = response;
     // progressUrl is served relative ("/api/transcode/progress/:id") — resolve
     // against the API origin or EventSource would hit the Next.js dev server.
-    const progressUrl = apiClient.url(submitted.progressUrl);
+    const progressUrl = apiUrl(submitted.progressUrl);
     await new Promise<void>((resolve, reject) => {
       runner.closeSse = transcodeProgress.subscribe(progressUrl, {
         onProgress: (p, info) => {
@@ -436,7 +437,7 @@ class ExportQueue {
     patchQueueItem(id, { status: "saving", progress: 97 });
     task.onProgress?.({ status: "saving", progress: 97, queuePosition: null });
     return saveBlobFile.fetchDownload(
-      apiClient.url(`/api/transcode/download/${response.jobId}`),
+      apiUrl(`/api/transcode/download/${response.jobId}`),
     );
   }
 

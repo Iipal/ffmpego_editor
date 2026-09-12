@@ -12,7 +12,7 @@ import { MobileLayoutService, mobileLayoutService } from "@/lib/mobile-layout";
 import type { CropZone, MobileLayout } from "@/lib/mobile-layout";
 import { VideoPlayerControls } from "@/components/editor/shared/VideoPlayerControls";
 import { usePlaybackEngine } from "@/components/editor/shared/usePlaybackEngine";
-import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
+import { useAudioAnalysis } from "@/lib/query-hooks";
 import {
   getAudioRenderSettings,
   type AudioTrack,

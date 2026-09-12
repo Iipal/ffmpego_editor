@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { queryKeys } from "@/lib/query-keys";
+import { queryKeys } from "@/lib/query-hooks";
 
 describe("queryKeys", () => {
   test("uses single literals per key (rename-safe)", () => {

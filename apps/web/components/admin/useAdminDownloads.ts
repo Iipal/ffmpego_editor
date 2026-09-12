@@ -13,12 +13,12 @@ async function downloadToPicker(
   successMessage: string,
   failureMessage: string,
 ) {
-  const [{ apiClient }, { saveBlobFile }] = await Promise.all([
-    import("@/lib/api-client"),
+  const [{ apiUrl }, { saveBlobFile }] = await Promise.all([
+    import("@/lib/query-hooks"),
     import("@/lib/save-blob-file"),
   ]);
   try {
-    const blob = await saveBlobFile.fetchDownload(apiClient.url(url));
+    const blob = await saveBlobFile.fetchDownload(apiUrl(url));
     const { filename, types } = downloadPlan(label, serverName, nameSuffix);
     const saved = await saveBlobFile.save(blob, filename, types);
     toast.success(successMessage, { description: saved });

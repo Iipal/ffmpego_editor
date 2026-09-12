@@ -24,7 +24,7 @@ import { usePlayheadTime } from "@/store/playheadSlice";
 import { formatTime } from "@/lib/format-time";
 import { readSliderValue } from "@/lib/utils";
 import { uploadChunked } from "@/lib/upload-chunked";
-import { useAudioAnalysis } from "@/hooks/useAudioAnalysis";
+import { useAudioAnalysis } from "@/lib/query-hooks";
 import { AudioWaveform } from "./AudioWaveform";
 
 function updateTrack(trackIndex: number, update: Partial<AudioTrackState>) {

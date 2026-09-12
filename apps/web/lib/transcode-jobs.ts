@@ -16,7 +16,7 @@
 // parsing, shaped POST/XHR errors, cooperative cancel, and the log-tail
 // label helper all live here.
 
-import { apiClient } from "./api-client";
+import { requestJson } from "./query-hooks/http";
 
 /** Error carrying the HTTP status (+ Retry-After) of a failed transcode POST. */
 export class TranscodeHttpError extends Error {
@@ -155,17 +155,10 @@ export class TranscodeJobs {
 
   /** Cooperative cancel: SIGTERM→SIGKILL ffmpeg, row + logTail kept server-side. */
   public async cancelTranscodeJob(jobId: string): Promise<string> {
-    const res = await fetch(
-      apiClient.url(
-        `/api/transcode/jobs/${encodeURIComponent(jobId)}?mode=cancel`,
-      ),
+    const body = await requestJson<{ status?: string }>(
+      `/api/transcode/jobs/${encodeURIComponent(jobId)}?mode=cancel`,
       { method: "DELETE" },
     );
-    if (!res.ok) {
-      const payload = (await res.json().catch(() => null)) as unknown;
-      this.throwTranscodeHttpError(res, payload);
-    }
-    const body = (await res.json()) as { status?: string };
     return body.status ?? "cancelled";
   }
 
@@ -174,7 +167,7 @@ export class TranscodeJobs {
    * the canonical filename. Callers adopt the rename into the history store.
    */
   public async renameJob(jobId: string, filename: string): Promise<string> {
-    const body = await apiClient.requestJson<{ filename: string }>(
+    const body = await requestJson<{ filename: string }>(
       `/api/transcode/jobs/${jobId}`,
       {
         method: "PATCH",
