@@ -39,7 +39,7 @@ flowchart LR
     subgraph Shared["shared layers"]
         Comp["components/editor + admin + ui"]
         Store["store/*<br/>TanStack Store"]
-        Lib["lib/* + hooks/*<br/>Query + SSE"]
+        Lib["lib/* + lib/query-hooks/*<br/>Query + SSE"]
     end
 
     Crop -. uses .-> Comp & Store & Lib
