@@ -235,6 +235,22 @@ API at `http://localhost:3100` (`NEXT_PUBLIC_API_URL`); details in
   **Shadcn hard rule** (repo `AGENTS.md` §3) still applies for primitives:
   `bunx --bun shadcn@latest add <c>` before any new UI element.
 
+## E2E / Playwright (agent UI access)
+
+- Suites: `playwright.config.ts` + `tests/headless.spec.ts` (5 DOM/assertion
+  tests) + `tests/headed.spec.ts` (5 real-GUI tests) vs live dev `:3050`.
+  `bun run test:e2e` (all) / `test:e2e:headless` / `test:e2e:headed`
+  (`xvfb-run` wrapper; plain headed works when `DISPLAY=:0` is set).
+- MUST run under node (shebang does this via `bun run`); never
+  `bunx --bun playwright test` — the runner cannot build specs on bun.
+  No `webServer` block in config; dev server must already run.
+- Ad-hoc probing: one-off `bun` script with `@playwright/test` `chromium`
+  (headless for DOM/`locator` snapshots + `pageerror` capture, headed for
+  screenshots to `test-results/`, both gitignored). Faster than guessing
+  selectors from source.
+- Known DOM facts: sidebar nav = `tablist "Editor mode"` with `tab` roles
+  (NOT links, no hrefs); page headings are h2/h3 (no h1 exists).
+
 ## Rules
 
 - Design language: `docs/DESIGN.md` (Kumo tokens, typography, component

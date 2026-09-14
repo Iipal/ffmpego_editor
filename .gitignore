@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 .turbo
+test-results
+playwright-report
+blob-report
 
 # code coverage
 coverage
