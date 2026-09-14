@@ -92,13 +92,66 @@ export const CutBlock = memo(function CutBlock({
     [cut, duration, onChange, onSelect],
   );
 
+  const nudge = useCallback(
+    (dx: number, growEnd: boolean, growStart: boolean) => {
+      const minLen = 0.2;
+      const len = cut.end - cut.start;
+      if (growEnd) {
+        const ne = mobileLayoutService.clamp(
+          cut.end + dx,
+          cut.start + minLen,
+          duration,
+        );
+        onChange(cut.id, { ...cut, end: Math.round(ne * 100) / 100 });
+      } else if (growStart) {
+        const ns = mobileLayoutService.clamp(
+          cut.start + dx,
+          0,
+          cut.end - minLen,
+        );
+        onChange(cut.id, { ...cut, start: Math.round(ns * 100) / 100 });
+      } else {
+        const ns = mobileLayoutService.clamp(
+          cut.start + dx,
+          0,
+          Math.max(0, duration - len),
+        );
+        onChange(cut.id, {
+          ...cut,
+          start: Math.round(ns * 100) / 100,
+          end: Math.round((ns + len) * 100) / 100,
+        });
+      }
+    },
+    [cut, duration, onChange],
+  );
+
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = e.shiftKey ? 2 : 0.5;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        e.stopPropagation();
+        const dx = e.key === "ArrowLeft" ? -step : step;
+        onSelect(cut.id);
+        // ponytail: Shift resizes end, Alt resizes start, plain moves whole cut
+        nudge(dx, e.shiftKey, e.altKey);
+      } else if (e.key === "Enter") {
+        onSelect(cut.id);
+      }
+    },
+    [nudge, onSelect, cut.id],
+  );
+
   return (
     <div
       onPointerDown={onPointerDown("move")}
       onClick={() => onSelect(cut.id)}
+      onKeyDown={onKeyDown}
       role="button"
       tabIndex={0}
-      aria-label={`Cut ${index + 1} ${formatTime(cut.start)} to ${formatTime(cut.end)}`}
+      aria-label={`Cut ${index + 1} ${formatTime(cut.start)} to ${formatTime(cut.end)}. Arrow keys move, Shift plus arrows resizes end, Alt plus arrows resizes start.`}
+      title="Drag to move · drag edges to resize · arrows move (Shift resizes)"
       className={cn(
         "absolute top-1 bottom-1 flex cursor-grab items-stretch overflow-hidden rounded-md border text-[10px] font-medium tabular-nums select-none touch-none active:cursor-grabbing",
         isSelected
@@ -108,19 +161,39 @@ export const CutBlock = memo(function CutBlock({
       )}
       style={{ left: `${left}%`, width: `${width}%` }}
     >
-      <div
+      <button
+        type="button"
         onPointerDown={onPointerDown("l")}
-        className="w-2 shrink-0 cursor-ew-resize bg-kumo-brand/25 hover:bg-kumo-brand/50"
-        aria-hidden
-      />
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            e.stopPropagation();
+            nudge(e.key === "ArrowLeft" ? -0.5 : 0.5, false, true);
+          }
+        }}
+        aria-label={`Resize cut ${index + 1} start`}
+        className="w-4 shrink-0 cursor-ew-resize bg-kumo-brand/25 hover:bg-kumo-brand/50 focus-visible:bg-kumo-brand/60 focus-visible:outline-none flex items-center justify-center touch-none"
+      >
+        <span aria-hidden className="h-6 w-1 rounded bg-white/70" />
+      </button>
       <span className="flex flex-1 items-center justify-center truncate px-1 text-kumo-strong">
         C{index + 1} · {(cut.end - cut.start).toFixed(1)}s
       </span>
-      <div
+      <button
+        type="button"
         onPointerDown={onPointerDown("r")}
-        className="w-2 shrink-0 cursor-ew-resize bg-kumo-brand/25 hover:bg-kumo-brand/50"
-        aria-hidden
-      />
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            e.stopPropagation();
+            nudge(e.key === "ArrowLeft" ? -0.5 : 0.5, true, false);
+          }
+        }}
+        aria-label={`Resize cut ${index + 1} end`}
+        className="w-4 shrink-0 cursor-ew-resize bg-kumo-brand/25 hover:bg-kumo-brand/50 focus-visible:bg-kumo-brand/60 focus-visible:outline-none flex items-center justify-center touch-none"
+      >
+        <span aria-hidden className="h-6 w-1 rounded bg-white/70" />
+      </button>
     </div>
   );
 });

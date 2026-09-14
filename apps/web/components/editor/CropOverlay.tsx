@@ -5,6 +5,7 @@ import { useSelector } from "@tanstack/react-store";
 import { cropStore, setCropState } from "@/store/cropSlice";
 import { sourceStore } from "@/store/sourceSlice";
 import { cn } from "@/lib/utils";
+import { ZoneGridOverlay } from "./mobile/placeholders";
 
 // ---------------------------------------------------------------------------
 // Types & constants — fresh implementation, no carry-over
@@ -307,18 +308,7 @@ export function CropOverlay() {
           Crop · {aspectRatio}
         </span>
 
-        {/* Grid — ZoneGridOverlay exact clone, hairline white/40, pointer-events none */}
-        <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 overflow-hidden rounded-md opacity-30">
-          <div className="border-r border-b border-white/40" />
-          <div className="border-r border-b border-white/40" />
-          <div className="border-b border-white/40" />
-          <div className="border-r border-white/40" />
-          <div className="border-r border-white/40" />
-          <div />
-          <div className="border-r border-white/40" />
-          <div className="border-r border-white/40" />
-          <div />
-        </div>
+        {ZoneGridOverlay}
 
         {HANDLES.map((h) => (
           <div

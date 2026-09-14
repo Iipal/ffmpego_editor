@@ -26,6 +26,7 @@ type TimelineBlockProps = {
   widthPct: number;
   trackLabel: number;
   onSelect: (id: string) => void;
+  onUpdateSubtitle: (id: string, start: number, end: number) => void;
   setDrag: Dispatch<SetStateAction<TimelineDragState>>;
 };
 
@@ -38,6 +39,7 @@ const TimelineBlock = memo(function TimelineBlock({
   widthPct,
   trackLabel,
   onSelect,
+  onUpdateSubtitle,
   setDrag,
 }: TimelineBlockProps) {
   const handleSelectBody = useCallback(
@@ -116,32 +118,76 @@ const TimelineBlock = memo(function TimelineBlock({
       }}
       onPointerDown={handleSelectBody}
       onClick={handleSelectClick}
+      onKeyDown={(e) => {
+        // ponytail: arrows nudge timing by 0.1s; Shift = 1s.
+        const step = e.shiftKey ? 1 : 0.1;
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          e.stopPropagation();
+          onSelect(sub.id);
+          const dx = e.key === "ArrowLeft" ? -step : step;
+          onUpdateSubtitle(
+            sub.id,
+            Math.round((sub.startTime + dx) * 100) / 100,
+            Math.round((sub.endTime + dx) * 100) / 100,
+          );
+        }
+      }}
       role="button"
-      aria-label={`Subtitle ${sub.text} track ${trackLabel} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}`}
+      tabIndex={0}
+      aria-label={`Subtitle ${sub.text} track ${trackLabel} ${formatTime(sub.startTime)} to ${formatTime(sub.endTime)}. Arrow keys retime.`}
       aria-pressed={isSelected}
-      title={`Track ${trackLabel} · drag vertically to move`}
+      title={`Track ${trackLabel} · drag to retime · arrows retime (Shift 1s)`}
     >
-      <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
+      <button
+        type="button"
+        className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 focus-visible:bg-kumo-brand/50 focus-visible:outline-none flex items-center justify-center touch-none"
         onPointerDown={handleLeftHandle}
-        aria-label="Drag to change start time"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelect(sub.id);
+            const ns =
+              Math.round(
+                (sub.startTime + (e.key === "ArrowLeft" ? -0.1 : 0.1)) * 100,
+              ) / 100;
+            onUpdateSubtitle(sub.id, ns, sub.endTime);
+          }
+        }}
+        aria-label="Change start time. Drag or use arrow keys."
       >
-        <span className="w-0.5 h-4 bg-white/60 rounded" />
-      </div>
+        <span aria-hidden className="w-0.5 h-4 bg-white/60 rounded" />
+      </button>
       <div
-        className="flex-1 px-3 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
+        className="flex-1 px-4 text-[10px] truncate cursor-grab active:cursor-grabbing select-none flex items-center gap-1"
         onPointerDown={handleMoveHandle}
       >
-        <span className="text-[8px] opacity-70">↕</span>
+        <span aria-hidden className="text-[8px] opacity-70">
+          ↕
+        </span>
         <span className="truncate">{sub.text || "…"}</span>
       </div>
-      <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 flex items-center justify-center"
+      <button
+        type="button"
+        className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-black/10 hover:bg-kumo-brand/30 focus-visible:bg-kumo-brand/50 focus-visible:outline-none flex items-center justify-center touch-none"
         onPointerDown={handleRightHandle}
-        aria-label="Drag to change end time"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            e.stopPropagation();
+            onSelect(sub.id);
+            const ne =
+              Math.round(
+                (sub.endTime + (e.key === "ArrowLeft" ? -0.1 : 0.1)) * 100,
+              ) / 100;
+            onUpdateSubtitle(sub.id, sub.startTime, ne);
+          }
+        }}
+        aria-label="Change end time. Drag or use arrow keys."
       >
-        <span className="w-0.5 h-4 bg-white/60 rounded" />
-      </div>
+        <span aria-hidden className="w-0.5 h-4 bg-white/60 rounded" />
+      </button>
     </div>
   );
 });
@@ -296,6 +342,7 @@ export function TimelineVisual({
               widthPct={width}
               trackLabel={clampedTrack + 1}
               onSelect={onSelect}
+              onUpdateSubtitle={onUpdateSubtitle}
               setDrag={setDrag}
             />
           );

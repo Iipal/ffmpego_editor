@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { toast } from "sonner";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
 import { UploadProgress } from "@/components/editor/UploadProgress";
@@ -124,8 +125,22 @@ export default function CutEditorPage() {
   };
 
   const handleDeleteCut = (id: string) => {
+    const removed = cuts.find((x) => x.id === id);
+    const idx = cuts.findIndex((x) => x.id === id);
+    if (!removed) return;
     setCuts((prev) => prev.filter((x) => x.id !== id));
     if (selectedId === id) setSelectedId(null);
+    toast.success("Cut deleted", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setCuts((prev) => {
+            const next = [...prev];
+            next.splice(Math.min(idx, next.length), 0, removed);
+            return next;
+          }),
+      },
+    });
   };
 
   return (

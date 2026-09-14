@@ -37,7 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/editor/mobile/bulk",
-    label: "Bulk",
+    label: "Batch Convert",
     icon: <LayoutGrid className="w-4 h-4" />,
   },
   {
@@ -47,7 +47,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/admin",
-    label: "Admin",
+    label: "Jobs & storage",
     icon: <ShieldCheck className="w-4 h-4" />,
   },
 ];
@@ -90,9 +90,7 @@ export function AppNav({
 
   return (
     <nav
-      role="tablist"
-      aria-label="Editor mode"
-      aria-orientation={orientation}
+      aria-label="Editor sections"
       className={cn(
         "relative inline-flex items-center gap-1 p-1 rounded-lg",
         "bg-kumo-recessed border border-kumo-line shadow-sm",
@@ -113,8 +111,6 @@ export function AppNav({
             // transitionTypes: Next 16.2+ ; graceful fallback via manual if not supported
             transitionTypes={[type] as unknown as never}
             scroll={false}
-            role="tab"
-            aria-selected={isOptimistic}
             aria-current={isOptimistic ? "page" : undefined}
             onNavigate={() =>
               startTransition(() => setOptimisticActive(item.href))

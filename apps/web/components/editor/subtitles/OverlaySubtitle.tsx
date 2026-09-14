@@ -14,10 +14,11 @@ export const OverlaySubtitle = memo(function OverlaySubtitle({
   const style = useMemo(() => renderSubtitleStyle(sub.style), [sub.style]);
   const handleClick = useCallback(() => onSelect(sub.id), [onSelect, sub.id]);
   return (
-    <div
+    <button
+      type="button"
       onClick={handleClick}
       className={cn(
-        "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight",
+        "absolute pointer-events-auto cursor-pointer select-none max-w-[90%] text-center leading-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded",
         isSelected && "ring-1 ring-dashed ring-blue-500 rounded",
       )}
       style={{
@@ -25,11 +26,11 @@ export const OverlaySubtitle = memo(function OverlaySubtitle({
         top: `${mobileLayoutService.clamp(sub.position.y, 0, 100)}%`,
         transform: "translate(-50%, -50%)",
       }}
-      aria-label={`Subtitle ${sub.text}`}
+      aria-label={`Edit subtitle ${sub.text || "new subtitle"}`}
     >
       <span style={{ ...style, display: "inline-block" }}>
         {sub.text || "New subtitle"}
       </span>
-    </div>
+    </button>
   );
 });

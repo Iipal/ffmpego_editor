@@ -19,6 +19,7 @@ export type ZoneOverlayProps = {
     handle: string,
   ) => void;
   onZoom: (id: string, z: number) => void;
+  onNudge: (id: string, dx: number, dy: number) => void;
 };
 
 export type SourceStageProps = {

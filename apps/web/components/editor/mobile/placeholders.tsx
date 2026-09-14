@@ -25,9 +25,9 @@ export const ZoneGridOverlay = (
     <div className="border-r border-b border-white/40" />
     <div className="border-r border-b border-white/40" />
     <div className="border-b border-white/40" />
-    <div className="border-r border-white/40" />
-    <div className="border-r border-white/40" />
-    <div />
+    <div className="border-r border-b border-white/40" />
+    <div className="border-r border-b border-white/40" />
+    <div className="border-b border-white/40" />
     <div className="border-r border-white/40" />
     <div className="border-r border-white/40" />
     <div />

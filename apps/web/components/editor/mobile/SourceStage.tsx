@@ -123,6 +123,15 @@ export const SourceStage = memo(function SourceStage({
     [layout.mode, layout.splitRatio, zoneById],
   );
 
+  const handleNudge = useCallback(
+    (id: string, dx: number, dy: number) => {
+      const zone = zoneById.get(id);
+      if (!zone || zone.locked) return;
+      onMoveRef.current(id, zone.x + dx, zone.y + dy);
+    },
+    [zoneById],
+  );
+
   return !mediaUrl ? (
     NoVideoPlaceholder
   ) : (
@@ -146,6 +155,7 @@ export const SourceStage = memo(function SourceStage({
           onPointerDownMove={handleMoveDown}
           onPointerDownHandle={handleResizeDown}
           onZoom={onZoom}
+          onNudge={handleNudge}
         />
       ))}
       <span className="pointer-events-none absolute bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 font-mono text-[10px] leading-none text-white tabular-nums">

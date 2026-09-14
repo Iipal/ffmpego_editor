@@ -54,14 +54,34 @@ export function useCutList({ duration }: { duration: number }) {
 
   const deleteSelected = useCallback(() => {
     if (!selectedId) return;
+    const removed = cuts.find((c) => c.id === selectedId);
+    if (!removed) return;
+    const idx = cuts.indexOf(removed);
     setCuts((prev) => prev.filter((c) => c.id !== selectedId));
     setSelectedId(null);
-  }, [selectedId]);
+    // ponytail: toast undo instead of confirm dialog (undo beats confirm)
+    toast.success("Cut deleted", {
+      action: {
+        label: "Undo",
+        onClick: () =>
+          setCuts((prev) => {
+            const next = [...prev];
+            next.splice(Math.min(idx, next.length), 0, removed);
+            return next;
+          }),
+      },
+    });
+  }, [selectedId, cuts]);
 
   const clearCuts = useCallback(() => {
+    if (cuts.length === 0) return;
+    const snapshot = cuts;
     setCuts([]);
     setSelectedId(null);
-  }, []);
+    toast.success(`Cleared ${snapshot.length} cut(s)`, {
+      action: { label: "Undo", onClick: () => setCuts(snapshot) },
+    });
+  }, [cuts]);
 
   return {
     cuts,

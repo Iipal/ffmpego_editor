@@ -44,12 +44,14 @@ export type VideoReset = (
 export function validateVideoFile(file: File | undefined): file is File {
   if (!file) return false;
   if (!videoFileService.isAcceptedVideoFile(file)) {
-    toast.error("Unsupported format. Use MP4/WebM/MOV/MKV (Matroska)");
+    toast.error(
+      `Unsupported format. Use ${VideoFileService.ACCEPTED_VIDEO_LABEL}. Load the file again with a supported type.`,
+    );
     return false;
   }
   if (videoFileService.isFileTooLarge(file)) {
     toast.error(
-      `File too large (${videoFileService.formatFileSize(file.size)}). Max ${videoFileService.formatFileSize(VideoFileService.MAX_UPLOAD_BYTES)}.`,
+      `File too large (${videoFileService.formatFileSize(file.size)}). Max is ${videoFileService.formatFileSize(VideoFileService.MAX_UPLOAD_BYTES)}.`,
     );
     return false;
   }

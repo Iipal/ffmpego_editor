@@ -44,7 +44,10 @@ export function useBulkExport({
 
   const onBulkExport = useCallback(() => {
     if (!stackedLayout || layoutError) {
-      toast.error(layoutError ?? "Invalid layout");
+      toast.error(
+        layoutError ??
+          "No portrait layout yet — save one in Mobile portrait, then Sync zones.",
+      );
       return;
     }
     const queue = itemsRef.current.filter(

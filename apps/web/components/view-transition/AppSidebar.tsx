@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Clapperboard, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AppNav } from "./AppNav";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { ShortcutsHelp } from "@/components/command/ShortcutsHelp";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -61,9 +62,9 @@ export function AppSidebar() {
         </span>
         {!collapsed && (
           <span className="flex min-w-0 flex-col">
-            <span className="truncate font-sans text-sm font-semibold text-kumo-strong">
+            <h1 className="truncate font-sans text-sm font-semibold text-kumo-strong">
               FFmpeg Editor
-            </span>
+            </h1>
             <span className="truncate text-xs text-kumo-subtle">
               Local video tools
             </span>
@@ -84,6 +85,7 @@ export function AppSidebar() {
         )}
       >
         <ThemeToggle />
+        <ShortcutsHelp />
         <Tooltip>
           <TooltipTrigger
             render={

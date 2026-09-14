@@ -30,7 +30,7 @@ export function VideoUploader() {
       if (!file || !videoFileService.isAcceptedVideoFile(file)) {
         if (file)
           toast.error(
-            `Unsupported format. Use ${VideoFileService.ACCEPTED_VIDEO_LABEL}`,
+            `Unsupported format. Use ${VideoFileService.ACCEPTED_VIDEO_LABEL}. Load the file again with a supported type.`,
           );
         return;
       }
