@@ -298,6 +298,29 @@ describe("buildFFmpegArgs mobile layout", () => {
       expect(fc).toContain("vstack=inputs=2");
     }
   });
+
+  test("full mode without watermark keeps video map next to audio maps", () => {
+    const args = buildFFmpegArgs({
+      ...BASE,
+      audioTracks: [0, 1].map((trackIndex) => ({
+        trackIndex,
+        enabled: trackIndex === 1,
+        gainDb: 0,
+        loudnormEnabled: false,
+        loudnormTargetLufs: -14,
+        fadeInSeconds: 0,
+        fadeOutSeconds: 0,
+        muteSegments: [],
+      })),
+      mobileLayout: { mode: "full", splitRatio: 0.5, zones: [zones[0]!] },
+    });
+    // Without -map 0:v the audio -map disables auto stream selection and
+    // the -vf video is dropped (audio-only output).
+    const maps = args.filter((_, i) => args[i - 1] === "-map");
+    expect(maps).toContain("0:v?");
+    expect(maps).toContain("0:a:1?");
+    expect(maps).not.toContain("0:a:0?");
+  });
 });
 
 describe("cutBuilder", () => {
@@ -358,6 +381,59 @@ describe("cutBuilder", () => {
     const fc = complex(args) ?? "";
     expect(fc).toContain("scale=1080:384");
     expect(fc).toContain("scale=1080:1536");
+  });
+
+  test("single selected audio track maps exactly that input track", () => {
+    const args = buildCutFFmpegArgs({
+      inputPath: "/tmp/in.mp4",
+      filename: "c",
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      cuts: [{ start: 0, end: 1 }],
+      mode: "full-size",
+      audioTrackIndex: 0,
+      audioTracks: [0, 1, 2, 3].map((trackIndex) => ({
+        trackIndex,
+        enabled: trackIndex === 2,
+        gainDb: 0,
+        loudnormEnabled: false,
+        loudnormTargetLufs: -14,
+        fadeInSeconds: 0,
+        fadeOutSeconds: 0,
+        muteSegments: [],
+      })),
+    });
+    const fc = complex(args) ?? "";
+    expect(fc).toContain("[0:a:2]atrim=0:1");
+    expect(fc).not.toContain("[0:a:0]");
+    expect(fc).toContain("concat=n=1:v=1:a=1");
+    expect(args).toContain("[acat0]");
+    expect(args).not.toContain("[acat1]");
+  });
+
+  test("multiple selected tracks concat in selection order", () => {
+    const args = buildCutFFmpegArgs({
+      inputPath: "/tmp/in.mp4",
+      filename: "c",
+      sourceWidth: 1920,
+      sourceHeight: 1080,
+      cuts: [{ start: 0, end: 1 }],
+      mode: "full-size",
+      audioTracks: [1, 3].map((trackIndex) => ({
+        trackIndex,
+        enabled: true,
+        gainDb: 0,
+        loudnormEnabled: false,
+        loudnormTargetLufs: -14,
+        fadeInSeconds: 0,
+        fadeOutSeconds: 0,
+        muteSegments: [],
+      })),
+    });
+    const fc = complex(args) ?? "";
+    expect(fc).toContain("[0:a:1]atrim=0:1");
+    expect(fc).toContain("[0:a:3]atrim=0:1");
+    expect(fc).toContain("concat=n=1:v=1:a=2");
   });
 });
 

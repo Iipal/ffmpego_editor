@@ -156,18 +156,11 @@ export function SidebarCropCard() {
               </dd>
             </div>
           </dl>
-          <Button
-            className="w-full"
-            variant={crop.isCropMode ? "default" : "outline"}
-            onClick={() =>
-              setCropState((previous) => ({
-                ...previous,
-                isCropMode: !previous.isCropMode,
-              }))
-            }
-          >
-            {crop.isCropMode ? "Crop mode on" : "Enable crop"}
-          </Button>
+          <p className="text-xs leading-5 text-kumo-subtle">
+            {crop.isCropMode
+              ? "Crop mode is on — adjust the rectangle on the video, then Done in the Crop area above."
+              : "Crop mode is off — press Edit crop in the Crop area above to adjust the rectangle."}
+          </p>
           <div className="space-y-3">
             <Label>Canvas zoom</Label>
             <Slider

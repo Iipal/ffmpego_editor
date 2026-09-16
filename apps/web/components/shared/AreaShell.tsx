@@ -70,7 +70,7 @@ export function AreaShell({
       <div className={gridClassName ?? READOUT_GRID}>
         {readouts.map((r) => (
           <div key={r.label} className="bg-kumo-recessed px-3 py-2">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-kumo-subtle">
+            <div className="text-[11px] font-medium tracking-normal text-kumo-subtle">
               {r.label}
             </div>
             {r.value}

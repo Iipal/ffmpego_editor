@@ -468,7 +468,10 @@ export function buildFFmpegArgs(options: TranscodeOptions) {
           `scale=1080:1920:flags=lanczos${setpts}`,
         );
         const af = getAudio();
-        if (options.audioTracks) args.push(...audioArgs(af));
+        // audioArgs emits audio -map(s) only: pair them with an explicit
+        // video map, otherwise the -map presence disables auto stream
+        // selection and the -vf output video is dropped (audio-only file).
+        if (options.audioTracks) args.push("-map", "0:v?", ...audioArgs(af));
         else if (af) args.push("-filter:a", af);
       }
     } else if (ml.mode === "stacked" && ml.zones.length >= 2) {

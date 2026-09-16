@@ -106,7 +106,7 @@ export function TrimControls({
             <span>
               Trim
               <span
-                className="ml-1.5 font-mono text-[11px] font-normal tabular-nums text-kumo-subtle"
+                className="ml-1.5 font-mono text-[11px] font-normal tabular-nums whitespace-nowrap text-kumo-subtle"
                 suppressHydrationWarning
               >
                 {formatTime(trimStart)} → {formatTime(trimEnd)} ·{" "}
@@ -135,7 +135,7 @@ export function TrimControls({
                   <span>End {formatTime(trimEnd)}</span>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                 <Button size="sm" variant="outline" onClick={setStartToCurrent}>
                   Set Start to {formatTime(currentTime)}
                 </Button>
@@ -143,7 +143,7 @@ export function TrimControls({
                   Set End to {formatTime(currentTime)}
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2">
                 <Button size="sm" variant="outline" onClick={setPlayerToStart}>
                   <SkipBack className="mr-2 size-4" />
                   Set Player to Start

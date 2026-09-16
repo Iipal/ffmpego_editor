@@ -62,7 +62,7 @@ export function CropArea() {
       }
       subtitle={
         <>
-          {cropLabel}
+          {isFullFrame ? "Full frame" : cropLabel}
           <span aria-hidden className="mx-1 text-kumo-hairline">
             ·
           </span>
@@ -103,22 +103,31 @@ export function CropArea() {
           <SidebarToggle />
         </>
       }
+      gridClassName={
+        isFullFrame
+          ? "grid grid-cols-2 gap-px border-t border-kumo-hairline bg-kumo-hairline"
+          : undefined
+      }
       readouts={[
-        {
-          label: "X / Y (pct)",
-          value: (
-            <>
-              <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {crop.x.toFixed(1)}% · {crop.y.toFixed(1)}%
-              </div>
-              {px && (
-                <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                  {px.x} · {px.y} px
-                </div>
-              )}
-            </>
-          ),
-        },
+        ...(isFullFrame
+          ? []
+          : [
+              {
+                label: "X / Y (pct)",
+                value: (
+                  <>
+                    <div className="mt-0.5 font-mono text-xs tabular-nums">
+                      {crop.x.toFixed(1)}% · {crop.y.toFixed(1)}%
+                    </div>
+                    {px && (
+                      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+                        {px.x} · {px.y} px
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+            ]),
         {
           label: "Size (pct)",
           value: (
@@ -134,22 +143,26 @@ export function CropArea() {
             </>
           ),
         },
-        {
-          label: "End (pct)",
-          value: (
-            <>
-              <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {(crop.x + crop.width).toFixed(1)}% ·{" "}
-                {(crop.y + crop.height).toFixed(1)}%
-              </div>
-              {px && (
-                <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                  {px.x2} · {px.y2} px
-                </div>
-              )}
-            </>
-          ),
-        },
+        ...(isFullFrame
+          ? []
+          : [
+              {
+                label: "End (pct)",
+                value: (
+                  <>
+                    <div className="mt-0.5 font-mono text-xs tabular-nums">
+                      {(crop.x + crop.width).toFixed(1)}% ·{" "}
+                      {(crop.y + crop.height).toFixed(1)}%
+                    </div>
+                    {px && (
+                      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
+                        {px.x2} · {px.y2} px
+                      </div>
+                    )}
+                  </>
+                ),
+              },
+            ]),
         {
           label: "FFmpeg",
           value: (

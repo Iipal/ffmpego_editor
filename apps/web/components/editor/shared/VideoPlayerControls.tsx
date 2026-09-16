@@ -75,7 +75,7 @@ export function VideoPlayerControls({
         onValueChange={(v) => onSeek(readSliderValue(v))}
         aria-label="Seek video"
       />
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 min-[420px]:gap-3">
         {onPlayFromStart ? (
           <Tooltip>
             <TooltipTrigger
@@ -152,7 +152,7 @@ export function VideoPlayerControls({
 
         {showVolume ? (
           <Slider
-            className="w-full max-w-18"
+            className="hidden w-full max-w-18 min-[480px]:block"
             value={[muted ? 0 : (volume ?? 0)]}
             min={0}
             max={1}
@@ -162,7 +162,7 @@ export function VideoPlayerControls({
           />
         ) : null}
 
-        <output className="ml-auto text-xs tabular-nums text-kumo-subtle">
+        <output className="ml-auto shrink-0 text-[11px] tabular-nums text-kumo-subtle min-[420px]:text-xs whitespace-nowrap">
           {timeLabel ?? `${formatTime(currentTime)} / ${formatTime(duration)}`}
         </output>
 

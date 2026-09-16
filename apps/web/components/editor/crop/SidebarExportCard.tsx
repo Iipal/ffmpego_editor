@@ -356,21 +356,21 @@ export function SidebarExportCard() {
             </p>
           ) : null}
           <SidebarPreflightSummary preflightResult={preflightResult} />
-          <Button
-            className="w-full"
-            onClick={startExport}
-            disabled={
-              source.sourceWidth === 0 ||
-              source.sourceHeight === 0 ||
-              !preflightResult.ok
-            }
-          >
-            {cut.presetTarget === "audio-extract"
-              ? "Extract audio"
-              : "Export video"}
-          </Button>
         </CollapsibleContent>
       </Collapsible>
+      <Button
+        className="mt-4 w-full"
+        onClick={startExport}
+        disabled={
+          source.sourceWidth === 0 ||
+          source.sourceHeight === 0 ||
+          !preflightResult.ok
+        }
+      >
+        {cut.presetTarget === "audio-extract"
+          ? "Extract audio"
+          : "Export video"}
+      </Button>
     </Card>
   );
 }

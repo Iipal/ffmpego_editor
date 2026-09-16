@@ -986,6 +986,8 @@ app.post("/transcode/cut", async (c) => {
     customArgs: custom.args,
     outputPath: originalOutputPath,
     watermark: !!settings.watermark,
+    audioTrackIndex: settings.audioTrackIndex,
+    audioTracks: settings.audioTracks,
   });
   jobLog(jobId, "cut ffmpeg args:", cutArgs.join(" "));
   const rejected = submitTranscode(
