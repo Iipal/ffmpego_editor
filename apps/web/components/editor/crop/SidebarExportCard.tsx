@@ -178,7 +178,9 @@ export function SidebarExportCard() {
               <div className="flex items-center justify-between">
                 <Label>
                   Quality CRF{" "}
-                  <span className="text-[10px] -mx-1.5">(Lower is better)</span>
+                  <span className="font-normal text-kumo-subtle">
+                    (Lower is better)
+                  </span>
                 </Label>
                 <span className="text-xs text-kumo-subtle tabular-nums">
                   {cut.exportQuality}
@@ -274,50 +276,52 @@ export function SidebarExportCard() {
                     No audio tracks detected in this file.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {audioTracks.map((track) => (
-                      <li
-                        key={track.trackIndex}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium">
-                            Track {track.trackIndex + 1}
-                            {track.title ? ` · ${track.title}` : ""}
-                          </p>
-                          <p className="truncate text-[11px] text-kumo-subtle">
-                            {[
-                              track.language,
-                              track.codec,
-                              `${track.channels}ch`,
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </p>
-                        </div>
-                        <Switch
-                          id={`export-audio-enabled-${track.trackIndex}`}
-                          checked={track.enabled}
-                          onCheckedChange={(enabled) =>
-                            setAudioState((previous) => ({
-                              ...previous,
-                              tracks: previous.tracks.map((t) =>
-                                t.trackIndex === track.trackIndex
-                                  ? { ...t, enabled }
-                                  : t,
-                              ),
-                            }))
-                          }
-                          aria-label={`Include track ${track.trackIndex + 1} in export`}
-                        />
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="space-y-2">
+                      {audioTracks.map((track) => (
+                        <li
+                          key={track.trackIndex}
+                          className="flex items-center justify-between gap-2"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium">
+                              Track {track.trackIndex + 1}
+                              {track.title ? ` · ${track.title}` : ""}
+                            </p>
+                            <p className="truncate text-[11px] text-kumo-subtle">
+                              {[
+                                track.language,
+                                track.codec,
+                                `${track.channels}ch`,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </div>
+                          <Switch
+                            id={`export-audio-enabled-${track.trackIndex}`}
+                            checked={track.enabled}
+                            onCheckedChange={(enabled) =>
+                              setAudioState((previous) => ({
+                                ...previous,
+                                tracks: previous.tracks.map((t) =>
+                                  t.trackIndex === track.trackIndex
+                                    ? { ...t, enabled }
+                                    : t,
+                                ),
+                              }))
+                            }
+                            aria-label={`Include track ${track.trackIndex + 1} in export`}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="text-[11px] leading-4 text-kumo-subtle">
+                      Same switches as Audio controls — disabled tracks are left
+                      out of the export.
+                    </p>
+                  </>
                 )}
-                <p className="text-[11px] leading-4 text-kumo-subtle">
-                  Same switches as Audio controls — disabled tracks are left out
-                  of the export.
-                </p>
               </div>
             </>
           )}

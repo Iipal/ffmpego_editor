@@ -62,7 +62,7 @@ export function EditorHeader({
           </span>
         </div>
         <p className="flex flex-wrap items-center gap-1.5 text-xs leading-4 text-kumo-subtle">
-          <span>16:9 → 9:16 · Two zones</span>
+          <span>16:9 → 9:16</span>
           <span aria-hidden className="text-kumo-hairline">
             ·
           </span>

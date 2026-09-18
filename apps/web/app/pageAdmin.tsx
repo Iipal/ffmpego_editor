@@ -168,10 +168,7 @@ export default function PageAdmin() {
         <JobsArea
           total={data?.count ?? jobs.length}
           pending={pendingCount}
-          completed={completedCount}
-          failed={failedCount}
           filter={deferredFilter}
-          isStale={isFilterStale}
           isFetching={isFetching}
           apiBase={apiBaseUrl()}
           liveStatus={liveStatus}

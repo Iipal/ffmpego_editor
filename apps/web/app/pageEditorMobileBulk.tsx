@@ -126,17 +126,13 @@ export default function MobileBulkEditorPage() {
         onBulkExport={onBulkExport}
       />
 
-      {/* Bulk area — control & readout surface, mirrors pageEditorCrop CropArea */}
+      {/* Bulk toolbar — slim control bar, mirrors pageEditorCrop CropArea */}
       <BulkArea
-        layout={stackedLayout}
         total={items.length}
         selectedCount={selectedCount}
-        completedCount={completedCount}
-        failedCount={failedCount}
         splitLabel={splitLabel}
         useWatermark={useWatermark}
         inputFolderName={inputFolderName}
-        outputDirName={outputDirName}
         activeExports={activeExports}
         onSync={syncLayout}
         onOutput={() => void pickOutputFolder()}

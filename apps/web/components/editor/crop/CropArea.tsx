@@ -7,17 +7,10 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useCropControls } from "./hooks";
 
-// Design goals (replaces all previous crop boilerplate):
-//  - Single source of truth: `store.crop` is the only mutable state.
-//  - Percentages are always 0..100 relative to source pixels (store invariant).
-//  - Pixel readout is derived, never stored.
-//  - No useDeferredValue / useTransition / stale flags — crop is synchronous.
-//  - No manual Map caches, no duplicated localStorage logic, no avg stats.
-//  - Visual: one authoritative bar that tells the user what will be exported.
-//  - Actions: enable/disable crop mode, reset to full frame, aspect badge.
-//  - The interactive rectangle itself lives in CropOverlay (pointer handling);
-//    this component is the *control & readout* surface for the crop area.
-
+// Stage toolbar for the crop job: identity + Edit/Done + Reset/Save.
+// Numeric readouts live once in the sidebar Crop card — this bar stays
+// slim so the video stage is the hero. The ffmpeg string rides along in
+// the subtitle so the export contract is visible where the rect is drawn.
 export function CropArea() {
   const {
     crop,
@@ -32,6 +25,11 @@ export function CropArea() {
     toggleCropMode,
     saveCrop,
   } = useCropControls();
+
+  const ffmpeg =
+    hasSource && px
+      ? `crop=${px.w}:${px.h}:${px.x}:${px.y}`
+      : `crop=${crop.width.toFixed(1)}%:${crop.height.toFixed(1)}%:${crop.x.toFixed(1)}%:${crop.y.toFixed(1)}%`;
 
   return (
     <AreaShell
@@ -67,6 +65,14 @@ export function CropArea() {
             ·
           </span>
           source {sourceLabel}
+          {isFullFrame ? null : (
+            <>
+              <span aria-hidden className="mx-1 text-kumo-hairline">
+                ·
+              </span>
+              <span className="font-mono tabular-nums">{ffmpeg}</span>
+            </>
+          )}
         </>
       }
       actions={
@@ -103,86 +109,13 @@ export function CropArea() {
           <SidebarToggle />
         </>
       }
-      gridClassName={
-        isFullFrame
-          ? "grid grid-cols-2 gap-px border-t border-kumo-hairline bg-kumo-hairline"
-          : undefined
-      }
-      readouts={[
-        ...(isFullFrame
-          ? []
-          : [
-              {
-                label: "X / Y (pct)",
-                value: (
-                  <>
-                    <div className="mt-0.5 font-mono text-xs tabular-nums">
-                      {crop.x.toFixed(1)}% · {crop.y.toFixed(1)}%
-                    </div>
-                    {px && (
-                      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                        {px.x} · {px.y} px
-                      </div>
-                    )}
-                  </>
-                ),
-              },
-            ]),
-        {
-          label: "Size (pct)",
-          value: (
-            <>
-              <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {crop.width.toFixed(1)}% × {crop.height.toFixed(1)}%
-              </div>
-              {px && (
-                <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                  {px.w} × {px.h} px
-                </div>
-              )}
-            </>
-          ),
-        },
-        ...(isFullFrame
-          ? []
-          : [
-              {
-                label: "End (pct)",
-                value: (
-                  <>
-                    <div className="mt-0.5 font-mono text-xs tabular-nums">
-                      {(crop.x + crop.width).toFixed(1)}% ·{" "}
-                      {(crop.y + crop.height).toFixed(1)}%
-                    </div>
-                    {px && (
-                      <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                        {px.x2} · {px.y2} px
-                      </div>
-                    )}
-                  </>
-                ),
-              },
-            ]),
-        {
-          label: "FFmpeg",
-          value: (
-            <div className="mt-0.5 font-mono text-[11px] leading-4 tabular-nums text-kumo-subtle">
-              {hasSource && px
-                ? `crop=${px.w}:${px.h}:${px.x}:${px.y}`
-                : `crop=${crop.width.toFixed(1)}%:${crop.height.toFixed(1)}%:${crop.x.toFixed(1)}%:${crop.y.toFixed(1)}%`}
-            </div>
-          ),
-        },
-      ]}
       hint={
         isCropMode ? (
           <span>
             Drag the rectangle to move · drag handles to resize · aspect lock in
             sidebar
           </span>
-        ) : (
-          <span>Click “Edit crop” to adjust the rectangle on the video</span>
-        )
+        ) : undefined
       }
     />
   );

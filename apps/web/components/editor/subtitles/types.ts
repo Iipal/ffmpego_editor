@@ -33,11 +33,8 @@ export type SubtitleAreaProps = {
   trackCount: number;
   layoutMode: string;
   selected: Subtitle | null;
-  trimLabel: string;
   durationLabel: string;
-  fileName: string;
   sourceLabel: string;
-  exportName: string;
   canDelete: boolean;
   onAdd: () => void;
   onDelete: () => void;

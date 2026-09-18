@@ -70,10 +70,7 @@ export type JobRowProps = {
 export type JobsAreaProps = {
   total: number;
   pending: number;
-  completed: number;
-  failed: number;
   filter: string;
-  isStale: boolean;
   isFetching: boolean;
   liveStatus: LiveStatus;
   apiBase: string;

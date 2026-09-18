@@ -127,7 +127,7 @@ export function SidebarCropCard() {
               <SelectItem value="21:9">21:9</SelectItem>
             </SelectContent>
           </Select>
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs tabular-nums">
             <div>
               <dt className="text-kumo-subtle">Start X</dt>
               <dd>{Math.round((rect.x / 100) * sourceWidth)} px</dd>
@@ -158,8 +158,8 @@ export function SidebarCropCard() {
           </dl>
           <p className="text-xs leading-5 text-kumo-subtle">
             {crop.isCropMode
-              ? "Crop mode is on — adjust the rectangle on the video, then Done in the Crop area above."
-              : "Crop mode is off — press Edit crop in the Crop area above to adjust the rectangle."}
+              ? "Crop mode is on — adjust the rectangle on the video, then Done in the Crop area toolbar."
+              : "Crop mode is off — press Edit crop in the Crop area toolbar to adjust the rectangle."}
           </p>
           <div className="space-y-3">
             <Label>Canvas zoom</Label>

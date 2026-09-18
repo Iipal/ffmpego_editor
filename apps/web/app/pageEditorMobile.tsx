@@ -1,7 +1,6 @@
 "use client";
 
 import { toast } from "sonner";
-import { formatTime } from "@/lib/format-time";
 import { UploadProgress } from "@/components/editor/UploadProgress";
 import { MobileArea } from "@/components/editor/mobile/MobileArea";
 import { MobileEmptyState } from "@/components/editor/mobile/MobileEmptyState";
@@ -61,31 +60,25 @@ export default function MobileEditorPage() {
           } as React.CSSProperties
         }
       >
-        <MobileArea
-          layout={s.ed.layout}
-          selected={s.ed.selected}
-          modeBadge={s.modeBadge}
-          splitLabel={s.splitLabel}
-          sourceLabel={s.sourceLabel}
-          outputLabel={s.outputLabel}
-          trimLabel={s.trimLabel}
-          timeLabel={`${formatTime(s.currentTime)} / ${formatTime(s.duration)}`}
-          filterPreview={s.defferedFilter}
-          validationError={s.validationError}
-          isStale={s.isFilterStale || s.isPending}
-          canUndo={s.ed.undo.length > 0}
-          canRedo={s.ed.redo.length > 0}
-          onUndo={s.ed.undoOp}
-          onRedo={s.ed.redoOp}
-          onSave={() => {
-            mobileLayoutService.savePref(s.ed.layout);
-            toast.success("Layout preference saved", {
-              description: `${s.ed.layout.mode} · split ${Math.round(s.ed.layout.splitRatio * 100)}% · ${s.ed.layout.zones.length} zones`,
-            });
-          }}
-        />
+        <div className="min-w-0 space-y-4">
+          <MobileArea
+            layout={s.ed.layout}
+            modeBadge={s.modeBadge}
+            outputLabel={s.outputLabel}
+            validationError={s.validationError}
+            isStale={s.isFilterStale || s.isPending}
+            canUndo={s.ed.undo.length > 0}
+            canRedo={s.ed.redo.length > 0}
+            onUndo={s.ed.undoOp}
+            onRedo={s.ed.redoOp}
+            onSave={() => {
+              mobileLayoutService.savePref(s.ed.layout);
+              toast.success("Layout preference saved", {
+                description: `${s.ed.layout.mode} · split ${Math.round(s.ed.layout.splitRatio * 100)}% · ${s.ed.layout.zones.length} zones`,
+              });
+            }}
+          />
 
-        <div className="space-y-4">
           <SourcePanel
             layout={s.ed.layout}
             selected={s.ed.selected}
@@ -136,10 +129,6 @@ export default function MobileEditorPage() {
             setIgnoreTrim={s.ed.setIgnoreTrim}
             customFFmpegArgs={s.ed.customFFmpegArgs}
             setCustomFFmpegArgs={s.ed.setCustomFFmpegArgs}
-            onSavePreference={() => {
-              mobileLayoutService.savePref(s.ed.layout);
-              toast.success("Layout saved as default");
-            }}
             deferredFilter={s.defferedFilter}
             isFilterStale={s.isFilterStale}
             isPending={s.isPending}

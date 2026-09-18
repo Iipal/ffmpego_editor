@@ -13,7 +13,7 @@ export type AreaShellProps = {
   subtitle?: ReactNode;
   badges?: ReactNode;
   actions?: ReactNode;
-  readouts: AreaReadout[];
+  readouts?: AreaReadout[];
   hint?: ReactNode;
   /** Extra outer-card classes for legacy differences (e.g. `col-span-full`). */
   className?: string;
@@ -67,16 +67,18 @@ export function AreaShell({
       </div>
 
       {/* Readout grid */}
-      <div className={gridClassName ?? READOUT_GRID}>
-        {readouts.map((r) => (
-          <div key={r.label} className="bg-kumo-recessed px-3 py-2">
-            <div className="text-[11px] font-medium tracking-normal text-kumo-subtle">
-              {r.label}
+      {readouts && readouts.length > 0 ? (
+        <div className={gridClassName ?? READOUT_GRID}>
+          {readouts.map((r) => (
+            <div key={r.label} className="bg-kumo-recessed px-3 py-2">
+              <div className="text-[11px] font-medium tracking-normal text-kumo-subtle">
+                {r.label}
+              </div>
+              {r.value}
             </div>
-            {r.value}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Hint — operational, not decorative */}
       {hint ? (

@@ -54,14 +54,8 @@ export type ZoneCardProps = {
 
 export type MobileAreaProps = {
   layout: MobileLayout;
-  selected: ZoneId;
   modeBadge: string;
-  splitLabel: string;
-  sourceLabel: string;
   outputLabel: string;
-  trimLabel: string;
-  timeLabel: string;
-  filterPreview: string;
   validationError: string | null;
   isStale: boolean;
   canUndo: boolean;

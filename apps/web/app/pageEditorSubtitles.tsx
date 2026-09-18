@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { formatTime } from "@/lib/format-time";
-import { videoFileService } from "@/lib/video-file";
 import { NoVideoPlaceholderCard } from "@/components/editor/subtitles/placeholders";
 import { PreviewPane } from "@/components/editor/subtitles/PreviewPane";
 import { SubtitleArea } from "@/components/editor/subtitles/SubtitleArea";
@@ -22,7 +21,9 @@ export default function PageEditorSubtitles() {
 
   // rendering-conditional-render: explicit ternary, not &&
   return !e.hasVideo ? (
-    <div className="space-y-3">{NoVideoPlaceholderCard}</div>
+    <div className="space-y-3">
+      <NoVideoPlaceholderCard />
+    </div>
   ) : (
     <div className="space-y-3">
       <video
@@ -62,30 +63,26 @@ export default function PageEditorSubtitles() {
         </div>
       </div>
 
-      {/* Subtitle area — control & readout surface, mirrors pageEditorCrop CropArea */}
-      <SubtitleArea
-        count={e.deferredSubtitles.length}
-        trackCount={e.trackCount}
-        layoutMode={e.layout.mode}
-        selected={e.selectedSubtitle}
-        trimLabel={`${formatTime(e.trimStart)} → ${formatTime(e.trimEnd)}`}
-        durationLabel={
-          e.effectiveDuration ? formatTime(e.effectiveDuration) : "Loading…"
-        }
-        fileName={e.file?.name ?? ""}
-        sourceLabel={
-          e.sourceWidth > 0 && e.sourceHeight > 0
-            ? `${e.sourceWidth} × ${e.sourceHeight} px`
-            : "—"
-        }
-        exportName={`${(e.file ? videoFileService.stripExtension(e.file.name) : "") || "video"}_mobile_subtitles_1080x1920.mp4`}
-        canDelete={!!e.selectedId}
-        onAdd={e.handleAddSubtitle}
-        onDelete={e.handleDeleteSubtitle}
-      />
-
+      {/* Subtitle toolbar — docked into the stage column above the preview */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_300px] items-start">
         <div className="space-y-3">
+          <SubtitleArea
+            count={e.deferredSubtitles.length}
+            trackCount={e.trackCount}
+            layoutMode={e.layout.mode}
+            selected={e.selectedSubtitle}
+            durationLabel={
+              e.effectiveDuration ? formatTime(e.effectiveDuration) : "Loading…"
+            }
+            sourceLabel={
+              e.sourceWidth > 0 && e.sourceHeight > 0
+                ? `${e.sourceWidth} × ${e.sourceHeight} px`
+                : "—"
+            }
+            canDelete={!!e.selectedId}
+            onAdd={e.handleAddSubtitle}
+            onDelete={e.handleDeleteSubtitle}
+          />
           <PreviewPane
             layout={e.layout}
             videoRef={e.videoRef}

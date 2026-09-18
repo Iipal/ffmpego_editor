@@ -3,19 +3,12 @@ import { Button } from "@/components/ui/button";
 import { AreaShell } from "@/components/shared/AreaShell";
 import { Redo2, Save, Smartphone, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MobileLayoutService } from "@/lib/mobile-layout";
 import type { MobileAreaProps } from "./types";
 
 export const MobileArea = memo(function MobileArea({
   layout,
-  selected,
   modeBadge,
-  splitLabel,
-  sourceLabel,
   outputLabel,
-  trimLabel,
-  timeLabel,
-  filterPreview,
   validationError,
   isStale,
   canUndo,
@@ -32,7 +25,6 @@ export const MobileArea = memo(function MobileArea({
 
   return (
     <AreaShell
-      className="col-span-full"
       icon={<Smartphone className="size-3.5" aria-hidden />}
       title="Mobile area"
       badges={
@@ -76,10 +68,6 @@ export const MobileArea = memo(function MobileArea({
             ·
           </span>
           {outputLabel}
-          <span aria-hidden className="mx-1 text-kumo-hairline">
-            ·
-          </span>
-          source {sourceLabel}
         </>
       }
       actions={
@@ -121,68 +109,6 @@ export const MobileArea = memo(function MobileArea({
           </Button>
         </>
       }
-      readouts={[
-        {
-          label: "Zones (pct)",
-          value: (
-            <div className="mt-0.5 space-y-0.5 font-mono text-[11px] tabular-nums">
-              {layout.zones.map((z) => {
-                const isSel = z.id === selected;
-                const tag = z.id === "zone-1" ? "Z1" : "Z2";
-                return (
-                  <div
-                    key={z.id}
-                    className={isSel ? "text-kumo-brand" : "text-kumo-subtle"}
-                  >
-                    {tag} {z.x.toFixed(1)},{z.y.toFixed(1)} ·{" "}
-                    {z.width.toFixed(1)}×{z.height.toFixed(1)} ·{" "}
-                    {z.zoom.toFixed(2)}×{z.role ? ` · ${z.role}` : ""}
-                    {z.locked ? " · locked" : ""}
-                  </div>
-                );
-              })}
-            </div>
-          ),
-        },
-        {
-          label: "Split / Trim",
-          value: (
-            <>
-              <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {splitLabel}%
-              </div>
-              <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                {trimLabel}
-              </div>
-              <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                {timeLabel}
-              </div>
-            </>
-          ),
-        },
-        {
-          label: "FFmpeg",
-          value: (
-            <div className="mt-0.5 line-clamp-3 font-mono text-[11px] leading-4 tabular-nums text-kumo-subtle break-all">
-              {filterPreview || "—"}
-            </div>
-          ),
-        },
-        {
-          label: "Status",
-          value: (
-            <>
-              <div className="mt-0.5 font-mono text-xs tabular-nums">
-                {validationError ? "invalid" : status}
-              </div>
-              <div className="font-mono text-[11px] tabular-nums text-kumo-subtle">
-                {validationError ??
-                  `${MobileLayoutService.OUTPUT_W}×${MobileLayoutService.OUTPUT_H} · 9:16`}
-              </div>
-            </>
-          ),
-        },
-      ]}
       hint={
         layout.mode === "full" ? (
           <span>

@@ -7,17 +7,14 @@ import { AreaShell } from "@/components/shared/AreaShell";
 import { Button } from "@/components/ui/button";
 import type { JobsAreaProps } from "./types";
 
-// JobsArea — CropArea-style control & readout surface for transcode jobs
-// Mirrors pageEditorCrop CropArea: one authoritative bar (top bar + readout
-// grid + hint). Readouts are derived, never stored. Jobs persist in the API
-// SQLite registry and arrive via SSE live sync; Refresh re-fetches on demand.
+// JobsArea — slim toolbar for transcode jobs (readout grid removed: counts
+// live in the Admin header and the Current jobs filter bar). Jobs persist in
+// the API SQLite registry and arrive via SSE live sync; Refresh re-fetches
+// on demand.
 export const JobsArea = memo(function JobsArea({
   total,
   pending,
-  completed,
-  failed,
   filter,
-  isStale,
   isFetching,
   liveStatus,
   apiBase,
@@ -26,7 +23,6 @@ export const JobsArea = memo(function JobsArea({
   return (
     <AreaShell
       className="flex flex-col col-span-full border"
-      gridClassName="grid grid-cols-4 gap-px border-t border-kumo-hairline bg-kumo-hairline"
       icon={<ServerCog className="size-3.5" aria-hidden />}
       title="Jobs area"
       badges={
@@ -80,43 +76,6 @@ export const JobsArea = memo(function JobsArea({
           {isFetching ? "Refreshing…" : "Refresh"}
         </Button>
       }
-      readouts={[
-        {
-          label: "Total",
-          value: (
-            <div className="mt-0.5 font-mono text-xs tabular-nums">{total}</div>
-          ),
-        },
-        {
-          label: "Pending",
-          value: (
-            <div className="mt-0.5 font-mono text-xs tabular-nums">
-              {pending}
-            </div>
-          ),
-        },
-        {
-          label: "Completed",
-          value: (
-            <div className="mt-0.5 font-mono text-xs tabular-nums">
-              {completed}
-            </div>
-          ),
-        },
-        {
-          label: "Failed",
-          value: (
-            <div
-              className={cn(
-                "mt-0.5 font-mono text-xs tabular-nums",
-                failed > 0 && "text-kumo-warn",
-              )}
-            >
-              {failed}
-            </div>
-          ),
-        },
-      ]}
       hint={
         <span>
           Live sync via SSE · Pending = processing + queued · outputs kept

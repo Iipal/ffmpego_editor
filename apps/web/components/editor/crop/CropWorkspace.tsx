@@ -1,10 +1,8 @@
 "use client";
 
 import { Activity } from "react";
-import { ArrowUpRight, Crop } from "lucide-react";
 import { Sidebar } from "@/components/editor/Sidebar";
 import { UploadProgress } from "@/components/editor/UploadProgress";
-import { Button } from "@/components/ui/button";
 import { useSelector } from "@tanstack/react-store";
 import { sourceStore } from "@/store/sourceSlice";
 import { cutStore } from "@/store/cutSlice";
@@ -28,11 +26,11 @@ export function CropWorkspace() {
         </Activity>
       ) : null}
 
-      {/* Workspace */}
+      {/* Workspace: stage column (toolbar + player + timeline) and controls rail */}
       <div
         className={cn(
           "grid items-start gap-4",
-          isSidebarOpen ? "lg:grid-cols-[minmax(0,1fr)_340px]" : "grid-cols-1",
+          isSidebarOpen ? "lg:grid-cols-[minmax(0,1fr)_360px]" : "grid-cols-1",
         )}
         style={
           {
@@ -41,46 +39,15 @@ export function CropWorkspace() {
           } as React.CSSProperties
         }
       >
-        {/* Crop area — fresh implementation replaces the old isCropStale/cropStats strip */}
-        <div className="col-span-full">
-          <CropArea />
-        </div>
-
-        {/* Main column — player */}
+        {/* Main column — crop toolbar docked to the stage it controls */}
         <div className="min-w-0 flex flex-col gap-3">
+          <CropArea />
           <Activity mode={hasVideo ? "visible" : "hidden"}>
             <DynamicVideoPlayer />
           </Activity>
-
-          {!isSidebarOpen && (
-            <div className="flex flex-wrap items-center gap-2 text-xs text-kumo-subtle">
-              <span className="inline-flex items-center gap-1.5 rounded-md border border-kumo-hairline bg-kumo-base px-2 py-1 text-[11px] font-medium">
-                <Crop className="size-3" aria-hidden />
-                Crop disabled — open sidebar to enable
-              </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 rounded-md text-xs"
-                onClick={() => {
-                  const el = document.querySelector<HTMLButtonElement>(
-                    '[aria-label="Show sidebar"]',
-                  );
-                  el?.click();
-                }}
-              >
-                Show controls
-                <ArrowUpRight className="size-3" aria-hidden />
-              </Button>
-            </div>
-          )}
         </div>
 
-        {isSidebarOpen ? (
-          <div className="min-w-0">
-            <Sidebar />
-          </div>
-        ) : null}
+        {isSidebarOpen ? <Sidebar /> : null}
       </div>
     </div>
   );

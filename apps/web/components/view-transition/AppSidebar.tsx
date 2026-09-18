@@ -45,6 +45,7 @@ export function AppSidebar() {
     <aside
       style={{ viewTransitionName: "site-sidebar" } as React.CSSProperties}
       data-collapsed={collapsed}
+      suppressHydrationWarning
       className={cn(
         "sticky top-0 z-40 flex h-svh shrink-0 flex-col border-r border-kumo-line bg-kumo-base transition-[width] duration-200 ease-linear",
         collapsed ? "w-16" : "w-60",

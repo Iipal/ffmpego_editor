@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -29,7 +28,6 @@ type PreviewPanelProps = {
   setIgnoreTrim: (v: boolean) => void;
   customFFmpegArgs: string;
   setCustomFFmpegArgs: (v: string) => void;
-  onSavePreference: () => void;
   deferredFilter: string;
   isFilterStale: boolean;
   isPending: boolean;
@@ -50,7 +48,6 @@ export function PreviewPanel({
   setIgnoreTrim,
   customFFmpegArgs,
   setCustomFFmpegArgs,
-  onSavePreference,
   deferredFilter,
   isFilterStale,
   isPending,
@@ -107,19 +104,16 @@ export function PreviewPanel({
             <Switch checked={useWatermark} onCheckedChange={setUseWatermark} />
           </div>
           <div className="flex items-center justify-between">
-            <Label className="text-xs">Ignore Trim Settings</Label>
+            <Label className="text-xs">Ignore trim</Label>
             <Switch checked={ignoreTrim} onCheckedChange={setIgnoreTrim} />
           </div>
           <CustomArgsCollapsible
             value={customFFmpegArgs}
             onChange={setCustomFFmpegArgs}
           />
-          <Button className="w-full" onClick={onSavePreference}>
-            Save preference
-          </Button>
           <p className="text-[10px] leading-3 text-kumo-subtle">
             Static zones across {ignoreTrim ? "full video" : "trimmed clip"}.
-            Final render 1080×1920 · same geometry as preview.{" "}
+            Same geometry as preview.{" "}
             {ignoreTrim ? "Trim ignored on export." : "Trim applied to export."}
           </p>
           {isPending ? (
